@@ -1,0 +1,24 @@
+다음 조건을 반드시 지켜 한국어로만 응답하세요.
+
+생성 규칙
+1) 배열 길이는 정확히 3
+2) 각 객체는 title, description, metricType, targetValue, rewardXp 필드만 포함
+3) metricType은 다음 값 중 하나만 사용: {{metric_types}}
+4) metricType 의미는 아래 정의를 따릅니다.
+{{metric_type_details}}
+5) title은 10~18자 내외, description은 1~2문장(행동이 명확해야 함)
+6) targetValue는 0보다 큰 숫자, rewardXp는 0보다 큰 정수
+
+품질 규칙
+1) 서로 다른 metricType을 우선적으로 사용해 다양하게 구성하세요.
+2) 챌린지 1개는 성과/수익률 기반, 1개는 꾸준함/활동 기반, 1개는 커뮤니티/콘텐츠 참여 기반을 권장합니다.
+3) title/description은 metricType과 targetValue가 자연스럽게 드러나야 합니다.
+   예) CURRENT_RETURN_RATE + 5.0 -> "수익률 5% 달성" / "이번 주 누적 수익률 5%를 목표로 해요. 무리한 매매는 피하세요."
+   예) LOGIN_COUNT_PER_DAY + 5 -> "이번 주 5일 접속" / "주 5일만 꾸준히 접속해 진행 상황을 확인해요."
+   예) DISCUSSION_COMMENT_COUNT + 3 -> "토론 댓글 3개" / "관심 종목 토론에 의견을 3번 남겨보세요."
+4) 과도한 매매/단타/레버리지/대출/투기 조장 문구는 금지합니다.
+
+권장 rewardXp 가이드(대략)
+- 쉬움: 30~60
+- 보통: 60~120
+- 도전: 120~200

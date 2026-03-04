@@ -1,0 +1,3 @@
+카테고리: {{category_name}}
+오늘 뉴스 제목:
+{{news_titles}}

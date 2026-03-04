@@ -1,0 +1,2 @@
+뉴스 내용:
+{{news_content}}

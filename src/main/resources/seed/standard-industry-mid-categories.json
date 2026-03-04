@@ -1,0 +1,1950 @@
+[
+  {
+    "code": "0000",
+    "name": "미분류"
+  },
+  {
+    "code": "0001",
+    "name": "종합"
+  },
+  {
+    "code": "0002",
+    "name": "대형주"
+  },
+  {
+    "code": "0003",
+    "name": "중형주"
+  },
+  {
+    "code": "0004",
+    "name": "소형주"
+  },
+  {
+    "code": "0005",
+    "name": "음식료·담배"
+  },
+  {
+    "code": "0006",
+    "name": "섬유·의류"
+  },
+  {
+    "code": "0007",
+    "name": "종이·목재"
+  },
+  {
+    "code": "0008",
+    "name": "화학"
+  },
+  {
+    "code": "0009",
+    "name": "제약"
+  },
+  {
+    "code": "0010",
+    "name": "비금속"
+  },
+  {
+    "code": "0011",
+    "name": "금속"
+  },
+  {
+    "code": "0012",
+    "name": "기계·장비"
+  },
+  {
+    "code": "0013",
+    "name": "전기·전자"
+  },
+  {
+    "code": "0014",
+    "name": "의료·정밀기기"
+  },
+  {
+    "code": "0015",
+    "name": "운송장비·부품"
+  },
+  {
+    "code": "0016",
+    "name": "유통"
+  },
+  {
+    "code": "0017",
+    "name": "전기·가스"
+  },
+  {
+    "code": "0018",
+    "name": "건설"
+  },
+  {
+    "code": "0019",
+    "name": "운송·창고"
+  },
+  {
+    "code": "0020",
+    "name": "통신"
+  },
+  {
+    "code": "0021",
+    "name": "금융"
+  },
+  {
+    "code": "0024",
+    "name": "증권"
+  },
+  {
+    "code": "0025",
+    "name": "보험"
+  },
+  {
+    "code": "0026",
+    "name": "일반서비스"
+  },
+  {
+    "code": "0027",
+    "name": "제조"
+  },
+  {
+    "code": "0028",
+    "name": "부동산"
+  },
+  {
+    "code": "0029",
+    "name": "IT 서비스"
+  },
+  {
+    "code": "0030",
+    "name": "오락·문화"
+  },
+  {
+    "code": "0163",
+    "name": "고배당50"
+  },
+  {
+    "code": "0164",
+    "name": "배당성장50"
+  },
+  {
+    "code": "0165",
+    "name": "우선주"
+  },
+  {
+    "code": "0195",
+    "name": "코스피 TR"
+  },
+  {
+    "code": "0241",
+    "name": "코스피 고배당 50 TR"
+  },
+  {
+    "code": "0242",
+    "name": "코스피 배당성장 50 TR"
+  },
+  {
+    "code": "0244",
+    "name": "코스피200제외 코스피지수"
+  },
+  {
+    "code": "0503",
+    "name": "VKOSPI"
+  },
+  {
+    "code": "1001",
+    "name": "KOSDAQ"
+  },
+  {
+    "code": "1002",
+    "name": "코스닥 대형주"
+  },
+  {
+    "code": "1003",
+    "name": "코스닥 중형주"
+  },
+  {
+    "code": "1004",
+    "name": "코스닥 소형주"
+  },
+  {
+    "code": "1006",
+    "name": "일반서비스"
+  },
+  {
+    "code": "1009",
+    "name": "제조"
+  },
+  {
+    "code": "1010",
+    "name": "건설"
+  },
+  {
+    "code": "1011",
+    "name": "유통"
+  },
+  {
+    "code": "1013",
+    "name": "운송·창고"
+  },
+  {
+    "code": "1014",
+    "name": "금융"
+  },
+  {
+    "code": "1015",
+    "name": "오락·문화"
+  },
+  {
+    "code": "1019",
+    "name": "음식료·담배"
+  },
+  {
+    "code": "1020",
+    "name": "섬유·의류"
+  },
+  {
+    "code": "1021",
+    "name": "종이·목재"
+  },
+  {
+    "code": "1022",
+    "name": "출판·매체복제"
+  },
+  {
+    "code": "1023",
+    "name": "화학"
+  },
+  {
+    "code": "1024",
+    "name": "제약"
+  },
+  {
+    "code": "1025",
+    "name": "비금속"
+  },
+  {
+    "code": "1026",
+    "name": "금속"
+  },
+  {
+    "code": "1027",
+    "name": "기계·장비"
+  },
+  {
+    "code": "1028",
+    "name": "전기·전자"
+  },
+  {
+    "code": "1029",
+    "name": "의료·정밀기기"
+  },
+  {
+    "code": "1030",
+    "name": "운송장비·부품"
+  },
+  {
+    "code": "1031",
+    "name": "기타제조"
+  },
+  {
+    "code": "1032",
+    "name": "통신"
+  },
+  {
+    "code": "1033",
+    "name": "IT 서비스"
+  },
+  {
+    "code": "1042",
+    "name": "우량기업"
+  },
+  {
+    "code": "1043",
+    "name": "벤처기업"
+  },
+  {
+    "code": "1044",
+    "name": "중견기업"
+  },
+  {
+    "code": "1045",
+    "name": "기술성장기업"
+  },
+  {
+    "code": "1049",
+    "name": "코스닥 글로벌"
+  },
+  {
+    "code": "1196",
+    "name": "코스닥 TR"
+  },
+  {
+    "code": "1331",
+    "name": "코스닥 150 거버넌스"
+  },
+  {
+    "code": "2001",
+    "name": "KOSPI200"
+  },
+  {
+    "code": "2007",
+    "name": "KOSPI100"
+  },
+  {
+    "code": "2008",
+    "name": "KOSPI50"
+  },
+  {
+    "code": "2009",
+    "name": "K건설"
+  },
+  {
+    "code": "2010",
+    "name": "K중공업"
+  },
+  {
+    "code": "2011",
+    "name": "K철강소재"
+  },
+  {
+    "code": "2012",
+    "name": "K에너지화학"
+  },
+  {
+    "code": "2013",
+    "name": "K정보기술"
+  },
+  {
+    "code": "2014",
+    "name": "K금융"
+  },
+  {
+    "code": "2015",
+    "name": "K생활소비재"
+  },
+  {
+    "code": "2016",
+    "name": "K경기소비재"
+  },
+  {
+    "code": "2017",
+    "name": "K산업재"
+  },
+  {
+    "code": "2018",
+    "name": "K헬스케어"
+  },
+  {
+    "code": "2019",
+    "name": "K고배당"
+  },
+  {
+    "code": "2021",
+    "name": "K200가치저변동성"
+  },
+  {
+    "code": "2022",
+    "name": "K200중소형주"
+  },
+  {
+    "code": "2023",
+    "name": "K200경기방어소비재"
+  },
+  {
+    "code": "2024",
+    "name": "K200에너지화학 레버리지"
+  },
+  {
+    "code": "2025",
+    "name": "K200정보기술 레버리지"
+  },
+  {
+    "code": "2026",
+    "name": "K200금융 레버리지"
+  },
+  {
+    "code": "2027",
+    "name": "K200경기소비재 레버리지"
+  },
+  {
+    "code": "2028",
+    "name": "K200건설 레버리지"
+  },
+  {
+    "code": "2029",
+    "name": "K200중공업 레버리지"
+  },
+  {
+    "code": "2030",
+    "name": "K200헬스케어 레버리지"
+  },
+  {
+    "code": "2035",
+    "name": "코스피200 TR"
+  },
+  {
+    "code": "2036",
+    "name": "코스피200 NTR"
+  },
+  {
+    "code": "2037",
+    "name": "코스피200 예측 고배당 50"
+  },
+  {
+    "code": "2038",
+    "name": "코스피200 예측 배당성장 50"
+  },
+  {
+    "code": "2039",
+    "name": "K커뮤니케이션서비스"
+  },
+  {
+    "code": "2040",
+    "name": "코스피200 초대형 제외지수"
+  },
+  {
+    "code": "2041",
+    "name": "K200 정보기술 TR"
+  },
+  {
+    "code": "2042",
+    "name": "K200 금융 TR"
+  },
+  {
+    "code": "2043",
+    "name": "K200 경기소비재 TR"
+  },
+  {
+    "code": "2044",
+    "name": "K200 에너지화학 TR"
+  },
+  {
+    "code": "2045",
+    "name": "K200 생활소비재 TR"
+  },
+  {
+    "code": "2046",
+    "name": "K200 건설 TR"
+  },
+  {
+    "code": "2047",
+    "name": "K200 중공업 TR"
+  },
+  {
+    "code": "2048",
+    "name": "K200 철강소재 TR"
+  },
+  {
+    "code": "2049",
+    "name": "K200 산업재 TR"
+  },
+  {
+    "code": "2050",
+    "name": "K200 헬스케어 TR"
+  },
+  {
+    "code": "2051",
+    "name": "K200 커뮤니케이션서비스 TR"
+  },
+  {
+    "code": "2180",
+    "name": "코스피 200 ESG 지수"
+  },
+  {
+    "code": "2224",
+    "name": "K200 비중상한 30%"
+  },
+  {
+    "code": "2225",
+    "name": "K200 비중상한 30%  TR"
+  },
+  {
+    "code": "2226",
+    "name": "K200 비중상한 30%  NTR"
+  },
+  {
+    "code": "2227",
+    "name": "K200 비중상한 25%"
+  },
+  {
+    "code": "2228",
+    "name": "K200 비중상한 25%  TR"
+  },
+  {
+    "code": "2230",
+    "name": "K200 비중상한 25%  NTR"
+  },
+  {
+    "code": "2232",
+    "name": "K200 비중상한 20%"
+  },
+  {
+    "code": "2233",
+    "name": "K200 비중상한 20%  TR"
+  },
+  {
+    "code": "2235",
+    "name": "K200 비중상한 20%  NTR"
+  },
+  {
+    "code": "2283",
+    "name": "코스피 200 기후변화지수"
+  },
+  {
+    "code": "2284",
+    "name": "코스피 200 선물지수 TWAP형"
+  },
+  {
+    "code": "2285",
+    "name": "코스피 200 선물 TWAP 인버스지수"
+  },
+  {
+    "code": "2286",
+    "name": "코스피 200 선물 TWAP 레버리지"
+  },
+  {
+    "code": "2287",
+    "name": "코스피 200 선물 TWAP 인버스-2X"
+  },
+  {
+    "code": "2501",
+    "name": "K200선물"
+  },
+  {
+    "code": "2502",
+    "name": "F-K200 인버스"
+  },
+  {
+    "code": "2503",
+    "name": "K200 레버리지"
+  },
+  {
+    "code": "2505",
+    "name": "K200커버드콜 5% OTM"
+  },
+  {
+    "code": "2506",
+    "name": "K200프로텍티브풋 5% OTM"
+  },
+  {
+    "code": "2705",
+    "name": "F-K200 인버스-2X"
+  },
+  {
+    "code": "2706",
+    "name": "F-K200 인버스-3X"
+  },
+  {
+    "code": "2716",
+    "name": "F-KOSPI 200 레버리지"
+  },
+  {
+    "code": "2721",
+    "name": "미니 F-KOSP200"
+  },
+  {
+    "code": "2722",
+    "name": "미니 F-KOSP200 레버리지"
+  },
+  {
+    "code": "2723",
+    "name": "미니 F-KOSP200 인버스"
+  },
+  {
+    "code": "2724",
+    "name": "미니 F-KOSP200 인버스-2X"
+  },
+  {
+    "code": "2731",
+    "name": "K200 현선물레버리지 1.5X"
+  },
+  {
+    "code": "2751",
+    "name": "F-K200 에너지/화학"
+  },
+  {
+    "code": "2752",
+    "name": "F-K200 정보기술"
+  },
+  {
+    "code": "2753",
+    "name": "F-K200 금융"
+  },
+  {
+    "code": "2754",
+    "name": "F-K200 경기소비재"
+  },
+  {
+    "code": "2755",
+    "name": "F-K200 건설"
+  },
+  {
+    "code": "2756",
+    "name": "F-K200 중공업"
+  },
+  {
+    "code": "2757",
+    "name": "F-K200 헬스케어"
+  },
+  {
+    "code": "2758",
+    "name": "F-K200 생활소비재"
+  },
+  {
+    "code": "2759",
+    "name": "F-K200 철강/소재"
+  },
+  {
+    "code": "2760",
+    "name": "F-K200 산업재"
+  },
+  {
+    "code": "2761",
+    "name": "F-K200 에너지/화학  레버리지"
+  },
+  {
+    "code": "2762",
+    "name": "F-K200 정보기술  레버리지"
+  },
+  {
+    "code": "2763",
+    "name": "F-K200 금융  레버리지"
+  },
+  {
+    "code": "2764",
+    "name": "F-K200 경기소비재  레버리지"
+  },
+  {
+    "code": "2765",
+    "name": "F-K200 건설  레버리지"
+  },
+  {
+    "code": "2766",
+    "name": "F-K200 중공업  레버리지"
+  },
+  {
+    "code": "2767",
+    "name": "F-K200 헬스케어  레버리지"
+  },
+  {
+    "code": "2768",
+    "name": "F-K200 생활소비재  레버리지"
+  },
+  {
+    "code": "2769",
+    "name": "F-K200 철강/소재  레버리지"
+  },
+  {
+    "code": "2770",
+    "name": "F-K200 산업재  레버리지"
+  },
+  {
+    "code": "2771",
+    "name": "F-K200 에너지/화학  인버스"
+  },
+  {
+    "code": "2772",
+    "name": "F-K200 정보기술  인버스"
+  },
+  {
+    "code": "2773",
+    "name": "F-K200 금융  인버스"
+  },
+  {
+    "code": "2774",
+    "name": "F-K200 경기소비재  인버스"
+  },
+  {
+    "code": "2775",
+    "name": "F-K200 건설  인버스"
+  },
+  {
+    "code": "2776",
+    "name": "F-K200 중공업  인버스"
+  },
+  {
+    "code": "2777",
+    "name": "F-K200 헬스케어  인버스"
+  },
+  {
+    "code": "2778",
+    "name": "F-K200 생활소비재  인버스"
+  },
+  {
+    "code": "2779",
+    "name": "F-K200 철강/소재  인버스"
+  },
+  {
+    "code": "2780",
+    "name": "F-K200 산업재  선물 인버스"
+  },
+  {
+    "code": "2781",
+    "name": "F-K200 에너지/화학  인버스-2X"
+  },
+  {
+    "code": "2782",
+    "name": "F-K200 정보기술  인버스-2X"
+  },
+  {
+    "code": "2783",
+    "name": "F-K200 금융  인버스-2X"
+  },
+  {
+    "code": "2784",
+    "name": "F-K200 경기소비재  인버스-2X"
+  },
+  {
+    "code": "2785",
+    "name": "F-K200 건설  인버스-2X"
+  },
+  {
+    "code": "2786",
+    "name": "F-K200 중공업  인버스-2X"
+  },
+  {
+    "code": "2787",
+    "name": "F-K200 헬스케어  인버스-2X"
+  },
+  {
+    "code": "2788",
+    "name": "F-K200 생활소비재  인버스-2X"
+  },
+  {
+    "code": "2789",
+    "name": "F-K200 철강/소재  인버스-2X"
+  },
+  {
+    "code": "2790",
+    "name": "F-K200 산업재  인버스-2X"
+  },
+  {
+    "code": "3003",
+    "name": "KSQ150"
+  },
+  {
+    "code": "3004",
+    "name": "KSQ150 동일가중"
+  },
+  {
+    "code": "3005",
+    "name": "KSQ150 레버리지"
+  },
+  {
+    "code": "3006",
+    "name": "F-KSQ150"
+  },
+  {
+    "code": "3007",
+    "name": "F-KSQ150 인버스"
+  },
+  {
+    "code": "3008",
+    "name": "F-KSQ150 인버스-2X"
+  },
+  {
+    "code": "3009",
+    "name": "F-KSQ150 인버스-3X"
+  },
+  {
+    "code": "3010",
+    "name": "KSQ150 레버리지 0.5"
+  },
+  {
+    "code": "3012",
+    "name": "KSQ150 소재"
+  },
+  {
+    "code": "3013",
+    "name": "KSQ150 산업재"
+  },
+  {
+    "code": "3014",
+    "name": "KSQ150 필수소비재"
+  },
+  {
+    "code": "3015",
+    "name": "KSQ150 자유소비재"
+  },
+  {
+    "code": "3016",
+    "name": "KSQ150 정보기술"
+  },
+  {
+    "code": "3017",
+    "name": "코스닥 150 헬스케어"
+  },
+  {
+    "code": "3018",
+    "name": "코스닥 150 커뮤니케이션서비스"
+  },
+  {
+    "code": "3020",
+    "name": "F-KSQ150 레버리지"
+  },
+  {
+    "code": "3197",
+    "name": "코스닥 150 TR"
+  },
+  {
+    "code": "3420",
+    "name": "코스닥 150 선물지수 TWAP형"
+  },
+  {
+    "code": "3421",
+    "name": "코스닥 150 선물 TWAP 인버스지수"
+  },
+  {
+    "code": "3422",
+    "name": "코스닥 150 선물 TWAP 레버리지"
+  },
+  {
+    "code": "3423",
+    "name": "코스닥 150 선물 TWAP 인버스-2X"
+  },
+  {
+    "code": "3501",
+    "name": "코넥스"
+  },
+  {
+    "code": "4001",
+    "name": "KRX100"
+  },
+  {
+    "code": "4002",
+    "name": "KRX 자동차"
+  },
+  {
+    "code": "4003",
+    "name": "KRX 반도체"
+  },
+  {
+    "code": "4004",
+    "name": "KRX 헬스케어"
+  },
+  {
+    "code": "4005",
+    "name": "KRX 은행"
+  },
+  {
+    "code": "4007",
+    "name": "KRX 에너지화학"
+  },
+  {
+    "code": "4008",
+    "name": "KRX 철강"
+  },
+  {
+    "code": "4010",
+    "name": "KRX 방송통신"
+  },
+  {
+    "code": "4011",
+    "name": "KRX 건설"
+  },
+  {
+    "code": "4013",
+    "name": "KRX 증권"
+  },
+  {
+    "code": "4014",
+    "name": "KRX 기계장비"
+  },
+  {
+    "code": "4015",
+    "name": "KRX 보험"
+  },
+  {
+    "code": "4016",
+    "name": "KRX 운송"
+  },
+  {
+    "code": "4061",
+    "name": "KRX 경기소비재"
+  },
+  {
+    "code": "4062",
+    "name": "KRX 필수소비재"
+  },
+  {
+    "code": "4063",
+    "name": "KRX 미디어&엔터테인먼트"
+  },
+  {
+    "code": "4064",
+    "name": "KRX 정보기술"
+  },
+  {
+    "code": "4065",
+    "name": "KRX 유틸리티"
+  },
+  {
+    "code": "4132",
+    "name": "KRX ESG Leaders 150"
+  },
+  {
+    "code": "4133",
+    "name": "KRX Governance Leaders 150"
+  },
+  {
+    "code": "4134",
+    "name": "KRX Eco Leaders 150"
+  },
+  {
+    "code": "4136",
+    "name": "KRX 사회책임경영지수"
+  },
+  {
+    "code": "4142",
+    "name": "KRX 최소변동성지수"
+  },
+  {
+    "code": "4198",
+    "name": "KRX 300 TR"
+  },
+  {
+    "code": "4300",
+    "name": "KRX 300"
+  },
+  {
+    "code": "4304",
+    "name": "KRX 300 선물지수"
+  },
+  {
+    "code": "4305",
+    "name": "KRX 300 레버리지지수"
+  },
+  {
+    "code": "4306",
+    "name": "KRX 300 선물 레버리지지수"
+  },
+  {
+    "code": "4307",
+    "name": "KRX 300 선물 인버스지수"
+  },
+  {
+    "code": "4308",
+    "name": "KRX 300 선물 인버스-2X지수"
+  },
+  {
+    "code": "4351",
+    "name": "KRX 300 정보기술"
+  },
+  {
+    "code": "4352",
+    "name": "KRX 300 금융"
+  },
+  {
+    "code": "4353",
+    "name": "KRX 300 자유소비재"
+  },
+  {
+    "code": "4354",
+    "name": "KRX 300 산업재"
+  },
+  {
+    "code": "4355",
+    "name": "KRX 300 헬스케어"
+  },
+  {
+    "code": "4356",
+    "name": "KRX 300 커뮤니케이션서비스"
+  },
+  {
+    "code": "4357",
+    "name": "KRX 300 소재"
+  },
+  {
+    "code": "4358",
+    "name": "KRX 300 필수소비재"
+  },
+  {
+    "code": "4411",
+    "name": "KRX BBIG 지수"
+  },
+  {
+    "code": "4412",
+    "name": "KRX 2차전지TOP 10 지수"
+  },
+  {
+    "code": "4413",
+    "name": "KRX 바이오 TOP 10 지수"
+  },
+  {
+    "code": "4414",
+    "name": "KRX 인터넷 TOP 10 지수"
+  },
+  {
+    "code": "4415",
+    "name": "KRX 게임 TOP 10 지수"
+  },
+  {
+    "code": "4416",
+    "name": "KRX BBIG 리스크컨트롤12%"
+  },
+  {
+    "code": "4417",
+    "name": "KRX BBIG 리스크컨트롤12% 비용차감"
+  },
+  {
+    "code": "4418",
+    "name": "KRX 300 기후변화지수"
+  },
+  {
+    "code": "4419",
+    "name": "KRX 기후변화 솔루션지수"
+  },
+  {
+    "code": "4420",
+    "name": "KRX 블루칩 25"
+  },
+  {
+    "code": "4421",
+    "name": "KRX 전기차 Top 15"
+  },
+  {
+    "code": "4422",
+    "name": "KRX 반도체 Top 15"
+  },
+  {
+    "code": "4426",
+    "name": "KKRX 블루칩 25 USD"
+  },
+  {
+    "code": "4427",
+    "name": "KRX 전기차 Top 15 USD"
+  },
+  {
+    "code": "4428",
+    "name": "KRX 반도체 Top 15 USD"
+  },
+  {
+    "code": "4429",
+    "name": "KRX CSI 한중 대표기업 50"
+  },
+  {
+    "code": "4430",
+    "name": "KRX CSI 한중 전기차지수"
+  },
+  {
+    "code": "4431",
+    "name": "KRX CSI 한중 반도체지수"
+  },
+  {
+    "code": "4442",
+    "name": "KRX FactSet 모빌리티 이노베이터"
+  },
+  {
+    "code": "4443",
+    "name": "KRX FactSet 디지털 헬스케어"
+  },
+  {
+    "code": "4444",
+    "name": "KRX FactSet 디지털 인프라"
+  },
+  {
+    "code": "4445",
+    "name": "KRX FactSet 차세대 에너지"
+  },
+  {
+    "code": "4446",
+    "name": "코리아 밸류업 지수"
+  },
+  {
+    "code": "4447",
+    "name": "코리아 밸류업 TR 지수"
+  },
+  {
+    "code": "4448",
+    "name": "KRX TMI"
+  },
+  {
+    "code": "4449",
+    "name": "KRX 중대형 TMI"
+  },
+  {
+    "code": "4450",
+    "name": "KRX 중형 TMI"
+  },
+  {
+    "code": "4451",
+    "name": "KRX 소형 TMI"
+  },
+  {
+    "code": "4452",
+    "name": "KRX 초소형 TMI"
+  },
+  {
+    "code": "4453",
+    "name": "KRX 2차전지 TOP 10 TR 지수"
+  },
+  {
+    "code": "4454",
+    "name": "KRX 2차전지 TOP 10 TR 레버리지 지수"
+  },
+  {
+    "code": "4600",
+    "name": "KTOP 30"
+  },
+  {
+    "code": "4601",
+    "name": "KTOP 30 레버리지"
+  },
+  {
+    "code": "4602",
+    "name": "코스피200 코스닥150 고정비중 50:50"
+  },
+  {
+    "code": "4603",
+    "name": "코스피200 코스닥150 고정비중 70:30"
+  },
+  {
+    "code": "4604",
+    "name": "코스피200 코스닥150 고정비중 30:70"
+  },
+  {
+    "code": "4605",
+    "name": "코스피200 코스닥150 고정비중 5:5레버리지"
+  },
+  {
+    "code": "4916",
+    "name": "KRX BBIG 레버리지 지수"
+  },
+  {
+    "code": "4917",
+    "name": "KRX 2차전지 TOP 10 레버리지 지수"
+  },
+  {
+    "code": "4918",
+    "name": "KRX 리츠 TOP 10"
+  },
+  {
+    "code": "4919",
+    "name": "KRX 리츠 TOP 10 레버리지"
+  },
+  {
+    "code": "6001",
+    "name": "미국달러선물"
+  },
+  {
+    "code": "6002",
+    "name": "미국달러선물 인버스"
+  },
+  {
+    "code": "6003",
+    "name": "미국달러선물 레버리지"
+  },
+  {
+    "code": "6004",
+    "name": "미국달러선물 TR"
+  },
+  {
+    "code": "6008",
+    "name": "국채선물지수"
+  },
+  {
+    "code": "6009",
+    "name": "국채선물지수 인버스"
+  },
+  {
+    "code": "6010",
+    "name": "10년국채선물지수"
+  },
+  {
+    "code": "6011",
+    "name": "10년국채선물지수 인버스"
+  },
+  {
+    "code": "6013",
+    "name": "미국달러선물 인버스-2X"
+  },
+  {
+    "code": "6014",
+    "name": "미국달러선물 인버스-3X"
+  },
+  {
+    "code": "6015",
+    "name": "10년국채선물레버리지지수"
+  },
+  {
+    "code": "6016",
+    "name": "10년국채선물인버스레버리지지수"
+  },
+  {
+    "code": "6018",
+    "name": "엔선물"
+  },
+  {
+    "code": "6019",
+    "name": "엔선물 레버리지"
+  },
+  {
+    "code": "6020",
+    "name": "엔선물 인버스"
+  },
+  {
+    "code": "6021",
+    "name": "엔선물 인버스-2X"
+  },
+  {
+    "code": "6022",
+    "name": "엔선물 인버스-3X"
+  },
+  {
+    "code": "6023",
+    "name": "유로선물"
+  },
+  {
+    "code": "6024",
+    "name": "유로선물 레버리지"
+  },
+  {
+    "code": "6025",
+    "name": "유로선물 인버스"
+  },
+  {
+    "code": "6026",
+    "name": "유로선물 인버스-2X"
+  },
+  {
+    "code": "6027",
+    "name": "유로선물 인버스-3X"
+  },
+  {
+    "code": "6028",
+    "name": "KRX 금현물지수"
+  },
+  {
+    "code": "6029",
+    "name": "KRX 금현물지수 USD"
+  },
+  {
+    "code": "6030",
+    "name": "KRX 금현물 레버리지"
+  },
+  {
+    "code": "6103",
+    "name": "한.대만 IT 프리미어지수"
+  },
+  {
+    "code": "6104",
+    "name": "KRX/S&P 탄소효율 그린뉴딜지수"
+  },
+  {
+    "code": "6105",
+    "name": "KRX/S&P ESG 고배당"
+  },
+  {
+    "code": "6239",
+    "name": "FnGuide IoT"
+  },
+  {
+    "code": "6243",
+    "name": "리츠인프라 우선주 혼합"
+  },
+  {
+    "code": "6268",
+    "name": "HSCEI Short Index(Total Return)"
+  },
+  {
+    "code": "6269",
+    "name": "HSCEI TR 2x Leveraged 지수"
+  },
+  {
+    "code": "6270",
+    "name": "HSCEI 2x Short 지수"
+  },
+  {
+    "code": "6275",
+    "name": "Bloomberg Copper Single TR"
+  },
+  {
+    "code": "6276",
+    "name": "Bloomberg Copper Single 2X Leveraged TR"
+  },
+  {
+    "code": "6277",
+    "name": "Bloomberg Copper Single 2X Inverse TR"
+  },
+  {
+    "code": "6278",
+    "name": "S&P GSCI Carbon Emission Allowances"
+  },
+  {
+    "code": "6279",
+    "name": "Bloomberg WTI Crude Oil Single TR"
+  },
+  {
+    "code": "6280",
+    "name": "Bloomberg WTI Single 2X Leveraged TR"
+  },
+  {
+    "code": "6281",
+    "name": "Bloomberg WTI Single 2X Inverse TR"
+  },
+  {
+    "code": "6282",
+    "name": "코스피 200 NTR 고정배당 8 포인트 지수"
+  },
+  {
+    "code": "6286",
+    "name": "DJSI Korea Capped 25% Index(KRW)"
+  },
+  {
+    "code": "6287",
+    "name": "S&P 500 Futures 2X Inverse TR"
+  },
+  {
+    "code": "6288",
+    "name": "S&P 500 Futures 2X Leveraged TR"
+  },
+  {
+    "code": "6289",
+    "name": "Euro Stoxx 50 Daily Leverage Index(GR)"
+  },
+  {
+    "code": "6290",
+    "name": "Euro Stoxx 50 Daily Double Short(GR)"
+  },
+  {
+    "code": "6291",
+    "name": "Euro Stoxx 50 Daily Short (Gross Return)"
+  },
+  {
+    "code": "6292",
+    "name": "NASDAQ-100 Leveraged Total Return Index"
+  },
+  {
+    "code": "6293",
+    "name": "NASDAQ-100 1x Short Total Return Index"
+  },
+  {
+    "code": "6294",
+    "name": "NASDAQ-100 2x Short Total Return Index"
+  },
+  {
+    "code": "6295",
+    "name": "NASDAQ-100 Total Return Index"
+  },
+  {
+    "code": "6296",
+    "name": "DJCI Natual Gas 2X Inverse TR"
+  },
+  {
+    "code": "6297",
+    "name": "DJCI Natual Gas 2X Leveraged TR"
+  },
+  {
+    "code": "6298",
+    "name": "S&P 500 Future Index TR"
+  },
+  {
+    "code": "6301",
+    "name": "DJCI Platinum(BOK Call Rate) TR"
+  },
+  {
+    "code": "6302",
+    "name": "DJCI Platinum Inverse(BOK Call Rate) TR"
+  },
+  {
+    "code": "6303",
+    "name": "DJCI Gold TR"
+  },
+  {
+    "code": "6304",
+    "name": "DJCI Inverse Gold TR"
+  },
+  {
+    "code": "6305",
+    "name": "DJCI Silver TR"
+  },
+  {
+    "code": "6306",
+    "name": "DJCI Inverse Silver TR"
+  },
+  {
+    "code": "6308",
+    "name": "국채 3-10년 선물지수"
+  },
+  {
+    "code": "6309",
+    "name": "국채 3-10년 선물레버리지지수"
+  },
+  {
+    "code": "6310",
+    "name": "국채 3-10년 선물인버스지수"
+  },
+  {
+    "code": "6311",
+    "name": "국채 3-10년 선물인버스-2X지수"
+  },
+  {
+    "code": "6321",
+    "name": "국채선물 3년-10년 일드커브 스티프닝"
+  },
+  {
+    "code": "6322",
+    "name": "국채선물 3년-10년 일드커브 플래트닝"
+  },
+  {
+    "code": "6323",
+    "name": "국채선물 3년-10년 일드커브 스티프닝 2X"
+  },
+  {
+    "code": "6324",
+    "name": "국채선물 3년-10년 일드커브 플래트닝 2X"
+  },
+  {
+    "code": "6325",
+    "name": "KIS CD 금리투자 총수익지수"
+  },
+  {
+    "code": "6330",
+    "name": "KAP 레버리지 국채 30년 TR 지수"
+  },
+  {
+    "code": "6331",
+    "name": "KAP 레버리지 미국채 30년 지수(총수익)"
+  },
+  {
+    "code": "6332",
+    "name": "KAP 3X 레버리지 국채 30년 TR 지수"
+  },
+  {
+    "code": "6333",
+    "name": "KAP 3X 레버리지 미국채 30 년(총수익)"
+  },
+  {
+    "code": "6400",
+    "name": "DJCI 2X Inverse Gold TR"
+  },
+  {
+    "code": "6401",
+    "name": "DJCI 2X Leverage Gold TR"
+  },
+  {
+    "code": "6402",
+    "name": "DJCI 2X Inverse Silver TR"
+  },
+  {
+    "code": "6403",
+    "name": "DJCI 2X Leverage Silver TR"
+  },
+  {
+    "code": "6404",
+    "name": "DJCI Platinum 2X Inverse TR"
+  },
+  {
+    "code": "6405",
+    "name": "DJCI Platinum 2X Leveraged TR"
+  },
+  {
+    "code": "6500",
+    "name": "S&P500 VIX Short-Term F-Index"
+  },
+  {
+    "code": "6501",
+    "name": "S&P500 VIX Short-Term F-0.5x Inverse"
+  },
+  {
+    "code": "6502",
+    "name": "S&P Japanese Yen Futures"
+  },
+  {
+    "code": "6503",
+    "name": "S&P Japanese Yen Futures 2x Lever Daily"
+  },
+  {
+    "code": "6504",
+    "name": "S&P Japanese Yen Futures 2x Inv Daily"
+  },
+  {
+    "code": "6601",
+    "name": "코스피 커버드콜 5% OTM 선물지수"
+  },
+  {
+    "code": "6602",
+    "name": "코스피 커버드풋 5% OTM 선물지수"
+  },
+  {
+    "code": "6603",
+    "name": "iSTOXX Vietnam Futures"
+  },
+  {
+    "code": "6604",
+    "name": "iSTOXX Vietnam Futures Daily Short"
+  },
+  {
+    "code": "6605",
+    "name": "iSTOXX Vietnam Futures Daily Leverage 2"
+  },
+  {
+    "code": "6606",
+    "name": "iSTOXX Vietnam Futures Daily Short 2"
+  },
+  {
+    "code": "6611",
+    "name": "WISE 삼성그룹 밸류 인덱스"
+  },
+  {
+    "code": "6612",
+    "name": "WISE LowVOL 인덱스"
+  },
+  {
+    "code": "6613",
+    "name": "WISE 셀렉트 배당"
+  },
+  {
+    "code": "6614",
+    "name": "WISE K150 Quant 인덱스"
+  },
+  {
+    "code": "6615",
+    "name": "스마트리밸런싱 250/3 A 지수"
+  },
+  {
+    "code": "6616",
+    "name": "WISE 롱숏 K150 로우볼 지수"
+  },
+  {
+    "code": "6617",
+    "name": "WISE BIG5 동일가중 TR 지수"
+  },
+  {
+    "code": "6618",
+    "name": "WISE 스마트베타 Quality 지수"
+  },
+  {
+    "code": "6619",
+    "name": "WISE 스마트베타 Momentum"
+  },
+  {
+    "code": "6620",
+    "name": "WISE 스마트베타 Value"
+  },
+  {
+    "code": "6621",
+    "name": "WISE Monthly Best 11"
+  },
+  {
+    "code": "6622",
+    "name": "WISE Q150 Monthly Best 11 지수"
+  },
+  {
+    "code": "6623",
+    "name": "WISE 여행레저 지수"
+  },
+  {
+    "code": "6624",
+    "name": "WISE 미디어컨텐츠 지수"
+  },
+  {
+    "code": "6625",
+    "name": "WISE 화장품 지수"
+  },
+  {
+    "code": "6626",
+    "name": "WISE 우량주 Monthly Best 11 지수"
+  },
+  {
+    "code": "6627",
+    "name": "WISE 셀렉트 모멘텀 섹터 지수"
+  },
+  {
+    "code": "6628",
+    "name": "WISE 전기전자 테마 TR 지수"
+  },
+  {
+    "code": "6629",
+    "name": "WISE 화학 테마 TR 지수"
+  },
+  {
+    "code": "6630",
+    "name": "WISE 전기전자 테마 인버스 지수"
+  },
+  {
+    "code": "6631",
+    "name": "WISE 화학 테마 인버스 지수"
+  },
+  {
+    "code": "6632",
+    "name": "한경 WISE KR Premire 지수"
+  },
+  {
+    "code": "6633",
+    "name": "WISE 스마트베타 LowVOL 지수"
+  },
+  {
+    "code": "6634",
+    "name": "WISE 스마트베타 지수"
+  },
+  {
+    "code": "6636",
+    "name": "WISE 주주환원 지수"
+  },
+  {
+    "code": "6637",
+    "name": "WISE 미디어엔터 테마 TR 지수"
+  },
+  {
+    "code": "6638",
+    "name": "WISE 미디어엔터 테마 인버스 TR"
+  },
+  {
+    "code": "6639",
+    "name": "WISE Q150 TOP5 TR 지수"
+  },
+  {
+    "code": "6640",
+    "name": "스마트 리밸런싱 250/3 A 레버리지"
+  },
+  {
+    "code": "6642",
+    "name": "WISE 지속가능배당주"
+  },
+  {
+    "code": "6644",
+    "name": "WISE ESG 우수기업지수"
+  },
+  {
+    "code": "6646",
+    "name": "WISE 게임 테마 지수"
+  },
+  {
+    "code": "6647",
+    "name": "WISE 2차전지 테마 AI 지수"
+  },
+  {
+    "code": "6648",
+    "name": "WISE 게임 테마 AI지수"
+  },
+  {
+    "code": "6649",
+    "name": "WISE 업종대표주 TR지수"
+  },
+  {
+    "code": "6707",
+    "name": "K200 커버드콜 ATM"
+  },
+  {
+    "code": "6708",
+    "name": "K200 커버드콜 ATM 레버리지"
+  },
+  {
+    "code": "6709",
+    "name": "K200 고배당 커버드콜 ATM"
+  },
+  {
+    "code": "6711",
+    "name": "K200 리스크컨트롤6%"
+  },
+  {
+    "code": "6712",
+    "name": "K200 리스크컨트롤8%"
+  },
+  {
+    "code": "6713",
+    "name": "K200 리스크컨트롤10%"
+  },
+  {
+    "code": "6714",
+    "name": "K200 리스크컨트롤12%"
+  },
+  {
+    "code": "6717",
+    "name": "코스피 양매도 5% OTM지수"
+  },
+  {
+    "code": "6719",
+    "name": "코스피 양매도 ATM지수"
+  },
+  {
+    "code": "6720",
+    "name": "코스피 양매도 3% OTM지수"
+  },
+  {
+    "code": "6725",
+    "name": "코스피선물커버드콜 ATM 지수"
+  },
+  {
+    "code": "6726",
+    "name": "코스피선물커버드콜 3% OTM 지수"
+  },
+  {
+    "code": "6727",
+    "name": "코스피선물커버드풋 ATM지수"
+  },
+  {
+    "code": "6728",
+    "name": "코스피선물커버드풋 3% OTM 지수"
+  },
+  {
+    "code": "6732",
+    "name": "K200 현선물 목표변동성 24% 지수"
+  },
+  {
+    "code": "6737",
+    "name": "코스피200 타겟볼20 선물"
+  },
+  {
+    "code": "6811",
+    "name": "주식골드지수"
+  },
+  {
+    "code": "6813",
+    "name": "주식국채혼합형(주식형)"
+  },
+  {
+    "code": "6814",
+    "name": "주식국채혼합형(채권형)"
+  },
+  {
+    "code": "6815",
+    "name": "코스피 200 DAE지수"
+  },
+  {
+    "code": "6817",
+    "name": "K200 USD 선물 바이셀지수"
+  },
+  {
+    "code": "6818",
+    "name": "USD K200 선물 바이셀지수"
+  },
+  {
+    "code": "6819",
+    "name": "필수소비재채권혼합"
+  },
+  {
+    "code": "6820",
+    "name": "배당성장채권혼합"
+  },
+  {
+    "code": "6821",
+    "name": "코스피200미국채혼합지수"
+  },
+  {
+    "code": "6822",
+    "name": "KRX 300 미국달러 선물혼합지수"
+  },
+  {
+    "code": "6823",
+    "name": "코스피200 롱 코스닥150 숏 선물지수"
+  },
+  {
+    "code": "6824",
+    "name": "코스닥150 롱 코스피200 숏 선물지수"
+  },
+  {
+    "code": "6825",
+    "name": "코스피200 롱 코스닥150 0.5 숏 선물지수"
+  },
+  {
+    "code": "6826",
+    "name": "코스닥150 롱 코스피200 0.5 숏 선물지수"
+  },
+  {
+    "code": "6827",
+    "name": "코스닥150 미국달러 현선물혼합지수"
+  },
+  {
+    "code": "6830",
+    "name": "Nikkei 225 Futures Index"
+  },
+  {
+    "code": "6831",
+    "name": "Nikkei 225 Futures Inverse Index"
+  },
+  {
+    "code": "6832",
+    "name": "Nikkei 225 Futures Leveraged Index"
+  },
+  {
+    "code": "6833",
+    "name": "Nikkei 225 Futures Double Inverse Index"
+  },
+  {
+    "code": "6841",
+    "name": "코스피200 10년국채 선물혼합지수"
+  },
+  {
+    "code": "6845",
+    "name": "KRX 2차전지 TOP 10 선물 TWAP 지수"
+  },
+  {
+    "code": "6846",
+    "name": "KRX 2차전지 TOP 10 선물 TWAP 인버스지수"
+  },
+  {
+    "code": "6892",
+    "name": "KRX BBIG 주식국채혼합(채권형)"
+  },
+  {
+    "code": "6893",
+    "name": "KRX 2차전지TOP 10 주식국채혼합(채권형)"
+  },
+  {
+    "code": "6951",
+    "name": "ChinaBond 5년 국채 TR 원화 지수"
+  },
+  {
+    "code": "6961",
+    "name": "WISE-KAP 스마트베타 Q 채권혼합"
+  },
+  {
+    "code": "6971",
+    "name": "부동산인프라채권혼합A(채권)"
+  },
+  {
+    "code": "6972",
+    "name": "FTSE 100 Total Return Declared Dividend"
+  },
+  {
+    "code": "6973",
+    "name": "EURO iSTOXX Short Strangle KWCDC Index"
+  },
+  {
+    "code": "6974",
+    "name": "CBOE S&P 500 4% OTM Short Strangle Index"
+  },
+  {
+    "code": "6975",
+    "name": "Bloomberg Natural Gas 2X Leveraged TR"
+  },
+  {
+    "code": "6976",
+    "name": "Bloomberg Natural Gas 2X Inverse TR"
+  },
+  {
+    "code": "6977",
+    "name": "Bloomberg Indonesia Energy & Metal"
+  },
+  {
+    "code": "6978",
+    "name": "MSCI Japan IMI Trading Companies"
+  },
+  {
+    "code": "7001",
+    "name": "코스피200 동일가중지수"
+  },
+  {
+    "code": "7002",
+    "name": "코스피100 동일가중지수"
+  },
+  {
+    "code": "7003",
+    "name": "코스피50 동일가중지수"
+  },
+  {
+    "code": "7004",
+    "name": "KRX100 동일가중지수"
+  },
+  {
+    "code": "7010",
+    "name": "SPGSCL"
+  },
+  {
+    "code": "9001",
+    "name": "KTB index(총수익)"
+  },
+  {
+    "code": "9002",
+    "name": "KTB index(순가격)"
+  },
+  {
+    "code": "9003",
+    "name": "KTB index(시장가격)"
+  },
+  {
+    "code": "9101",
+    "name": "KEBI 국고채종합(총수익)"
+  },
+  {
+    "code": "9102",
+    "name": "KEBI 국고채종합(순가격"
+  },
+  {
+    "code": "9103",
+    "name": "KEBI 국고채종합(시장가격)"
+  },
+  {
+    "code": "9104",
+    "name": "KEBI 국고채3년(총수익)"
+  },
+  {
+    "code": "9105",
+    "name": "KEBI 국고채3년(순가격"
+  },
+  {
+    "code": "9106",
+    "name": "KEBI 국고채3년(시장가격)"
+  },
+  {
+    "code": "9107",
+    "name": "KEBI 국고채5년(총수익)"
+  },
+  {
+    "code": "9108",
+    "name": "KEBI 국고채5년(순가격"
+  },
+  {
+    "code": "9109",
+    "name": "KEBI 국고채5년(시장가격)"
+  },
+  {
+    "code": "9110",
+    "name": "KEBI 국고채F3(총수익)"
+  },
+  {
+    "code": "9111",
+    "name": "KEBI 국고채F3(순가격"
+  },
+  {
+    "code": "9112",
+    "name": "KEBI 국고채F3(시장가격)"
+  },
+  {
+    "code": "9201",
+    "name": "MKF 국고채지수(총수익)"
+  },
+  {
+    "code": "9202",
+    "name": "MKF 국고채지수(순가격)"
+  },
+  {
+    "code": "9203",
+    "name": "MKF 국고채지수(시장가격)"
+  },
+  {
+    "code": "9301",
+    "name": "매경통안채지수(총수익)"
+  },
+  {
+    "code": "9302",
+    "name": "매경통안채지수(순가격)"
+  },
+  {
+    "code": "9303",
+    "name": "매경통안채지수(시장가격)"
+  },
+  {
+    "code": "9999",
+    "name": ""
+  },
+  {
+    "code": "E199",
+    "name": "ETN"
+  },
+  {
+    "code": "G000",
+    "name": "GOLD"
+  },
+  {
+    "code": "P000",
+    "name": "PFC"
+  },
+  {
+    "code": "T000",
+    "name": "ETF"
+  },
+  {
+    "code": "W000",
+    "name": "ELW"
+  }
+]

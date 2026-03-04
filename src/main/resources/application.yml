@@ -1,0 +1,71 @@
+spring:
+  application:
+    name: finvibe-backend-monolith
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: local
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  web:
+    resources:
+      add-mappings: true
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        waitDurationInOpenState: 30s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - org.springframework.web.client.RestClientException
+    instances:
+      kisStockSearch:
+        baseConfig: default
+      kisChartData:
+        baseConfig: default
+      kisRealtimePrice:
+        baseConfig: default
+
+jwt:
+  secret: ${JWT_SECRET:testsecret12312312313123123123testsecret12312312313123123123}
+  issuer: ${JWT_ISSUER:finvibe-user}
+  access-token-expiration: 3600000
+  refresh-token-expiration: 1209600000
+
+app:
+  oauth2:
+    enabled: false
+    base-url: ${OAUTH_REDIRECT_URL:http://localhost:3000/oauth/callback}
+
+external:
+  gamification:
+    base-url: ${GAMIFICATION_BASE_URL:http://localhost:8080}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:testsecret12312312313123123123}
+
+market:
+  kis:
+    base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
+    user-id: ${KIS_USER_ID:}
+    credentials:
+      - app-key: ${KIS_API_KEY:}
+        app-secret: ${KIS_API_SECRET:}
+    websocket:
+      url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
