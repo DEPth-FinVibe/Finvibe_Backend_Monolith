@@ -1,4 +1,4 @@
-package depth.finvibe.modules.news.infra.adapter;
+package depth.finvibe.modules.news.infra.client;
 
 import depth.finvibe.modules.news.application.port.out.NewsCrawler;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 
 @Slf4j
 @Component
-public class NaverNewsScraper implements NewsCrawler {
+public class NaverNewsClientImpl implements NewsCrawler {
 
     private static final String NAVER_FINANCE_NEWS_URL = "https://finance.naver.com/news/mainnews.naver";
     private static final String USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";

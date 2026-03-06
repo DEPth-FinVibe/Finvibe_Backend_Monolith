@@ -1,50 +1,48 @@
 package depth.finvibe.modules.study.infra.client;
 
+import depth.finvibe.modules.study.application.port.out.UserServiceClient;
+import depth.finvibe.modules.user.application.port.in.UserQueryUseCase;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import depth.finvibe.modules.study.application.port.out.UserServiceClient;
-import org.springframework.web.client.RestClient;
-import tools.jackson.databind.ObjectMapper;
-
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class StudyUserServiceClientImpl implements UserServiceClient {
-    private final RestClient restClient = RestClient.builder()
-            .baseUrl("http://user")
-            .build();
-    private final ObjectMapper objectMapper;
 
+    private static final Logger log = LoggerFactory.getLogger(StudyUserServiceClientImpl.class);
+    private static final TypeReference<List<Map<String, Object>>> LIST_OF_MAP_TYPE = new TypeReference<>() {};
+
+    private final UserQueryUseCase userQueryUseCase;
+    private final ObjectMapper objectMapper;
 
     @Override
     public List<String> fetchUserInterestStocks(String userId) {
         try {
-            String response = restClient.get()
-                    .uri("/internal/members/{userId}/favorite-stocks", userId)
-                    .retrieve()
-                    .toString();
-
-            List<FavoriteStockResponse> favoriteStocks = objectMapper.readValue(
-                    response,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, FavoriteStockResponse.class)
+            UUID parsedUserId = UUID.fromString(userId);
+            List<Map<String, Object>> favoriteStocks = objectMapper.convertValue(
+                    userQueryUseCase.getFavoriteStocks(parsedUserId),
+                    LIST_OF_MAP_TYPE
             );
 
             return favoriteStocks.stream()
-                    .map(FavoriteStockResponse::name)
+                    .map(this::extractStockName)
+                    .filter(name -> !name.isBlank())
                     .toList();
-        } catch (Exception e) {
-            log.error("Failed to fetch user interest stocks for userId {}: {}", userId, e.getMessage());
+        } catch (Exception exception) {
+            log.error("Failed to fetch user interest stocks for userId {}: {}", userId, exception.getMessage());
             return List.of();
         }
     }
 
-    private record FavoriteStockResponse(
-            Long stockId,
-            String name,
-            String userId
-    ){}
+    private String extractStockName(Map<String, Object> favoriteStock) {
+        Object stockName = favoriteStock.get("name");
+        return stockName == null ? "" : stockName.toString();
+    }
 }

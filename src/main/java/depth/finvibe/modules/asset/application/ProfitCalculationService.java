@@ -28,7 +28,7 @@ import depth.finvibe.modules.asset.application.port.out.UserProfitRankingData;
 import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.infra.client.MarketInternalClient;
-import depth.finvibe.modules.asset.infra.client.UserServiceClient;
+import depth.finvibe.modules.asset.infra.client.UserNicknameClientImpl;
 import depth.finvibe.common.investment.application.port.out.GamificationEventProducer;
 import depth.finvibe.common.investment.dto.BatchPriceSnapshot;
 import depth.finvibe.common.investment.dto.MetricEventType;
@@ -42,7 +42,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
 
   private final PortfolioGroupRepository portfolioGroupRepository;
   private final MarketInternalClient marketInternalClient;
-  private final UserServiceClient userServiceClient;
+  private final UserNicknameClientImpl userNicknameClient;
   private final UserProfitRankingAggregationService userProfitRankingAggregationService;
   private final ApplicationEventPublisher eventPublisher;
   private final GamificationEventProducer gamificationEventProducer;
@@ -128,7 +128,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   }
 
   private Map<UUID, String> getUserNamesByIds(Collection<UUID> userIds) {
-    Map<UUID, String> userNamesByIds = userServiceClient.getUserNicknamesByIds(userIds);
+    Map<UUID, String> userNamesByIds = userNicknameClient.getUserNicknamesByIds(userIds);
     if (userNamesByIds == null) {
       return Map.of();
     }
