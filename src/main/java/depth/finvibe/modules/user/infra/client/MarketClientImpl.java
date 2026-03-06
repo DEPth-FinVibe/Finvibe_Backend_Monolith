@@ -1,35 +1,27 @@
 package depth.finvibe.modules.user.infra.client;
 
+import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.user.application.port.out.MarketClient;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
-
-import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class MarketClientImpl implements MarketClient {
-    private final RestClient restClient = RestClient.builder()
-            .baseUrl("http://investment")
-            .build();
+
+    private static final Logger log = LoggerFactory.getLogger(MarketClientImpl.class);
+
+    private final MarketQueryUseCase marketQueryUseCase;
 
     @Override
     public Optional<String> getStockNameByStockId(Long stockId) {
         try {
-            String response = restClient.get()
-                    .uri("/internal/market/stocks/{stockId}/name", stockId)
-                    .retrieve()
-                    .body(String.class);
-
-            return Optional.ofNullable(response);
-        } catch (Exception e) {
-            log.error("Failed to fetch stock name for stockId {}: {}", stockId, e.getMessage());
+            return Optional.ofNullable(marketQueryUseCase.getStockNameById(stockId));
+        } catch (Exception exception) {
+            log.error("Failed to fetch stock name for stockId {}: {}", stockId, exception.getMessage());
             return Optional.empty();
         }
     }

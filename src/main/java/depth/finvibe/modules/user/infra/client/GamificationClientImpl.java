@@ -1,21 +1,30 @@
 package depth.finvibe.modules.user.infra.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import depth.finvibe.modules.gamification.application.port.in.InternalGamificationQueryUseCase;
+import depth.finvibe.modules.gamification.dto.InternalGamificationDto;
 import depth.finvibe.modules.user.application.port.out.GamificationClient;
 import depth.finvibe.modules.user.dto.UserDto;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-
 import java.util.Optional;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class GamificationClientImpl implements GamificationClient {
 
-    private final HttpGamificationClient httpGamificationClient;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+
+    private final InternalGamificationQueryUseCase internalGamificationQueryUseCase;
 
     @Override
     public Optional<UserDto.UserSummaryResponse> getUserSummary(UUID userId) {
-        return Optional.ofNullable(httpGamificationClient.getUserSummary(userId));
+        InternalGamificationDto.UserSummaryResponse summary = internalGamificationQueryUseCase.getUserSummary(userId);
+        return Optional.ofNullable(toUserSummaryResponse(summary));
+    }
+
+    private UserDto.UserSummaryResponse toUserSummaryResponse(InternalGamificationDto.UserSummaryResponse source) {
+        return OBJECT_MAPPER.convertValue(source, UserDto.UserSummaryResponse.class);
     }
 }
