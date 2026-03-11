@@ -21,9 +21,6 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
-  mongodb:
-    uri: mongodb://localhost:27017/test
-
 market:
   init:
     enabled: false

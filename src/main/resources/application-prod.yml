@@ -28,9 +28,6 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
-  mongodb:
-    uri: ${MONGO_URL}
-
 logging:
   level:
     root: info

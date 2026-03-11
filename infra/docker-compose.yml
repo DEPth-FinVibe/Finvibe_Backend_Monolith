@@ -58,22 +58,7 @@ services:
       timeout: 10s
       retries: 5
 
-  mongodb:
-    image: mongo:7
-    container_name: finvibe-mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   mariadb-data:
   redis-data:
   kafka-data:
-  mongodb-data:
