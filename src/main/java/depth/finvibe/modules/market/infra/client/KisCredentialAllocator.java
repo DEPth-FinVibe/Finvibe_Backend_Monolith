@@ -195,6 +195,25 @@ public class KisCredentialAllocator {
     }
 
     /**
+   * 배치 작업용 Credential 선택. 레이트 리밋에 도달해도 예외 없이 TTL만큼 대기 후 반환합니다.
+   *
+   * @param rateLimiter Rate Limit 제어를 위한 KisRateLimiter
+   * @return 선택된 Credential
+   * @throws IllegalStateException 할당된 Credential이 없는 경우
+   */
+  public Credential selectCredentialBlocking(KisRateLimiter rateLimiter) {
+        List<Credential> candidates = getAllocatedCredentials();
+        if (candidates.isEmpty()) {
+            throw new IllegalStateException("KIS credential is not allocated yet.");
+        }
+        Credential credential = candidates.get(
+                Math.floorMod(cursor.getAndIncrement(), candidates.size())
+        );
+        rateLimiter.acquire(credential.appKey());
+        return credential;
+    }
+
+    /**
    * Credential 재조정 및 락 갱신을 수행합니다.
    * <p>
    * 다음 작업을 순서대로 실행합니다:

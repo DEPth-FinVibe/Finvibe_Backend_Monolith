@@ -68,14 +68,20 @@ public class InitialMarketDataRunner implements CommandLineRunner {
             categoryCommandUseCase.bulkInsert(categories);
         }
 
+        boolean stocksJustLoaded = false;
         if (!stockRepository.existsAny()) {
             log.info("어플리케이션 초기화 작업을 위해 주식 데이터를 최초로 적재합니다.");
 
             stockCommandUseCase.bulkUpsertStocks();
             stockCommandUseCase.renewStockCharts();
+            stocksJustLoaded = true;
         }
 
-        runBatchPriceUpdateIfClosedAndMissing();
+        if (!stocksJustLoaded) {
+            runBatchPriceUpdateIfClosedAndMissing();
+        } else {
+            log.info("주식 데이터를 이번 시작에서 최초 적재했으므로 배치 시세 보정을 건너뜁니다.");
+        }
 
         initializeIndexMinuteCandlesIfMissing();
 

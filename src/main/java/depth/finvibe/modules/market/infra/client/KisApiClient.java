@@ -27,12 +27,15 @@ import lombok.extern.slf4j.Slf4j;
 public class KisApiClient implements IndexPriceClient {
 
         private final RestClient restClient;
+        private final RestClient restClientBatch;
         private final String kisUserId;
 
         public KisApiClient(
                 @Qualifier("kisRestClient") RestClient restClient,
+                @Qualifier("kisRestClientBatch") RestClient restClientBatch,
                 @Value("${market.kis.user-id}") String kisUserId) {
                 this.restClient = restClient;
+                this.restClientBatch = restClientBatch;
                 this.kisUserId = kisUserId;
         }
 
@@ -344,6 +347,25 @@ public class KisApiClient implements IndexPriceClient {
                 throw new DomainException(GlobalErrorCode.CIRCUIT_BREAKER_OPEN);
         }
 
+        @CircuitBreaker(name = "kisBatchPrice", fallbackMethod = "fallbackIntstockMultpriceBatch")
+        public List<KisDto.IntstockMultpriceResponseItem> fetchIntstockMultpriceBatch(List<KisDto.StockInfo> stocks) {
+                if (stocks == null || stocks.isEmpty()) {
+                        return List.of();
+                }
+                if (stocks.size() > 30) {
+                        throw new IllegalArgumentException("최대 30종목까지 조회 가능합니다.");
+                }
+
+                String uri = buildMultiStockUri(stocks);
+                return Objects.requireNonNull(
+                                restClientBatch.get()
+                                                .uri(uri)
+                                                .headers(h -> h.set("tr_id", "FHKST11300006"))
+                                                .retrieve()
+                                                .body(KisDto.IntstockMultpriceResponse.class))
+                                .getOutput();
+        }
+
         @SuppressWarnings("unused")
         private List<KisDto.IntstockMultpriceResponseItem> fallbackIntstockMultprice(
                         List<KisDto.StockInfo> stocks,
@@ -353,6 +375,17 @@ public class KisApiClient implements IndexPriceClient {
                                 stocks == null ? 0 : stocks.size(),
                                 throwable);
                 log.error("KIS API Circuit Breaker 작동: {}", throwable.getMessage(), throwable);
+                throw new DomainException(GlobalErrorCode.CIRCUIT_BREAKER_OPEN);
+        }
+
+        @SuppressWarnings("unused")
+        private List<KisDto.IntstockMultpriceResponseItem> fallbackIntstockMultpriceBatch(
+                        List<KisDto.StockInfo> stocks,
+                        Throwable throwable) {
+                log.error(
+                                "KIS API Circuit Breaker 작동 - fetchIntstockMultpriceBatch, stocksCount={}",
+                                stocks == null ? 0 : stocks.size(),
+                                throwable);
                 throw new DomainException(GlobalErrorCode.CIRCUIT_BREAKER_OPEN);
         }
 

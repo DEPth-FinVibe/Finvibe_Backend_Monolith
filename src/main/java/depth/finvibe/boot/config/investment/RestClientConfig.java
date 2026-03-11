@@ -40,6 +40,16 @@ public class RestClientConfig {
   @Bean
   @Qualifier("kisRestClient")
   public RestClient kisRestClient() {
+    return buildKisRestClient(false);
+  }
+
+  @Bean
+  @Qualifier("kisRestClientBatch")
+  public RestClient kisRestClientBatch() {
+    return buildKisRestClient(true);
+  }
+
+  private RestClient buildKisRestClient(boolean blocking) {
     return RestClient.builder()
         .baseUrl("https://openapi.koreainvestment.com:9443")
         .defaultHeaders(headers -> {
@@ -47,7 +57,9 @@ public class RestClientConfig {
           headers.add("custtype", "P");
         })
         .requestInterceptor((request, body, execution) -> {
-          Credential credential = credentialAllocator.selectCredentialForRequest(rateLimiter);
+          Credential credential = blocking
+              ? credentialAllocator.selectCredentialBlocking(rateLimiter)
+              : credentialAllocator.selectCredentialForRequest(rateLimiter);
           String accessToken = tokenManager.getAccessToken(credential);
 
           if (accessToken == null) {
@@ -60,7 +72,6 @@ public class RestClientConfig {
 
           ClientHttpResponse response = execution.execute(request, body);
 
-          // 응답을 캐싱하고 msg_cd 확인
           return new CachedBodyClientHttpResponse(response, credential.appKey(), rateLimiter, tokenManager, objectMapper);
         })
         .build();

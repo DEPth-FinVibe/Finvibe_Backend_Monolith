@@ -44,7 +44,7 @@ public class KisRateLimiter {
   public KisRateLimiter(
       StringRedisTemplate redisTemplate,
       @Value("${market.kis.rate-limit.key-prefix:kis:rate}") String keyPrefix,
-      @Value("${market.kis.rate-limit.second:20}") long secondLimit
+      @Value("${market.kis.rate-limit.second:15}") long secondLimit
   ) {
     this.redisTemplate = redisTemplate;
     this.keyPrefix = keyPrefix;

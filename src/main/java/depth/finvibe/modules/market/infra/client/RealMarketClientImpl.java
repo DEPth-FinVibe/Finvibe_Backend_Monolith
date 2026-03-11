@@ -458,8 +458,8 @@ public class RealMarketClientImpl implements RealMarketClient {
                     .toList();
 
             try {
-                List<KisDto.IntstockMultpriceResponseItem> responseItems = 
-                        kisApiClient.fetchIntstockMultprice(stockInfos);
+                List<KisDto.IntstockMultpriceResponseItem> responseItems =
+                        kisApiClient.fetchIntstockMultpriceBatch(stockInfos);
 
                 // 응답을 PriceCandleDto.Response로 변환
                 for (KisDto.IntstockMultpriceResponseItem item : responseItems) {
