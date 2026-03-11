@@ -12,8 +12,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.RestClient;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import depth.finvibe.modules.market.infra.client.KisCredentialAllocator;
 import depth.finvibe.modules.market.infra.client.KisRateLimiter;

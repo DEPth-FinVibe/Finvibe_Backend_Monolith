@@ -1,7 +1,5 @@
 package depth.finvibe.modules.study.infra.client;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import depth.finvibe.common.gamification.dto.TradeDto;
 import depth.finvibe.modules.study.application.port.out.TradeServiceClient;
 import depth.finvibe.modules.trade.application.port.in.TradeQueryUseCase;
@@ -12,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor

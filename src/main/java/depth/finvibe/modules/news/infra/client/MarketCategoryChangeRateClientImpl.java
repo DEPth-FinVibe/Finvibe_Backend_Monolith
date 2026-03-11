@@ -1,13 +1,13 @@
 package depth.finvibe.modules.news.infra.client;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import depth.finvibe.modules.market.application.port.in.CategoryQueryUseCase;
 import depth.finvibe.modules.news.application.port.out.MarketCategoryChangeRatePort;
 import java.math.BigDecimal;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor

@@ -1,7 +1,6 @@
 package depth.finvibe.boot.config.user;
 
-import depth.finvibe.modules.user.infra.client.HttpMarketClient;
-import depth.finvibe.modules.user.infra.client.HttpGamificationClient;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,13 +32,4 @@ public class ExternalApiConfig {
                 .createClient(serviceType);
     }
 
-    @Bean
-    HttpMarketClient userHttpMarketClient() {
-        return createClient("http://market:80", HttpMarketClient.class);
-    }
-
-    @Bean
-    HttpGamificationClient httpGamificationClient() {
-        return createClient(gamificationBaseUrl, HttpGamificationClient.class);
-    }
 }

@@ -2,8 +2,8 @@ package depth.finvibe.modules.study.infra.client;
 
 import depth.finvibe.modules.study.application.port.out.UserServiceClient;
 import depth.finvibe.modules.user.application.port.in.UserQueryUseCase;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

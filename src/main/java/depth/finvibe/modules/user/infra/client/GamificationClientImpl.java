@@ -1,6 +1,6 @@
 package depth.finvibe.modules.user.infra.client;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import depth.finvibe.modules.gamification.application.port.in.InternalGamificationQueryUseCase;
 import depth.finvibe.modules.gamification.dto.InternalGamificationDto;
 import depth.finvibe.modules.user.application.port.out.GamificationClient;
@@ -14,9 +14,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class GamificationClientImpl implements GamificationClient {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
-
     private final InternalGamificationQueryUseCase internalGamificationQueryUseCase;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Optional<UserDto.UserSummaryResponse> getUserSummary(UUID userId) {
@@ -25,6 +24,6 @@ public class GamificationClientImpl implements GamificationClient {
     }
 
     private UserDto.UserSummaryResponse toUserSummaryResponse(InternalGamificationDto.UserSummaryResponse source) {
-        return OBJECT_MAPPER.convertValue(source, UserDto.UserSummaryResponse.class);
+        return objectMapper.convertValue(source, UserDto.UserSummaryResponse.class);
     }
 }

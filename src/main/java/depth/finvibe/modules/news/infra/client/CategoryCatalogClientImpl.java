@@ -1,7 +1,5 @@
 package depth.finvibe.modules.news.infra.client;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import depth.finvibe.modules.market.application.port.in.CategoryQueryUseCase;
 import depth.finvibe.modules.news.application.port.out.CategoryCatalogPort;
 import depth.finvibe.common.insight.domain.CategoryInfo;
@@ -13,6 +11,8 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor
