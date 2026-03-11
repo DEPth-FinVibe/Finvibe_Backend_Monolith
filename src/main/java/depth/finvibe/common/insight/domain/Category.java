@@ -8,7 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-@Entity
+@Entity(name = "InsightCategory")
 @Getter
 @Table(name = "category")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
