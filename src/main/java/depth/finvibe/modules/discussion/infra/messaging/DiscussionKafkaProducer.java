@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 public class DiscussionKafkaProducer implements DiscussionEventPort {
 
     private static final String TOPIC = "discussion.dicussion-events.v1";
-    private final KafkaTemplate<String, DiscussionEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Override
     public void publishCreated(Long newsId) {

@@ -34,3 +34,9 @@ spring:
 logging:
   level:
     root: info
+
+market:
+  category:
+    warmup:
+      enabled: true
+      fail-fast: true

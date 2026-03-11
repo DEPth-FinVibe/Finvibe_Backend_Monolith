@@ -11,7 +11,7 @@ import depth.finvibe.modules.market.domain.Category;
 @Repository
 @RequiredArgsConstructor
 public class CategoryRepositoryImpl implements CategoryRepository {
-    private final CategoryJpaRepository jpaRepository;
+    private final MarketCategoryJpaRepository jpaRepository;
 
     @Override
     public List<Category> findAll() {

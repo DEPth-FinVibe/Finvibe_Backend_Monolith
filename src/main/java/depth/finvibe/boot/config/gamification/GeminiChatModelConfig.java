@@ -6,12 +6,14 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 @Configuration
 @EnableConfigurationProperties
 public class GeminiChatModelConfig {
 
     @Bean
+    @Primary
     @Qualifier("chatModel")
     public ChatModel geminiChatModel(GeminiChatModelProperties properties) {
         GoogleAiGeminiChatModel.GoogleAiGeminiChatModelBuilder builder = GoogleAiGeminiChatModel.builder()

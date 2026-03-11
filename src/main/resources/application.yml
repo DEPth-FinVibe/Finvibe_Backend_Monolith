@@ -3,6 +3,8 @@ spring:
     name: finvibe-backend-monolith
   main:
     allow-bean-definition-overriding: true
+  config:
+    import: optional:file:.env[.properties]
   profiles:
     active: local
   kafka:
@@ -69,3 +71,10 @@ market:
         app-secret: ${KIS_API_SECRET:}
     websocket:
       url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
+
+langchain4j:
+  google-ai-gemini:
+    chat-model:
+      api-key: ${GEMINI_API_KEY}
+      model-name: ${GEMINI_MODEL_NAME:gemini-1.5-flash}
+      high-model-name: ${GEMINI_HIGH_MODEL_NAME:gemini-1.5-pro}

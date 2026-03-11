@@ -16,7 +16,7 @@ import java.time.Instant;
 @RequiredArgsConstructor
 public class UserMetricKafkaProducer implements UserMetricEventPort {
 
-    private final KafkaTemplate<String, UserMetricUpdatedEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Value("${metric.kafka.topic:user.metric.updated.v1}")
     private String topic;

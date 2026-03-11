@@ -34,7 +34,7 @@ public class ExternalApiConfig {
     }
 
     @Bean
-    HttpMarketClient httpMarketClient() {
+    HttpMarketClient userHttpMarketClient() {
         return createClient("http://market:80", HttpMarketClient.class);
     }
 

@@ -28,3 +28,9 @@ logging:
   level:
     root: info
     depth.finvibe: debug
+
+market:
+  category:
+    warmup:
+      enabled: true
+      fail-fast: false
