@@ -36,4 +36,4 @@ market:
   category:
     warmup:
       enabled: true
-      fail-fast: true
+      fail-fast: false
