@@ -9,6 +9,8 @@ env:
   IMAGE_NAME: ${{ vars.DOCKER_IMAGE_NAME || format('{0}/finvibe-backend-monolith', secrets.DOCKERHUB_USERNAME) }}
   CONTAINER_NAME: ${{ vars.DEPLOY_CONTAINER_NAME || 'finvibe-backend' }}
   APP_PORT: ${{ vars.APP_PORT || '8080' }}
+  PRIMARY_DOCKER_NETWORK: ${{ vars.PRIMARY_DOCKER_NETWORK || 'infra_bridge' }}
+  SECONDARY_DOCKER_NETWORK: ${{ vars.SECONDARY_DOCKER_NETWORK || 'monitoring_net' }}
 
 jobs:
   deploy:
@@ -52,6 +54,8 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
           APP_PORT: ${{ env.APP_PORT }}
+          PRIMARY_DOCKER_NETWORK: ${{ env.PRIMARY_DOCKER_NETWORK }}
+          SECONDARY_DOCKER_NETWORK: ${{ env.SECONDARY_DOCKER_NETWORK }}
           DEPLOY_ENV_FILE_PATH: ${{ secrets.DEPLOY_ENV_FILE_PATH }}
           IMAGE_TAG: ${{ github.sha }}
         with:
@@ -59,7 +63,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,DEPLOY_ENV_FILE_PATH,IMAGE_TAG
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,PRIMARY_DOCKER_NETWORK,SECONDARY_DOCKER_NETWORK,DEPLOY_ENV_FILE_PATH,IMAGE_TAG
           script_stop: true
           script: |
             set -eu
@@ -80,10 +84,13 @@ jobs:
             docker run -d \
               --name "${CONTAINER_NAME}" \
               --restart unless-stopped \
+              --network "${PRIMARY_DOCKER_NETWORK}" \
               --env-file "${DEPLOY_ENV_FILE_PATH}" \
               -e SPRING_PROFILES_ACTIVE=prod \
               -p "${APP_PORT}:8080" \
               "${IMAGE_REF}"
+
+            docker network connect "${SECONDARY_DOCKER_NETWORK}" "${CONTAINER_NAME}"
 
             for i in $(seq 1 24); do
               if curl --silent --fail "http://localhost:${APP_PORT}/actuator/health" >/dev/null; then
