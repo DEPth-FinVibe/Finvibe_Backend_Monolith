@@ -1,5 +1,4 @@
 package depth.finvibe.modules.user.infra.persistence;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -21,7 +20,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class DailyLoginChecker {
+public class DailyLoginChecker implements depth.finvibe.modules.user.application.port.out.DailyLoginChecker {
 
     private final StringRedisTemplate redisTemplate;
     private static final String LOGIN_KEY_PREFIX = "user:login:";
@@ -34,6 +33,7 @@ public class DailyLoginChecker {
      * @param userId 사용자 ID
      * @return true: 당일 첫 로그인, false: 이미 로그인한 기록 있음
      */
+    @Override
     public boolean checkAndMarkDailyLogin(UUID userId) {
         LocalDate today = LocalDate.now(ZONE_ID);
         String key = LOGIN_KEY_PREFIX + userId + ":" + today;

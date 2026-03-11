@@ -8,6 +8,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import depth.finvibe.modules.market.application.port.out.IndexPriceClient;
+import depth.finvibe.modules.market.application.port.out.IndexTimePriceSnapshot;
+import depth.finvibe.modules.market.domain.enums.MarketIndexType;
 import depth.finvibe.modules.market.infra.client.dto.KisDto;
 import depth.finvibe.common.investment.error.DomainException;
 import depth.finvibe.common.investment.error.GlobalErrorCode;
@@ -21,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 @Component
-public class KisApiClient {
+public class KisApiClient implements IndexPriceClient {
 
         private final RestClient restClient;
         private final String kisUserId;
@@ -158,6 +161,23 @@ public class KisApiClient {
                 return List.of();
         }
 
+        @Override
+        public List<IndexTimePriceSnapshot> fetchIndexTimePrices(MarketIndexType indexType) {
+                return fetchIndexTimePrice(toIndexCode(indexType), "60").stream()
+                                .map(output -> new IndexTimePriceSnapshot(
+                                                output.getStck_bsop_date(),
+                                                output.getStck_cntg_hour(),
+                                                output.getBsop_hour(),
+                                                output.getBstp_nmix_oprc(),
+                                                output.getBstp_nmix_hgpr(),
+                                                output.getBstp_nmix_lwpr(),
+                                                output.getBstp_nmix_prpr(),
+                                                output.getBstp_nmix_prdy_ctrt(),
+                                                output.getCntg_vol(),
+                                                output.getAcml_tr_pbmn()))
+                                .toList();
+        }
+
         /**
          * <a href=
          * "https://apiportal.koreainvestment.com/apiservice-apiservice?/uapi/domestic-stock/v1/quotations/intstock-multprice">관심종목(멀티종목)
@@ -228,6 +248,13 @@ public class KisApiClient {
                                         .append(stock.getStockCode());
                 }
                 return uri.toString();
+        }
+
+        private IndexCode toIndexCode(MarketIndexType indexType) {
+                return switch (indexType) {
+                        case KOSPI -> IndexCode.KOSPI;
+                        case KOSDAQ -> IndexCode.KOSDAQ;
+                };
         }
 
         @RequiredArgsConstructor

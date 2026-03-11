@@ -25,6 +25,7 @@ import depth.finvibe.modules.asset.application.port.out.AssetRepository;
 import depth.finvibe.modules.asset.application.port.out.PortfolioPerformanceSnapshotRepository;
 import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.application.port.out.TopHoldingStockCacheRepository;
+import depth.finvibe.modules.asset.application.port.out.WalletClient;
 import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.PortfolioPerformanceSnapshotDaily;
 import depth.finvibe.modules.asset.domain.Money;
@@ -34,7 +35,6 @@ import depth.finvibe.modules.asset.domain.enums.PortfolioChartInterval;
 import depth.finvibe.modules.asset.dto.PortfolioPerformanceDto;
 import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
-import depth.finvibe.modules.wallet.application.port.in.WalletQueryUseCase;
 import depth.finvibe.common.investment.application.port.out.GamificationEventProducer;
 import depth.finvibe.common.investment.dto.MetricEventType;
 import depth.finvibe.common.investment.dto.UserMetricUpdatedEvent;
@@ -51,7 +51,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
     private final AssetRepository assetRepository;
     private final GamificationEventProducer gamificationEventProducer;
     private final TopHoldingStockCacheRepository topHoldingStockCacheRepository;
-    private final WalletQueryUseCase walletQueryUseCase;
+    private final WalletClient walletClient;
     private final PortfolioPerformanceSnapshotRepository portfolioPerformanceSnapshotRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -128,7 +128,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
                 .map(this::resolveAssetCurrentValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal cashAmount = BigDecimal.valueOf(walletQueryUseCase.getWalletByUserId(requesterUserId).getBalance());
+        BigDecimal cashAmount = BigDecimal.valueOf(walletClient.getWalletByUserId(requesterUserId).getBalance());
         BigDecimal totalAmount = cashAmount.add(stockAmount);
         BigDecimal changeAmount = totalAmount.subtract(INITIAL_ASSET_BASELINE);
         BigDecimal changeRate = changeAmount

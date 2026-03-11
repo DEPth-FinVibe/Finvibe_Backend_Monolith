@@ -12,14 +12,14 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import depth.finvibe.modules.market.application.port.out.IndexPriceClient;
+import depth.finvibe.modules.market.application.port.out.IndexTimePriceSnapshot;
 import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.PriceCandle;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.enums.MarketIndexType;
 import depth.finvibe.modules.market.domain.enums.Timeframe;
-import depth.finvibe.modules.market.infra.client.KisApiClient;
-import depth.finvibe.modules.market.infra.client.dto.KisDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -31,7 +31,7 @@ public class IndexMinuteCandleCacheService {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HHmmss");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.BASIC_ISO_DATE;
 
-    private final KisApiClient kisApiClient;
+    private final IndexPriceClient indexPriceClient;
     private final StockRepository stockRepository;
     private final PriceCandleRepository priceCandleRepository;
 
@@ -68,10 +68,7 @@ public class IndexMinuteCandleCacheService {
     private void cacheIndexMinuteCandles(MarketIndexType indexType) {
         Stock indexStock = getOrCreateIndexStock(indexType);
 
-        List<KisDto.IndexTimePriceOutput> outputs = kisApiClient.fetchIndexTimePrice(
-                toIndexCode(indexType),
-                "60"
-        );
+        List<IndexTimePriceSnapshot> outputs = indexPriceClient.fetchIndexTimePrices(indexType);
 
         if (outputs == null || outputs.isEmpty()) {
             log.debug("No index minute candles received. indexType={}", indexType);
@@ -111,8 +108,8 @@ public class IndexMinuteCandleCacheService {
         log.info("Cached {} index minute candles. indexType={}", newCandles.size(), indexType);
     }
 
-    private PriceCandle toPriceCandle(Long stockId, KisDto.IndexTimePriceOutput output) {
-        LocalDateTime at = parseAt(output.getStck_bsop_date(), output.getStck_cntg_hour(), output.getBsop_hour());
+    private PriceCandle toPriceCandle(Long stockId, IndexTimePriceSnapshot output) {
+        LocalDateTime at = parseAt(output.businessDate(), output.contractHour(), output.businessHour());
         if (at == null) {
             return null;
         }
@@ -121,13 +118,13 @@ public class IndexMinuteCandleCacheService {
                 stockId,
                 Timeframe.MINUTE,
                 at,
-                toBigDecimal(output.getBstp_nmix_oprc()),
-                toBigDecimal(output.getBstp_nmix_hgpr()),
-                toBigDecimal(output.getBstp_nmix_lwpr()),
-                toBigDecimal(output.getBstp_nmix_prpr()),
-                toBigDecimal(output.getBstp_nmix_prdy_ctrt()),
-                toBigDecimal(output.getCntg_vol()),
-                toBigDecimal(output.getAcml_tr_pbmn())
+                toBigDecimal(output.openPrice()),
+                toBigDecimal(output.highPrice()),
+                toBigDecimal(output.lowPrice()),
+                toBigDecimal(output.currentPrice()),
+                toBigDecimal(output.previousDayChangeRate()),
+                toBigDecimal(output.contractVolume()),
+                toBigDecimal(output.accumulatedTradeAmount())
         );
     }
 
@@ -173,10 +170,4 @@ public class IndexMinuteCandleCacheService {
                 });
     }
 
-    private KisApiClient.IndexCode toIndexCode(MarketIndexType indexType) {
-        return switch (indexType) {
-            case KOSPI -> KisApiClient.IndexCode.KOSPI;
-            case KOSDAQ -> KisApiClient.IndexCode.KOSDAQ;
-        };
-    }
 }
