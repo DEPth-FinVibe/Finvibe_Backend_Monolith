@@ -23,12 +23,12 @@ import org.springframework.stereotype.Service;
 
 import depth.finvibe.modules.asset.application.event.AllUserProfitRatesUpdatedEvent;
 import depth.finvibe.modules.asset.application.port.in.ProfitCalculationUseCase;
+import depth.finvibe.modules.asset.application.port.out.MarketPriceClient;
 import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
+import depth.finvibe.modules.asset.application.port.out.UserNicknameClient;
 import depth.finvibe.modules.asset.application.port.out.UserProfitRankingData;
 import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
-import depth.finvibe.modules.asset.infra.client.MarketInternalClient;
-import depth.finvibe.modules.asset.infra.client.UserNicknameClientImpl;
 import depth.finvibe.common.investment.application.port.out.GamificationEventProducer;
 import depth.finvibe.common.investment.dto.BatchPriceSnapshot;
 import depth.finvibe.common.investment.dto.MetricEventType;
@@ -41,8 +41,8 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private final PortfolioGroupRepository portfolioGroupRepository;
-  private final MarketInternalClient marketInternalClient;
-  private final UserNicknameClientImpl userNicknameClient;
+  private final MarketPriceClient marketPriceClient;
+  private final UserNicknameClient userNicknameClient;
   private final UserProfitRankingAggregationService userProfitRankingAggregationService;
   private final ApplicationEventPublisher eventPublisher;
   private final GamificationEventProducer gamificationEventProducer;
@@ -73,7 +73,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       return;
     }
 
-    List<BatchPriceSnapshot> batchPrices = marketInternalClient.getBatchPrices(stockIds);
+    List<BatchPriceSnapshot> batchPrices = marketPriceClient.getBatchPrices(stockIds);
     if (batchPrices == null || batchPrices.isEmpty()) {
       log.warn("No batch prices retrieved for stock IDs: {}", stockIds);
       return;

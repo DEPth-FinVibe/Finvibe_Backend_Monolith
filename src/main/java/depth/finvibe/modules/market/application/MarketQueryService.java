@@ -1,7 +1,6 @@
 package depth.finvibe.modules.market.application;
 
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
-import depth.finvibe.modules.market.application.HolidayCalendarService;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
 import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;

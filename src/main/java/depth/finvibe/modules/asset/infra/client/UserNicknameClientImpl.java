@@ -1,5 +1,6 @@
 package depth.finvibe.modules.asset.infra.client;
 
+import depth.finvibe.modules.asset.application.port.out.UserNicknameClient;
 import depth.finvibe.modules.user.application.port.in.UserQueryUseCase;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -14,11 +15,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class UserNicknameClientImpl {
+public class UserNicknameClientImpl implements UserNicknameClient {
     private static final Logger log = LoggerFactory.getLogger(UserNicknameClientImpl.class);
 
     private final UserQueryUseCase userQueryUseCase;
 
+    @Override
     public Map<UUID, String> getUserNicknamesByIds(Collection<UUID> userIds) {
         List<UUID> ids = new ArrayList<>(userIds);
 
