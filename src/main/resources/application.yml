@@ -19,6 +19,17 @@ springdoc:
   swagger-ui:
     enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
 resilience4j:
   circuitbreaker:
     configs:
@@ -67,8 +78,10 @@ market:
     base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
     user-id: ${KIS_USER_ID:}
     credentials:
-      - app-key: ${KIS_API_KEY:}
-        app-secret: ${KIS_API_SECRET:}
+      - app-key: ${KIS_API_KEY_1:${KIS_API_KEY:}}
+        app-secret: ${KIS_API_SECRET_1:${KIS_API_SECRET:}}
+      - app-key: ${KIS_API_KEY_2:}
+        app-secret: ${KIS_API_SECRET_2:}
     websocket:
       url: ${KIS_WEBSOCKET_URL:ws://ops.koreainvestment.com:21000}
 
