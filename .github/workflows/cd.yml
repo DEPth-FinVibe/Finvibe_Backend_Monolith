@@ -56,23 +56,37 @@ jobs:
           APP_PORT: ${{ env.APP_PORT }}
           PRIMARY_DOCKER_NETWORK: ${{ env.PRIMARY_DOCKER_NETWORK }}
           SECONDARY_DOCKER_NETWORK: ${{ env.SECONDARY_DOCKER_NETWORK }}
-          DEPLOY_ENV_FILE_PATH: ${{ secrets.DEPLOY_ENV_FILE_PATH }}
           IMAGE_TAG: ${{ github.sha }}
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          KAFKA_BOOTSTRAP_SERVERS: ${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_HMAC_SECRET: ${{ secrets.JWT_HMAC_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          KIS_USER_ID: ${{ secrets.KIS_USER_ID }}
+          KIS_API_KEY_1: ${{ secrets.KIS_API_KEY_1 }}
+          KIS_API_SECRET_1: ${{ secrets.KIS_API_SECRET_1 }}
+          KIS_API_KEY_2: ${{ secrets.KIS_API_KEY_2 }}
+          KIS_API_SECRET_2: ${{ secrets.KIS_API_SECRET_2 }}
+          KIS_API_KEY_3: ${{ secrets.KIS_API_KEY_3 }}
+          KIS_API_SECRET_3: ${{ secrets.KIS_API_SECRET_3 }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,PRIMARY_DOCKER_NETWORK,SECONDARY_DOCKER_NETWORK,DEPLOY_ENV_FILE_PATH,IMAGE_TAG
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,PRIMARY_DOCKER_NETWORK,SECONDARY_DOCKER_NETWORK,IMAGE_TAG,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,REDIS_PASSWORD,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,JWT_HMAC_SECRET,GEMINI_API_KEY,GOOGLE_CLIENT_SECRET,NAVER_CLIENT_SECRET,KIS_USER_ID,KIS_API_KEY_1,KIS_API_SECRET_1,KIS_API_KEY_2,KIS_API_SECRET_2,KIS_API_KEY_3,KIS_API_SECRET_3
           script_stop: true
           script: |
             set -eu
 
             IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
-            if [ ! -f "${DEPLOY_ENV_FILE_PATH}" ]; then
-              echo "Deploy env file not found: ${DEPLOY_ENV_FILE_PATH}"
-              exit 1
-            fi
 
             echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
             docker pull "${IMAGE_REF}"
@@ -85,8 +99,26 @@ jobs:
               --name "${CONTAINER_NAME}" \
               --restart unless-stopped \
               --network "${PRIMARY_DOCKER_NETWORK}" \
-              --env-file "${DEPLOY_ENV_FILE_PATH}" \
               -e SPRING_PROFILES_ACTIVE=prod \
+              -e DB_URL="${DB_URL}" \
+              -e DB_USERNAME="${DB_USERNAME}" \
+              -e DB_PASSWORD="${DB_PASSWORD}" \
+              -e REDIS_HOST="${REDIS_HOST}" \
+              -e REDIS_PORT="${REDIS_PORT}" \
+              -e REDIS_PASSWORD="${REDIS_PASSWORD}" \
+              -e KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS}" \
+              -e JWT_SECRET="${JWT_SECRET}" \
+              -e JWT_HMAC_SECRET="${JWT_HMAC_SECRET}" \
+              -e GEMINI_API_KEY="${GEMINI_API_KEY}" \
+              -e GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
+              -e NAVER_CLIENT_SECRET="${NAVER_CLIENT_SECRET}" \
+              -e KIS_USER_ID="${KIS_USER_ID}" \
+              -e KIS_API_KEY_1="${KIS_API_KEY_1}" \
+              -e KIS_API_SECRET_1="${KIS_API_SECRET_1}" \
+              -e KIS_API_KEY_2="${KIS_API_KEY_2}" \
+              -e KIS_API_SECRET_2="${KIS_API_SECRET_2}" \
+              -e KIS_API_KEY_3="${KIS_API_KEY_3}" \
+              -e KIS_API_SECRET_3="${KIS_API_SECRET_3}" \
               -p "${APP_PORT}:8080" \
               "${IMAGE_REF}"
 
