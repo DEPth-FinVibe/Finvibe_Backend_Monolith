@@ -23,12 +23,21 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health, prometheus, info
   endpoint:
     health:
       probes:
         enabled: true
       show-details: never
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${SPRING_PROFILES_ACTIVE:local}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 resilience4j:
   circuitbreaker:
