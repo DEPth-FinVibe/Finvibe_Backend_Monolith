@@ -28,7 +28,7 @@ import depth.finvibe.modules.market.dto.ClosingPriceDto;
 import depth.finvibe.modules.market.dto.MarketStatusDto;
 import depth.finvibe.modules.market.dto.PriceCandleDto;
 import depth.finvibe.modules.market.dto.StockDto;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/market")

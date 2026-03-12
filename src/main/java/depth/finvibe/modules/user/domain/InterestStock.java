@@ -3,7 +3,7 @@ package depth.finvibe.modules.user.domain;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 import depth.finvibe.modules.user.domain.error.UserErrorCode;
 import depth.finvibe.common.user.domain.TimeStampedBaseEntity;
-import depth.finvibe.common.user.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

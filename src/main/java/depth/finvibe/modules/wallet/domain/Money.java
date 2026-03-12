@@ -1,7 +1,7 @@
 package depth.finvibe.modules.wallet.domain;
 
 import depth.finvibe.modules.wallet.domain.error.WalletErrorCode;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
 import lombok.Getter;

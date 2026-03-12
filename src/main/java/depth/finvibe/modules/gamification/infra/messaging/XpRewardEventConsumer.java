@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import depth.finvibe.modules.gamification.application.port.in.XpCommandUseCase;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.common.gamification.dto.XpRewardEvent;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Slf4j
 @Component

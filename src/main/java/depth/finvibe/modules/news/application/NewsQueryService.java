@@ -9,7 +9,7 @@ import depth.finvibe.modules.news.domain.NewsKeyword;
 import depth.finvibe.modules.news.domain.error.NewsErrorCode;
 import depth.finvibe.modules.news.dto.NewsDto;
 import depth.finvibe.modules.news.dto.NewsSortType;
-import depth.finvibe.common.insight.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;

@@ -24,7 +24,7 @@ import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.modules.gamification.application.port.in.XpQueryUseCase;
 import depth.finvibe.modules.gamification.application.port.in.XpCommandUseCase;
 import depth.finvibe.modules.gamification.dto.XpDto;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Tag(name = "경험치", description = "경험치 및 랭킹 조회 API")
 @RestController

@@ -3,7 +3,7 @@ package depth.finvibe.modules.gamification.domain.vo;
 import java.time.LocalDate;
 
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.Embeddable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

@@ -1,7 +1,7 @@
 package depth.finvibe.modules.user.domain.vo;
 
 import depth.finvibe.modules.user.domain.error.UserErrorCode;
-import depth.finvibe.common.user.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -12,7 +12,7 @@ import depth.finvibe.modules.gamification.application.port.in.MetricEventCommand
 import depth.finvibe.modules.gamification.domain.enums.MetricEventType;
 import depth.finvibe.modules.gamification.domain.enums.UserMetricType;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Service
 @RequiredArgsConstructor

@@ -5,7 +5,7 @@ import depth.finvibe.modules.gamification.application.port.out.BadgeOwnershipRep
 import depth.finvibe.modules.gamification.domain.BadgeOwnership;
 import depth.finvibe.modules.gamification.domain.enums.Badge;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

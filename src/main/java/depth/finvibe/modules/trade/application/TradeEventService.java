@@ -11,7 +11,7 @@ import depth.finvibe.modules.trade.domain.enums.TradeType;
 import depth.finvibe.modules.trade.domain.error.TradeErrorCode;
 import depth.finvibe.modules.trade.dto.TradeDto;
 import depth.finvibe.common.investment.dto.ReservationSatisfiedEvent;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Service
 @RequiredArgsConstructor

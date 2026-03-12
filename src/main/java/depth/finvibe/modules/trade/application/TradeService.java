@@ -30,7 +30,7 @@ import depth.finvibe.modules.trade.dto.TradeOrderType;
 import depth.finvibe.common.investment.application.port.out.GamificationEventProducer;
 import depth.finvibe.common.investment.dto.MetricEventType;
 import depth.finvibe.common.investment.dto.UserMetricUpdatedEvent;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 @Service
 @RequiredArgsConstructor
 public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {

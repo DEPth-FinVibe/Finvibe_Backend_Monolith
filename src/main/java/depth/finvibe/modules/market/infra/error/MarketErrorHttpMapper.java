@@ -5,8 +5,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
-import depth.finvibe.common.investment.error.DomainErrorCode;
-import depth.finvibe.common.investment.infra.error.DomainErrorHttpMapper;
+import depth.finvibe.common.error.DomainErrorCode;
+import depth.finvibe.common.infra.error.DomainErrorHttpMapper;
 
 @Component
 public class MarketErrorHttpMapper implements DomainErrorHttpMapper {

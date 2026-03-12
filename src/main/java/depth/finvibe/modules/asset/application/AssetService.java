@@ -38,7 +38,7 @@ import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 import depth.finvibe.common.investment.application.port.out.GamificationEventProducer;
 import depth.finvibe.common.investment.dto.MetricEventType;
 import depth.finvibe.common.investment.dto.UserMetricUpdatedEvent;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Service
 @RequiredArgsConstructor

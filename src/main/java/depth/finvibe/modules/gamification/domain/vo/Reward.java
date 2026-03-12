@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 
 import depth.finvibe.modules.gamification.domain.enums.Badge;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

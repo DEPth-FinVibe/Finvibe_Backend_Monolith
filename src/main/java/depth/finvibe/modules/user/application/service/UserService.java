@@ -25,7 +25,7 @@ import depth.finvibe.modules.user.domain.User;
 import depth.finvibe.modules.user.domain.error.UserErrorCode;
 import depth.finvibe.modules.user.dto.UserDto;
 import depth.finvibe.boot.security.Requester;
-import depth.finvibe.common.user.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 
 @Service

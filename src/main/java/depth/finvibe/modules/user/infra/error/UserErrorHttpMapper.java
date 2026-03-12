@@ -1,8 +1,8 @@
 package depth.finvibe.modules.user.infra.error;
 
 import depth.finvibe.modules.user.domain.error.UserErrorCode;
-import depth.finvibe.common.user.error.DomainErrorCode;
-import depth.finvibe.common.user.infra.error.DomainErrorHttpMapper;
+import depth.finvibe.common.error.DomainErrorCode;
+import depth.finvibe.common.infra.error.DomainErrorHttpMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;

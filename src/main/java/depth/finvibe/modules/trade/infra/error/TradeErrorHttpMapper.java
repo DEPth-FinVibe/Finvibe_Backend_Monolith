@@ -1,8 +1,8 @@
 package depth.finvibe.modules.trade.infra.error;
 
 import depth.finvibe.modules.trade.domain.error.TradeErrorCode;
-import depth.finvibe.common.investment.error.DomainErrorCode;
-import depth.finvibe.common.investment.infra.error.DomainErrorHttpMapper;
+import depth.finvibe.common.error.DomainErrorCode;
+import depth.finvibe.common.infra.error.DomainErrorHttpMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;

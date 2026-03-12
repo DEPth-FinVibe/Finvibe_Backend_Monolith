@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 import depth.finvibe.modules.asset.domain.Currency;
 import depth.finvibe.modules.asset.domain.error.AssetErrorCode;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.Embeddable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

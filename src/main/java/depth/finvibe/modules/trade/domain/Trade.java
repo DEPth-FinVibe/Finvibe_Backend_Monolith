@@ -4,7 +4,7 @@ import depth.finvibe.modules.trade.domain.enums.TradeType;
 import depth.finvibe.modules.trade.domain.enums.TransactionType;
 import depth.finvibe.modules.trade.domain.error.TradeErrorCode;
 import depth.finvibe.common.investment.domain.TimeStampedBaseEntity;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;

@@ -10,7 +10,7 @@ import depth.finvibe.modules.market.domain.CurrentPrice;
 import depth.finvibe.modules.market.domain.CurrentStockWatcher;
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

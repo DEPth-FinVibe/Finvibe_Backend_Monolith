@@ -12,7 +12,7 @@ import depth.finvibe.modules.gamification.application.port.in.BadgeCommandUseCas
 import depth.finvibe.modules.gamification.domain.enums.Badge;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.common.gamification.dto.RewardBadgeEvent;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Slf4j
 @Component

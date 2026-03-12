@@ -7,7 +7,7 @@ import depth.finvibe.modules.wallet.domain.Wallet;
 import depth.finvibe.modules.wallet.domain.Money;
 import depth.finvibe.modules.wallet.domain.error.WalletErrorCode;
 import depth.finvibe.modules.wallet.dto.WalletDto;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

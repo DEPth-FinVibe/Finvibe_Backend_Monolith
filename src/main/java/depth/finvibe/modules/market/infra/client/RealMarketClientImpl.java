@@ -31,7 +31,7 @@ import depth.finvibe.modules.market.dto.PriceCandleDto;
 import depth.finvibe.modules.market.dto.StockDto.RankingResponse;
 import depth.finvibe.modules.market.dto.StockDto.RealMarketStockResponse;
 import depth.finvibe.modules.market.infra.client.dto.KisDto;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Slf4j
 @Component

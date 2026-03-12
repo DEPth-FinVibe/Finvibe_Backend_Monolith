@@ -1,8 +1,8 @@
 package depth.finvibe.modules.gamification.infra.error;
 
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainErrorCode;
-import depth.finvibe.common.gamification.infra.error.DomainErrorHttpMapper;
+import depth.finvibe.common.error.DomainErrorCode;
+import depth.finvibe.common.infra.error.DomainErrorHttpMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;

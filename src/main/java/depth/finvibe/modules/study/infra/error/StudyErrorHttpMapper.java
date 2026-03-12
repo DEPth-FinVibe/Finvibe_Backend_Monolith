@@ -5,8 +5,8 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.study.domain.error.StudyErrorCode;
-import depth.finvibe.common.gamification.error.DomainErrorCode;
-import depth.finvibe.common.gamification.infra.error.DomainErrorHttpMapper;
+import depth.finvibe.common.error.DomainErrorCode;
+import depth.finvibe.common.infra.error.DomainErrorHttpMapper;
 
 @Component
 public class StudyErrorHttpMapper implements DomainErrorHttpMapper {

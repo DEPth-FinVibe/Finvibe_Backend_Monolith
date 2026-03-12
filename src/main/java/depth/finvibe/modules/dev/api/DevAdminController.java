@@ -18,8 +18,8 @@ import depth.finvibe.boot.security.Requester;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 import depth.finvibe.modules.market.application.BatchPriceUpdateService;
 import depth.finvibe.modules.market.infra.client.tokenmanage.repository.TokenRepository;
-import depth.finvibe.common.investment.error.DomainException;
-import depth.finvibe.common.investment.error.GlobalErrorCode;
+import depth.finvibe.common.error.DomainException;
+import depth.finvibe.common.error.GlobalErrorCode;
 
 @Hidden
 @RestController

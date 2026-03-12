@@ -3,7 +3,7 @@ package depth.finvibe.modules.study.domain.error;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import depth.finvibe.common.gamification.error.DomainErrorCode;
+import depth.finvibe.common.error.DomainErrorCode;
 
 @AllArgsConstructor
 @Getter

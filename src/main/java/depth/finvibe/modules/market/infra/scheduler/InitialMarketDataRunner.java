@@ -28,8 +28,8 @@ import depth.finvibe.modules.market.domain.Category;
 import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.enums.MarketIndexType;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
-import depth.finvibe.common.investment.error.DomainException;
-import depth.finvibe.common.investment.error.GlobalErrorCode;
+import depth.finvibe.common.error.DomainException;
+import depth.finvibe.common.error.GlobalErrorCode;
 
 @Slf4j
 @Component

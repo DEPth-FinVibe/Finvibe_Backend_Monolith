@@ -1,6 +1,6 @@
 package depth.finvibe.modules.trade.domain.error;
 
-import depth.finvibe.common.investment.error.DomainErrorCode;
+import depth.finvibe.common.error.DomainErrorCode;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 

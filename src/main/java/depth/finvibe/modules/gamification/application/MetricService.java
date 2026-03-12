@@ -20,7 +20,7 @@ import depth.finvibe.modules.gamification.domain.enums.CollectPeriod;
 import depth.finvibe.modules.gamification.domain.enums.Badge;
 import depth.finvibe.modules.gamification.domain.enums.UserMetricType;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Service
 @RequiredArgsConstructor

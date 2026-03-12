@@ -10,7 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 import depth.finvibe.modules.user.domain.error.UserErrorCode;
 import depth.finvibe.common.user.domain.TimeStampedBaseEntity;
-import depth.finvibe.common.user.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

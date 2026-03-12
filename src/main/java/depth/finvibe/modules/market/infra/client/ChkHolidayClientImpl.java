@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import depth.finvibe.modules.market.application.port.out.ChkHolidayClient;
 import depth.finvibe.modules.market.domain.HolidayDayInfo;
 import depth.finvibe.modules.market.infra.client.dto.KisDto;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

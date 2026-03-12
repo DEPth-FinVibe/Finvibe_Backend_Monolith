@@ -26,7 +26,7 @@ import lombok.experimental.SuperBuilder;
 
 import depth.finvibe.modules.asset.domain.error.AssetErrorCode;
 import depth.finvibe.common.investment.domain.TimeStampedBaseEntity;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Entity
 @Getter

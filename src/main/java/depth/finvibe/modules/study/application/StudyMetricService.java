@@ -16,8 +16,8 @@ import depth.finvibe.modules.study.application.port.out.StudyMetricRepository;
 import depth.finvibe.modules.study.domain.StudyMetric;
 import depth.finvibe.modules.study.domain.error.StudyErrorCode;
 import depth.finvibe.modules.study.dto.StudyMetricDto;
-import depth.finvibe.common.gamification.error.DomainException;
-import depth.finvibe.common.gamification.error.GlobalErrorCode;
+import depth.finvibe.common.error.DomainException;
+import depth.finvibe.common.error.GlobalErrorCode;
 
 @Service
 @RequiredArgsConstructor

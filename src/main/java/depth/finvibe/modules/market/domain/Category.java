@@ -1,7 +1,7 @@
 package depth.finvibe.modules.market.domain;
 
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

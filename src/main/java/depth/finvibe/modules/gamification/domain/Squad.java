@@ -12,7 +12,7 @@ import lombok.experimental.SuperBuilder;
 
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.common.gamification.domain.TimeStampedBaseEntity;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Entity
 @AllArgsConstructor

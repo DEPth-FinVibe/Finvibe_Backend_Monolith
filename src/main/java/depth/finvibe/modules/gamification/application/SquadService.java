@@ -11,7 +11,7 @@ import depth.finvibe.modules.gamification.domain.Squad;
 import depth.finvibe.modules.gamification.domain.UserSquad;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.modules.gamification.dto.SquadDto;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

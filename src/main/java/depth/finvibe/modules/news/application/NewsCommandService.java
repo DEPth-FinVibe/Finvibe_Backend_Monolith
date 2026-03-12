@@ -13,7 +13,7 @@ import depth.finvibe.modules.news.domain.error.NewsErrorCode;
 import depth.finvibe.common.insight.application.port.out.UserMetricEventPort;
 import depth.finvibe.common.insight.domain.CategoryInfo;
 import depth.finvibe.common.insight.dto.MetricEventType;
-import depth.finvibe.common.insight.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Service;

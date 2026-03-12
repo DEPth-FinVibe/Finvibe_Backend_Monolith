@@ -7,7 +7,7 @@ import depth.finvibe.modules.news.application.port.out.ThemeDailyRepository;
 import depth.finvibe.modules.news.domain.ThemeDaily;
 import depth.finvibe.modules.news.domain.error.ThemeErrorCode;
 import depth.finvibe.modules.news.dto.ThemeDto;
-import depth.finvibe.common.insight.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -19,7 +19,7 @@ import depth.finvibe.modules.gamification.domain.enums.RankingPeriod;
 import depth.finvibe.modules.gamification.domain.error.GamificationErrorCode;
 import depth.finvibe.modules.gamification.domain.vo.Xp;
 import depth.finvibe.modules.gamification.dto.XpDto;
-import depth.finvibe.common.gamification.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

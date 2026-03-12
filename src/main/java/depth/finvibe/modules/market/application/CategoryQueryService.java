@@ -24,7 +24,7 @@ import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.CategoryDto;
 import depth.finvibe.modules.market.dto.CategoryInternalDto;
-import depth.finvibe.common.investment.error.DomainException;
+import depth.finvibe.common.error.DomainException;
 
 @Service
 @RequiredArgsConstructor
