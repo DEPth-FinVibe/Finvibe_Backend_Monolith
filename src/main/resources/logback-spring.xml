@@ -1,23 +1,33 @@
 <configuration>
-  <springProfile name="local">
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-      <encoder>
-        <pattern>%d{HH:mm:ss} %-5level [%logger{36}] - %msg%n</pattern>
-      </encoder>
-    </appender>
-    <root level="INFO">
-      <appender-ref ref="CONSOLE"/>
-    </root>
-  </springProfile>
+	<springProperty scope="context" name="LOG_JSON_PATH" source="LOG_JSON_PATH" defaultValue="/app/logs/application-json.log"/>
 
-  <springProfile name="prod">
-    <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-      <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-        <customFields>{"app":"finvibe-backend"}</customFields>
-      </encoder>
-    </appender>
-    <root level="INFO">
-      <appender-ref ref="JSON_CONSOLE"/>
-    </root>
-  </springProfile>
+	<appender name="CONSOLE_TEXT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%logger{36}] - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<springProfile name="local">
+		<root level="INFO">
+			<appender-ref ref="CONSOLE_TEXT"/>
+		</root>
+	</springProfile>
+
+	<springProfile name="prod">
+		<appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+			<file>${LOG_JSON_PATH}</file>
+			<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+				<fileNamePattern>${LOG_JSON_PATH}.%d{yyyy-MM-dd}.gz</fileNamePattern>
+				<maxHistory>7</maxHistory>
+			</rollingPolicy>
+			<encoder class="net.logstash.logback.encoder.LogstashEncoder">
+				<customFields>{"app":"finvibe-backend"}</customFields>
+			</encoder>
+		</appender>
+
+		<root level="INFO">
+			<appender-ref ref="CONSOLE_TEXT"/>
+			<appender-ref ref="JSON_FILE"/>
+		</root>
+	</springProfile>
 </configuration>

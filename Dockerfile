@@ -15,6 +15,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir -p /app/logs
+
 COPY --from=builder /app/build/libs/*.jar app.jar
 
 ENV SPRING_PROFILES_ACTIVE=prod

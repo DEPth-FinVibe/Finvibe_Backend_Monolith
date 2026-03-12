@@ -9,6 +9,7 @@ env:
   IMAGE_NAME: ${{ vars.DOCKER_IMAGE_NAME || format('{0}/finvibe-backend-monolith', secrets.DOCKERHUB_USERNAME) }}
   CONTAINER_NAME: ${{ vars.DEPLOY_CONTAINER_NAME || 'finvibe-backend' }}
   APP_PORT: ${{ vars.APP_PORT || '8080' }}
+  LOG_DIR_HOST: ${{ vars.LOG_DIR_HOST || '/var/log/finvibe-backend' }}
   PRIMARY_DOCKER_NETWORK: ${{ vars.PRIMARY_DOCKER_NETWORK || 'infra_bridge' }}
   SECONDARY_DOCKER_NETWORK: ${{ vars.SECONDARY_DOCKER_NETWORK || 'monitoring_net' }}
 
@@ -54,6 +55,7 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
           APP_PORT: ${{ env.APP_PORT }}
+          LOG_DIR_HOST: ${{ env.LOG_DIR_HOST }}
           PRIMARY_DOCKER_NETWORK: ${{ env.PRIMARY_DOCKER_NETWORK }}
           SECONDARY_DOCKER_NETWORK: ${{ env.SECONDARY_DOCKER_NETWORK }}
           IMAGE_TAG: ${{ github.sha }}
@@ -83,13 +85,14 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,PRIMARY_DOCKER_NETWORK,SECONDARY_DOCKER_NETWORK,IMAGE_TAG,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,REDIS_PASSWORD,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,JWT_HMAC_SECRET,GEMINI_API_KEY,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,KIS_USER_ID,KIS_API_KEY_1,KIS_API_SECRET_1,KIS_API_KEY_2,KIS_API_SECRET_2,KIS_API_KEY_3,KIS_API_SECRET_3
+          envs: DOCKERHUB_USERNAME,DOCKERHUB_TOKEN,IMAGE_NAME,CONTAINER_NAME,APP_PORT,LOG_DIR_HOST,PRIMARY_DOCKER_NETWORK,SECONDARY_DOCKER_NETWORK,IMAGE_TAG,DB_URL,DB_USERNAME,DB_PASSWORD,REDIS_HOST,REDIS_PORT,REDIS_PASSWORD,KAFKA_BOOTSTRAP_SERVERS,JWT_SECRET,JWT_HMAC_SECRET,GEMINI_API_KEY,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,NAVER_CLIENT_ID,NAVER_CLIENT_SECRET,KIS_USER_ID,KIS_API_KEY_1,KIS_API_SECRET_1,KIS_API_KEY_2,KIS_API_SECRET_2,KIS_API_KEY_3,KIS_API_SECRET_3
           script_stop: true
           script: |
             set -eu
 
             echo "Deploy target hostname:"
             hostname || true
+            echo "Host log directory: ${LOG_DIR_HOST}"
             echo "Primary docker network: ${PRIMARY_DOCKER_NETWORK}"
             echo "Secondary docker network: ${SECONDARY_DOCKER_NETWORK}"
             echo "Docker networks on target:"
@@ -105,6 +108,9 @@ jobs:
             done
 
             IMAGE_REF="${IMAGE_NAME}:${IMAGE_TAG}"
+            CONTAINER_LOG_JSON_PATH="/app/logs/application-json.log"
+
+            mkdir -p "${LOG_DIR_HOST}"
 
             echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
             docker pull "${IMAGE_REF}"
@@ -128,6 +134,7 @@ jobs:
               --restart unless-stopped \
               --network "${PRIMARY_DOCKER_NETWORK}" \
               -e SPRING_PROFILES_ACTIVE=prod,oauth \
+              -e LOG_JSON_PATH="${CONTAINER_LOG_JSON_PATH}" \
               -e DB_URL="${DB_URL}" \
               -e DB_USERNAME="${DB_USERNAME}" \
               -e DB_PASSWORD="${DB_PASSWORD}" \
@@ -149,6 +156,7 @@ jobs:
               -e KIS_API_SECRET_2="${KIS_API_SECRET_2}" \
               -e KIS_API_KEY_3="${KIS_API_KEY_3}" \
               -e KIS_API_SECRET_3="${KIS_API_SECRET_3}" \
+              -v "${LOG_DIR_HOST}:/app/logs" \
               -p "${APP_PORT}:8080" \
               "${IMAGE_REF}"
 

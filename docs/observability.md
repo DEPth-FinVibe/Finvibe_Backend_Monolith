@@ -4,7 +4,7 @@
 
 ```
 [메트릭] Spring Boot → Micrometer → /actuator/prometheus ← Prometheus → Grafana
-[로그]   Spring Boot(JSON stdout) → Grafana Alloy → Loki → Grafana
+[로그]   Spring Boot(JSON file) → Grafana Alloy → Loki → Grafana
 ```
 
 ---
@@ -72,7 +72,8 @@ scrape_configs:
 
 ## Grafana Alloy 설정 (config.alloy)
 
-Docker 컨테이너의 stdout 로그를 수집해 Loki로 전달합니다.
+운영에서는 JSON 로그 파일을 수집해 Loki로 전달합니다.
+세부 절차는 `docs/server-log-to-loki-manual.md`를 참고하세요.
 
 ```hcl
 discovery.docker "containers" {
@@ -106,8 +107,8 @@ loki.write "default" {
 
 | 프로파일 | 포맷 | 용도 |
 |---|---|---|
-| `local` | 텍스트 (`HH:mm:ss LEVEL [logger] - message`) | 개발 시 가독성 |
-| `prod` | JSON (Logstash 포맷, `app:"finvibe-backend"` 포함) | Alloy 파싱 |
+| `local` | 콘솔 텍스트 | 개발 시 가독성 |
+| `prod` | 콘솔 텍스트 + JSON 파일(Logstash 포맷, `app:"finvibe-backend"` 포함) | 콘솔 가독성 + Alloy 파싱 |
 
 ### Loki 쿼리 예시
 
@@ -131,4 +132,4 @@ loki.write "default" {
 - [ ] HTTP 요청 발생 후 `http_server_requests_seconds_count` 메트릭 존재
 - [ ] Prometheus UI → Targets → `finvibe-backend` job `UP` 상태
 - [ ] Grafana → Explore → Loki → `{container="finvibe-backend"}` 로그 조회
-- [ ] `prod` 프로파일 실행 시 stdout이 JSON 포맷 확인
+- [ ] `prod` 프로파일 실행 시 `/app/logs/application-json.log`(호스트 마운트 포함) 생성 확인
