@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-Generate dummy users CSV for bulk loading into MariaDB.
+Generate dummy users/wallet CSVs for bulk loading into MariaDB.
 
-Output columns (no header):
+Users output columns (no header):
 id,login_id,password_hash,provider,provider_id,role,
 phone_number_first_part,phone_number_second_part,phone_number_third_part,
 birth_date,name,nickname,email,is_deleted,created_at,last_modified_at
+
+Wallet output columns (no header):
+user_id,balance,created_at,last_modified_at
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ NAME_POOL = (
     "Ara",
 )
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+WALLET_INITIAL_BALANCE = 10_000_000
 
 
 def parse_datetime(value: str) -> dt.datetime:
@@ -81,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=pathlib.Path,
         default=pathlib.Path("data/users_1000000.csv"),
         help="Output CSV path (default: data/users_1000000.csv).",
+    )
+    parser.add_argument(
+        "--wallet-output",
+        type=pathlib.Path,
+        default=pathlib.Path("data/wallets_1000000.csv"),
+        help="Wallet output CSV path (default: data/wallets_1000000.csv).",
     )
     parser.add_argument(
         "--seed",
@@ -151,9 +161,13 @@ def main() -> None:
 
     rng = random.Random(args.seed)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.wallet_output.parent.mkdir(parents=True, exist_ok=True)
 
     total = args.rows
-    with args.output.open("w", encoding="utf-8", newline="\n") as handle:
+    with (
+        args.output.open("w", encoding="utf-8", newline="\n") as user_handle,
+        args.wallet_output.open("w", encoding="utf-8", newline="\n") as wallet_handle,
+    ):
         for idx in range(total):
             user_id = str(uuid.UUID(int=rng.getrandbits(128)))
             login_id = f"user{idx:07d}"
@@ -199,13 +213,25 @@ def main() -> None:
                     last_modified_at.strftime(DATETIME_FORMAT),
                 ]
             )
-            handle.write(row)
-            handle.write("\n")
+            user_handle.write(row)
+            user_handle.write("\n")
+
+            wallet_row = ",".join(
+                [
+                    user_id,
+                    str(WALLET_INITIAL_BALANCE),
+                    created_at.strftime(DATETIME_FORMAT),
+                    created_at.strftime(DATETIME_FORMAT),
+                ]
+            )
+            wallet_handle.write(wallet_row)
+            wallet_handle.write("\n")
 
             if args.progress_every > 0 and (idx + 1) % args.progress_every == 0:
                 print(f"Generated {idx + 1:,}/{total:,} rows...")
 
-    print(f"CSV generated: {args.output.resolve()}")
+    print(f"Users CSV generated: {args.output.resolve()}")
+    print(f"Wallets CSV generated: {args.wallet_output.resolve()}")
     print(f"Rows: {total:,}")
     print("Tip: Use LOAD DATA LOCAL INFILE for fast import.")
 
