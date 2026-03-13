@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
@@ -96,6 +97,16 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(NoHandlerFoundException.class)
 	public ResponseEntity<ErrorResponse> handleNotFound(NoHandlerFoundException ex) {
+		ErrorResponse body = ErrorResponse.of(
+			HttpStatus.NOT_FOUND.value(),
+			GlobalErrorCode.NOT_FOUND.getCode(),
+			GlobalErrorCode.NOT_FOUND.getMessage()
+		);
+		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+	}
+
+	@ExceptionHandler(NoResourceFoundException.class)
+	public ResponseEntity<ErrorResponse> handleStaticResourceNotFound(NoResourceFoundException ex) {
 		ErrorResponse body = ErrorResponse.of(
 			HttpStatus.NOT_FOUND.value(),
 			GlobalErrorCode.NOT_FOUND.getCode(),
