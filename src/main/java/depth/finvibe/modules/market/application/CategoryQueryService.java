@@ -55,7 +55,7 @@ public class CategoryQueryService implements CategoryQueryUseCase {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, noRollbackFor = DomainException.class)
     public CategoryDto.ChangeRateResponse getCategoryChangeRate(Long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new DomainException(MarketErrorCode.CATEGORY_NOT_FOUND));
