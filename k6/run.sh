@@ -4,16 +4,18 @@ VENV_DIR="${K6_VENV_DIR:-.venv}"
 VENV_PYTHON="$VENV_DIR/bin/python3"
 REQUIREMENTS_FILE="k6/requirements.txt"
 
-echo "==============================="
+echo "============================================================"
 echo "  Finvibe k6 부하테스트 실행기"
-echo "==============================="
-echo "0) quick    - 3초, 연결 확인용"
-echo "1) smoke    - 5분, 저부하 사전 검증"
-echo "2) ramp10   - 10분, 중간 부하"
-echo "3) baseline - 25분, 기준 부하"
-echo "4) stepup   - 25분, 상향 부하"
-echo "==============================="
-read -p "프로필 선택 (0/1/2/3/4): " choice
+echo "============================================================"
+echo "0) quick    |  3초   | ~3 RPS    | 연결 확인 전용 (CI 스모크)"
+echo "1) smoke    |  5분   | ~5 RPS    | 저부하 사전 검증, 기능 이상 없는지 확인"
+echo "2) ramp10   | 10분   | ~13 RPS   | 중간 부하, 완만한 ramp-up"
+echo "3) baseline | 25분   | ~21 RPS   | 기준 부하, 일반 운영 수준 재현"
+echo "4) stepup   | 25분   | ~48 RPS   | 상향 부하, baseline 2배 수준 점진 증가"
+echo "5) stress   | 30분   | ~130 RPS  | 한계점 탐색, stepup 3배 수준까지 공격적 가속"
+echo "6) spike    | 15분   | ~165 RPS  | 폭증 대응, 30초 만에 16배 급증 후 회복 관찰"
+echo "============================================================"
+read -p "프로필 선택 (0~6): " choice
 
 case $choice in
   0) ENV_FILE="k6/.env.quick" ;;
@@ -21,8 +23,10 @@ case $choice in
   2) ENV_FILE="k6/.env.ramp10" ;;
   3) ENV_FILE="k6/.env.baseline" ;;
   4) ENV_FILE="k6/.env.stepup" ;;
+  5) ENV_FILE="k6/.env.stress" ;;
+  6) ENV_FILE="k6/.env.spike" ;;
   *)
-    echo "잘못된 선택입니다. 0, 1, 2, 3, 4 중 하나를 입력하세요."
+    echo "잘못된 선택입니다. 0~6 중 하나를 입력하세요."
     exit 1
     ;;
 esac
