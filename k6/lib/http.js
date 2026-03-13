@@ -29,6 +29,7 @@ export function getJson(path, { query, headers, tags, expectedStatuses = [200], 
 		headers,
 		tags,
 		timeout: timeout || __ENV.HTTP_TIMEOUT || '10s',
+		responseCallback: http.expectedStatuses(...expectedStatuses),
 	});
 
 	assertResponse(response, {

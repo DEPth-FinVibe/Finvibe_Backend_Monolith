@@ -31,7 +31,7 @@
 
 ## Optional Environment Variables
 
-- `LOAD_PROFILE`: `smoke`, `baseline`, `stepup` 중 하나. 기본값 `smoke`
+- `LOAD_PROFILE`: `quick`, `smoke`, `ramp10`, `baseline`, `stepup` 중 하나. 기본값 `smoke`
 - `TOKENS_FILE`: 토큰 JSON 파일 경로. 기본값 `./k6/data/tokens.sample.json`
 - `IDS_FILE`: ID JSON 파일 경로. 기본값 `./k6/data/ids.sample.json`
 - `HTTP_TIMEOUT`: 요청 timeout. 기본값 `10s`
@@ -67,8 +67,9 @@
 운영 직접 테스트 1차 권장 순서:
 
 1. `smoke`
-2. `baseline`
-3. `stepup`
+2. `ramp10`
+3. `baseline`
+4. `stepup`
 
 첫 실행은 `smoke`로 시작하고, 애플리케이션/DB/Redis/Kafka 메트릭을 같이 본다.
 

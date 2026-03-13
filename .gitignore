@@ -38,6 +38,17 @@ out/
 
 ### Environment ###
 .env
+k6/.env.*
 
 ### Local generated data ###
 data/
+
+### Python / k6 generated ###
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+k6/reports/

@@ -37,6 +37,7 @@ export function runAuthProfileFlow() {
 
 	getJson('/rankings/user-profit', {
 		headers,
+		query: { type: 'WEEKLY' },
 		tags: { module: 'ranking', flow: 'asset_home', scope: 'auth' },
 	});
 }

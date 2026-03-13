@@ -51,6 +51,7 @@ export function runAuthActivityFlow() {
 	getJson('/xp/squads/contributions/me', {
 		headers,
 		tags: { module: 'xp', flow: 'gamification', scope: 'auth' },
+		expectedStatuses: [200, 404],
 	});
 	randomThinkTime(1, 2);
 

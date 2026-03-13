@@ -51,7 +51,7 @@ export default function () {
 }
 
 export function handleSummary(data) {
-	return {
+	const result = {
 		stdout: [
 			'',
 			'k6 load test summary',
@@ -63,4 +63,22 @@ export function handleSummary(data) {
 			'',
 		].join('\n'),
 	};
+
+	const summaryFile = __ENV.SUMMARY_OUTPUT_FILE;
+	if (summaryFile) {
+		result[summaryFile] = JSON.stringify(
+			{
+				profile: profileName,
+				baseUrl: sharedRuntimeData.baseUrl,
+				tokensLoaded: sharedRuntimeData.tokens.length,
+				idStatsSummary: sharedRuntimeData.idStatsSummary,
+				metrics: data.metrics,
+				thresholds: data.thresholds,
+			},
+			null,
+			2
+		);
+	}
+
+	return result;
 }
