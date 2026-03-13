@@ -14,7 +14,7 @@ public class GeminiConfig {
     @Value("${langchain4j.google-ai-gemini.chat-model.api-key}")
     private String apiKey;
 
-    @Value("${langchain4j.google-ai-gemini.chat-model.model-name:gemini-1.5-flash}")
+    @Value("${langchain4j.google-ai-gemini.chat-model.model-name:gemini-2.5-flash}")
     private String modelName;
 
     @Bean
