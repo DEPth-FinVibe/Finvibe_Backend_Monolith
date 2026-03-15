@@ -52,3 +52,12 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 k6/reports/
+
+### Backup / temp files ###
+*.backup
+*.bak
+*.tmp
+
+### Seed data files ###
+scripts/seed/data.scv
+scripts/seed/*.csv
