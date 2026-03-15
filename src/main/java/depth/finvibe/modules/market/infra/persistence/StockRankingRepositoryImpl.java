@@ -31,5 +31,6 @@ public class StockRankingRepositoryImpl implements StockRankingRepository {
     @Transactional
     public void deleteByRankTypeIn(List<RankType> rankTypes) {
         jpaRepository.deleteByRankTypeIn(rankTypes);
+        jpaRepository.flush();
     }
 }
