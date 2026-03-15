@@ -21,7 +21,9 @@ import lombok.experimental.SuperBuilder;
 @NoArgsConstructor
 @Getter
 @SuperBuilder
-@Table(name = "users")
+@Table(name = "users", indexes = {
+    @Index(name = "idx_users_login_id", columnList = "login_id", unique = true),
+})
 public class User extends TimeStampedBaseEntity {
     @Id
     @Builder.Default

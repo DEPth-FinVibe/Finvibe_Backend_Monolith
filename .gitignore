@@ -38,6 +38,7 @@ out/
 
 ### Environment ###
 .env
+*.env
 
 ### Local generated data ###
 data/
