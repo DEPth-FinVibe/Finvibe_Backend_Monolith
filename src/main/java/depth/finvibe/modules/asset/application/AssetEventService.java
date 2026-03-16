@@ -55,7 +55,6 @@ public class AssetEventService implements AssetEventUseCase {
         commandUseCase.createDefaultPortfolioGroup(userId);
     }
 
-    @Transactional
     public void handleBatchPriceUpdatedEvent(BatchPriceUpdatedEvent event) {
         int updatedCount = event.getUpdatedStockIds() == null ? 0 : event.getUpdatedStockIds().size();
         log.info("Received batch price updated event. executedAt={}, totalStockCount={}, updatedStockIdsCount={}",

@@ -10,6 +10,8 @@ import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 public interface PortfolioGroupRepository {
     PortfolioGroup save(PortfolioGroup portfolioGroup);
 
+    List<PortfolioGroup> saveAll(List<PortfolioGroup> portfolioGroups);
+
     Optional<PortfolioGroup> findById(Long id);
 
     Optional<PortfolioGroup> findByIdWithAssets(Long id);

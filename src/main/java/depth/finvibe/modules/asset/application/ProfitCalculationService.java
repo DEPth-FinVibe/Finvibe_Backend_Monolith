@@ -15,7 +15,6 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,7 +23,6 @@ import org.springframework.stereotype.Service;
 import depth.finvibe.modules.asset.application.event.AllUserProfitRatesUpdatedEvent;
 import depth.finvibe.modules.asset.application.port.in.ProfitCalculationUseCase;
 import depth.finvibe.modules.asset.application.port.out.MarketPriceClient;
-import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.application.port.out.UserNicknameClient;
 import depth.finvibe.modules.asset.application.port.out.UserProfitRankingData;
 import depth.finvibe.modules.asset.domain.Asset;
@@ -40,7 +38,7 @@ import depth.finvibe.common.investment.dto.UserMetricUpdatedEvent;
 public class ProfitCalculationService implements ProfitCalculationUseCase {
   private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-  private final PortfolioGroupRepository portfolioGroupRepository;
+  private final ProfitCalculationTxHelper txHelper;
   private final MarketPriceClient marketPriceClient;
   private final UserNicknameClient userNicknameClient;
   private final UserProfitRankingAggregationService userProfitRankingAggregationService;
@@ -48,16 +46,16 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   private final GamificationEventProducer gamificationEventProducer;
 
   @Override
-  @Transactional
   public void recalculateAllProfits(List<Long> updatedStockIds) {
     if (updatedStockIds == null || updatedStockIds.isEmpty()) {
       return;
     }
 
-    List<PortfolioGroup> portfolios = portfolioGroupRepository.findAllByStockIdsWithAssets(updatedStockIds);
+    // ① 짧은 read 트랜잭션 — 완료 후 커넥션 즉시 반환
+    List<PortfolioGroup> portfolios = txHelper.readPortfoliosByStockIds(updatedStockIds);
     if (portfolios.isEmpty()) {
       log.info("No portfolios found with updated stock IDs for profit recalculation.");
-      List<PortfolioGroup> allPortfolios = portfolioGroupRepository.findAllWithAssets();
+      List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
       publishUserProfitRatesUpdatedEvent(allPortfolios);
       return;
     }
@@ -73,6 +71,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       return;
     }
 
+    // ② 외부 HTTP 호출 — 커넥션 없음
     List<BatchPriceSnapshot> batchPrices = marketPriceClient.getBatchPrices(stockIds);
     if (batchPrices == null || batchPrices.isEmpty()) {
       log.warn("No batch prices retrieved for stock IDs: {}", stockIds);
@@ -82,17 +81,11 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     Map<Long, BigDecimal> priceByStockId = batchPrices.stream()
       .collect(Collectors.toMap(BatchPriceSnapshot::getStockId, BatchPriceSnapshot::getPrice));
 
-    for (PortfolioGroup portfolio : portfolios) {
-      for (Asset asset : portfolio.getAssets()) {
-        BigDecimal currentPrice = priceByStockId.get(asset.getStockId());
-        if (currentPrice != null) {
-          asset.updateValuation(currentPrice);
-        }
-      }
-      portfolio.recalculateValuation();
-    }
+    // ③ 짧은 write 트랜잭션 — valuation 업데이트 후 커넥션 반환
+    txHelper.updateValuations(portfolios, priceByStockId);
 
-    List<PortfolioGroup> allPortfolios = portfolioGroupRepository.findAllWithAssets();
+    // ④ 짧은 read 트랜잭션 — 랭킹 집계용 전체 조회
+    List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
     publishUserProfitRatesUpdatedEvent(allPortfolios);
   }
 

@@ -23,6 +23,11 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     }
 
     @Override
+    public List<PortfolioGroup> saveAll(List<PortfolioGroup> portfolioGroups) {
+        return jpaRepository.saveAll(portfolioGroups);
+    }
+
+    @Override
     public Optional<PortfolioGroup> findById(Long id) {
         return jpaRepository.findById(id);
     }
