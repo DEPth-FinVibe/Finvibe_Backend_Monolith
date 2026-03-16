@@ -8,10 +8,7 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
-    hikari:
-      maximum-pool-size: 25
-      connection-timeout: 30000
-      leak-detection-threshold: 5000
+    driver-class-name: org.mariadb.jdbc.Driver
 
   jpa:
     hibernate:
@@ -20,6 +17,7 @@ spring:
     properties:
       hibernate:
         format_sql: false
+        dialect: org.hibernate.dialect.MariaDBDialect
 
   data:
     redis:
@@ -33,6 +31,8 @@ spring:
 logging:
   level:
     root: info
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
 
 market:
   category:

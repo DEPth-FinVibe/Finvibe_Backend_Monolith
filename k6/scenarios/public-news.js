@@ -4,10 +4,11 @@ import { pickFrom, sharedRuntimeData } from '../lib/data.js';
 export function runPublicNewsFlow() {
 	const newsId = pickFrom(sharedRuntimeData.newsIds);
 	const categoryId = pickFrom(sharedRuntimeData.categoryIds);
+	const page = Math.floor(Math.random() * 3); // 0~2 페이지 다양하게 분산
 
 	getJson('/news', {
 		query: {
-			page: 0,
+			page,
 			size: 20,
 			sortType: Math.random() < 0.7 ? 'LATEST' : 'POPULAR',
 		},

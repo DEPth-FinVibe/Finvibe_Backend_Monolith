@@ -4,8 +4,10 @@ import exec from 'k6/execution';
 import { getScenarioExecutors, getThresholds, loadProfileName } from './lib/config.js';
 import { runPublicMarketFlow } from './scenarios/public-market.js';
 import { runPublicNewsFlow } from './scenarios/public-news.js';
+import { runPublicLeaderboardFlow } from './scenarios/public-leaderboard.js';
 import { runAuthProfileFlow } from './scenarios/auth-profile.js';
-import { runAuthActivityFlow } from './scenarios/auth-activity.js';
+import { runAuthTradeFlow } from './scenarios/auth-trade.js';
+import { runAuthGamificationFlow } from './scenarios/auth-gamification.js';
 import { runHeavyReadFlow } from './scenarios/heavy-read.js';
 import { ensureRuntimeConfig, printRuntimeSummary, sharedRuntimeData } from './lib/data.js';
 
@@ -36,11 +38,17 @@ export default function () {
 		case 'public_news_read':
 			runPublicNewsFlow();
 			return;
+		case 'public_leaderboard_read':
+			runPublicLeaderboardFlow();
+			return;
 		case 'auth_profile_read':
 			runAuthProfileFlow();
 			return;
-		case 'auth_activity_read':
-			runAuthActivityFlow();
+		case 'auth_trade_read':
+			runAuthTradeFlow();
+			return;
+		case 'auth_gamification_read':
+			runAuthGamificationFlow();
 			return;
 		case 'heavy_read_isolated':
 			runHeavyReadFlow();
