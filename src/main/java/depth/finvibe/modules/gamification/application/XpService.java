@@ -133,6 +133,28 @@ public class XpService implements XpCommandUseCase, XpQueryUseCase {
     public List<XpDto.UserRankingResponse> getUserXpRanking(RankingPeriod period) {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         LocalDateTime currentPeriodStart = getCurrentStart(period, now);
+
+        // 1️⃣ 스냅샷 테이블 우선 조회 (10분마다 갱신됨)
+        List<UserXpRankingSnapshot> snapshots = userXpRankingSnapshotRepository.findTopByPeriod(
+                period,
+                currentPeriodStart.toLocalDate(),
+                100);
+
+        if (!snapshots.isEmpty()) {
+            return snapshots.stream()
+                    .map(snapshot -> XpDto.UserRankingResponse.builder()
+                            .userId(snapshot.getUserId())
+                            .nickname(snapshot.getNickname())
+                            .ranking(snapshot.getRanking())
+                            .currentXp(snapshot.getCurrentTotalXp())
+                            .periodXp(snapshot.getPeriodXp())
+                            .previousPeriodXp(snapshot.getPreviousPeriodXp())
+                            .growthRate(snapshot.getGrowthRate())
+                            .build())
+                    .toList();
+        }
+
+        // 2️⃣ 스냅샷 없으면 실시간 집계 (초기 상태/배치 미실행 시에만)
         LocalDateTime currentPeriodEnd = getCurrentEnd(period, currentPeriodStart);
 
         List<UserXpAwardRepository.UserPeriodXp> rankedUsers = userXpAwardRepository
