@@ -42,6 +42,7 @@ out/
 
 ### Local generated data ###
 data/
+!k6/data
 
 ### Python / k6 generated ###
 .venv/
