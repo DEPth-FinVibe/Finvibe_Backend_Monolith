@@ -58,6 +58,7 @@ k6/reports/
 *.backup
 *.bak
 *.tmp
+.DS_Store
 
 ### Seed data files ###
 scripts/seed/data.scv
