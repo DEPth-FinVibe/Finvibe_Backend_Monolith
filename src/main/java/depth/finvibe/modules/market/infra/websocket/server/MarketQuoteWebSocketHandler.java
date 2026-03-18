@@ -28,6 +28,9 @@ import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
 import depth.finvibe.modules.market.dto.CurrentPriceDto;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 
 @Slf4j
 @Component
@@ -41,6 +44,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     private final MarketQueryUseCase marketQueryUseCase;
     private final ObjectMapper objectMapper;
     private final TaskScheduler taskScheduler;
+    private final MeterRegistry meterRegistry;
 
     @Value("${market.ws.auth-timeout-ms:5000}")
     private long authTimeoutMs;
@@ -50,6 +54,19 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
 
     @Value("${market.ws.rate-limit-per-second:20}")
     private int rateLimitPerSecond;
+
+    private Counter authTimeoutCounter;
+    private Counter rateLimitViolationCounter;
+
+    @PostConstruct
+    public void initMetrics() {
+        authTimeoutCounter = Counter.builder("ws.auth.timeout")
+                .description("인증 타임아웃으로 종료된 연결 수")
+                .register(meterRegistry);
+        rateLimitViolationCounter = Counter.builder("ws.rate.limit.violations")
+                .description("초당 메시지 한도 초과 횟수")
+                .register(meterRegistry);
+    }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -67,6 +84,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         if (!connection.tryConsume(rateLimitPerSecond)) {
+            rateLimitViolationCounter.increment();
             sendError(session, null, "RATE_LIMITED", "Too many requests.", null);
             return;
         }
@@ -117,6 +135,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         if (!connection.getState().isAuthenticated()) {
+            authTimeoutCounter.increment();
             sendError(session, null, "UNAUTHORIZED", "Authentication timeout.", null);
             closeSession(session, CloseStatus.POLICY_VIOLATION);
         }

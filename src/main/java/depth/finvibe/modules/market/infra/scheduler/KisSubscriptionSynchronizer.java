@@ -10,6 +10,11 @@ import java.util.stream.Collectors;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +56,7 @@ public class KisSubscriptionSynchronizer {
     private final MarketDataStreamPort marketDataStreamPort;
     private final ActiveNodeRegistry activeNodeRegistry;
     private final SubscriptionOwnershipManager ownershipManager;
+    private final MeterRegistry meterRegistry;
 
     // FIFO 방식으로 구독 순서를 추적 (LinkedHashSet)
     private final LinkedHashSet<Long> subscriptionOrder = new LinkedHashSet<>();
@@ -59,6 +65,26 @@ public class KisSubscriptionSynchronizer {
     private boolean sessionsUnavailable;
     private SyncLogSnapshot lastSyncLogSnapshot;
     private int unchangedSyncCycleCount;
+
+    private Timer syncTimer;
+    private Counter syncErrorCounter;
+    private Counter lockFailureCounter;
+
+    @PostConstruct
+    public void initMetrics() {
+        syncTimer = Timer.builder("kis.sync.execution")
+                .description("KIS 구독 동기화 사이클 실행 시간")
+                .register(meterRegistry);
+        syncErrorCounter = Counter.builder("kis.sync.errors")
+                .description("KIS 구독 동기화 사이클 에러 수")
+                .register(meterRegistry);
+        lockFailureCounter = Counter.builder("kis.sync.lock.failures")
+                .description("분산 락 획득 실패 수")
+                .register(meterRegistry);
+        Gauge.builder("kis.sync.subscriptions.active", subscriptionOrder, LinkedHashSet::size)
+                .description("이 노드가 보유한 활성 구독 수")
+                .register(meterRegistry);
+    }
 
     private record SubscriptionResult(int successCount, int skipCount, int releasedCount) {
     }
@@ -89,6 +115,10 @@ public class KisSubscriptionSynchronizer {
 
     @Scheduled(fixedDelayString = "${market.kis.websocket.sync-interval-ms:1000}")
     public void syncRealtimeSubscriptions() {
+        syncTimer.record(this::doSyncRealtimeSubscriptions);
+    }
+
+    private void doSyncRealtimeSubscriptions() {
         try {
             String nodeId = activeNodeRegistry.getNodeId();
 
@@ -135,6 +165,7 @@ public class KisSubscriptionSynchronizer {
             logSyncComplete(result, activeStockIds.size(), maxSubscriptionsForNode);
 
         } catch (Exception ex) {
+            syncErrorCounter.increment();
             log.error("KIS 실시간 가격 구독 동기화 실패", ex);
         }
     }
@@ -442,6 +473,7 @@ public class KisSubscriptionSynchronizer {
                     task
             );
         } catch (LockAcquisitionException ex) {
+            lockFailureCounter.increment();
             log.trace("구독 락 획득 실패 - stockId: {}", stockId);
             return SubscriptionAttempt.skipped();
         }

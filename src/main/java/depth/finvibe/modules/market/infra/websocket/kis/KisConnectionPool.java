@@ -13,6 +13,9 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -49,13 +52,18 @@ public class KisConnectionPool implements MarketDataStreamPort {
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
 
+    private Counter noSessionCounter;
+    private Counter sessionConnectFailureCounter;
+    private Counter sessionConnectSuccessCounter;
+
     public KisConnectionPool(
             KisCredentialsProperties properties,
             KisCredentialAllocator credentialAllocator,
             KisRateLimiter rateLimiter,
             MarketServiceClient marketServiceClient,
             ObjectMapper objectMapper,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            MeterRegistry meterRegistry
     ) {
         this.properties = properties;
         this.credentialAllocator = credentialAllocator;
@@ -63,6 +71,23 @@ public class KisConnectionPool implements MarketDataStreamPort {
         this.marketServiceClient = marketServiceClient;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+
+        Gauge.builder("kis.sessions.available", sessions, Map::size)
+                .description("연결된 KIS WebSocket 세션 수")
+                .register(meterRegistry);
+        Gauge.builder("kis.subscriptions.active", stockIdToSymbol, Map::size)
+                .description("KIS WebSocket 활성 구독 종목 수")
+                .register(meterRegistry);
+
+        noSessionCounter = Counter.builder("kis.subscribe.no.session")
+                .description("가용 세션 없어 구독 실패 횟수")
+                .register(meterRegistry);
+        sessionConnectFailureCounter = Counter.builder("kis.session.connect.failures")
+                .description("KIS WebSocket 세션 연결 실패 수")
+                .register(meterRegistry);
+        sessionConnectSuccessCounter = Counter.builder("kis.session.connect.success")
+                .description("KIS WebSocket 세션 연결 성공 수")
+                .register(meterRegistry);
     }
 
     /**
@@ -124,6 +149,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
         KisWebsocketSession targetSession = findSessionWithAvailableSlot();
         if (targetSession == null) {
+            noSessionCounter.increment();
             log.error("구독 가능한 KIS WebSocket 세션이 없습니다. - stockId: {}, symbol: {}", stockId, symbol);
             // 매핑 정보 롤백
             symbolToStockId.remove(symbol);
@@ -160,10 +186,12 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
     private void handleSessionRegistrationSuccess(String appKey, KisWebsocketSession session) {
         sessions.put(appKey, session);
+        sessionConnectSuccessCounter.increment();
         log.info("KIS WebSocket 세션 등록 성공 - AppKey: {}", appKey);
     }
 
     private Void handleSessionRegistrationFailure(String appKey, Throwable ex) {
+        sessionConnectFailureCounter.increment();
         log.error("KIS WebSocket 세션 등록 실패 - AppKey: {}", appKey, ex);
         return null;
     }

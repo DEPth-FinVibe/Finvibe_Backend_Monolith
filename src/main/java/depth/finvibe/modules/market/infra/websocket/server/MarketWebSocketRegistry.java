@@ -8,6 +8,9 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 import depth.finvibe.modules.market.application.port.in.CurrentPriceCommandUseCase;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -24,22 +27,27 @@ import java.time.Duration;
 public class MarketWebSocketRegistry {
   private final CurrentPriceCommandUseCase currentPriceCommandUseCase;
   private final TaskScheduler taskScheduler;
-  
+  private final MeterRegistry meterRegistry;
+
   private final Map<String, MarketWebSocketConnection> connections = new ConcurrentHashMap<>();
   private final Map<String, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
   private final Map<UUID, Map<String, Integer>> userSubscriptions = new ConcurrentHashMap<>();
-  
+
   private ScheduledFuture<?> ttlRefreshTask;
+  private Counter subscriptionsRejectedCounter;
+  private Counter subscriptionsLimitExceededCounter;
   
   // TTL 갱신 주기: 5분 (TTL 10분의 절반)
   private static final long TTL_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
   
   public MarketWebSocketRegistry(
       @Lazy CurrentPriceCommandUseCase currentPriceCommandUseCase,
-      TaskScheduler taskScheduler
+      TaskScheduler taskScheduler,
+      MeterRegistry meterRegistry
   ) {
     this.currentPriceCommandUseCase = currentPriceCommandUseCase;
     this.taskScheduler = taskScheduler;
+    this.meterRegistry = meterRegistry;
   }
   
   @PostConstruct
@@ -49,6 +57,27 @@ public class MarketWebSocketRegistry {
         Duration.ofMillis(TTL_REFRESH_INTERVAL_MS)
     );
     log.info("구독 TTL 갱신 스케줄러 시작 - 갱신 주기: {}분", TTL_REFRESH_INTERVAL_MS / 60000);
+
+    Gauge.builder("ws.connections.active", connections, Map::size)
+        .description("활성 WebSocket 연결 수")
+        .register(meterRegistry);
+    Gauge.builder("ws.connections.authenticated", connections,
+            map -> map.values().stream().filter(c -> c.getState().isAuthenticated()).count())
+        .description("인증된 WebSocket 연결 수")
+        .register(meterRegistry);
+    Gauge.builder("ws.users.active", userSubscriptions, Map::size)
+        .description("활성 WebSocket 사용자 수")
+        .register(meterRegistry);
+    Gauge.builder("ws.topics.active", topicSubscribers, Map::size)
+        .description("구독 중인 토픽(종목) 수")
+        .register(meterRegistry);
+
+    subscriptionsRejectedCounter = Counter.builder("ws.subscriptions.rejected")
+        .description("구독 거부 횟수 (한도 초과)")
+        .register(meterRegistry);
+    subscriptionsLimitExceededCounter = Counter.builder("ws.subscriptions.limit.exceeded")
+        .description("사용자별 구독 한도 초과 이벤트 수")
+        .register(meterRegistry);
   }
   
   @PreDestroy
@@ -163,6 +192,7 @@ public class MarketWebSocketRegistry {
       if (!userTopics.containsKey(topic) && uniqueTopicCount >= limit) {
         rejected.add(topic);
         limitExceeded = true;
+        subscriptionsRejectedCounter.increment();
         continue;
       }
       state.getSubscribedTopics().add(topic);
@@ -185,6 +215,9 @@ public class MarketWebSocketRegistry {
       subscribed.add(topic);
     }
 
+    if (limitExceeded) {
+      subscriptionsLimitExceededCounter.increment();
+    }
     return new SubscribeResult(subscribed, alreadySubscribed, rejected, limitExceeded);
   }
 

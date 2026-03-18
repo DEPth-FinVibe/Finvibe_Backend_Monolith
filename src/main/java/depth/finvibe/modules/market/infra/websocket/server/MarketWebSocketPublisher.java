@@ -1,6 +1,9 @@
 package depth.finvibe.modules.market.infra.websocket.server;
 
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,9 +24,27 @@ public class MarketWebSocketPublisher {
 
     private final MarketWebSocketRegistry registry;
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     @Value("${market.ws.send-failure-threshold:3}")
     private int sendFailureThreshold;
+
+    private Counter sendFailureCounter;
+    private Counter closedByFailureCounter;
+    private Counter serializationErrorCounter;
+
+    @PostConstruct
+    public void initMetrics() {
+        sendFailureCounter = Counter.builder("ws.message.send.failures")
+                .description("WebSocket 메시지 전송 실패 수")
+                .register(meterRegistry);
+        closedByFailureCounter = Counter.builder("ws.connection.closed.unreliable")
+                .description("반복 전송 실패로 강제 종료된 연결 수")
+                .register(meterRegistry);
+        serializationErrorCounter = Counter.builder("ws.message.serialization.errors")
+                .description("WebSocket 이벤트 직렬화 실패 수")
+                .register(meterRegistry);
+    }
 
     public void publish(CurrentPriceUpdatedEvent event) {
         if (event == null || event.getStockId() == null) {
@@ -35,6 +56,7 @@ public class MarketWebSocketPublisher {
         try {
             message = objectMapper.writeValueAsString(payload);
         } catch (Exception ex) {
+            serializationErrorCounter.increment();
             log.warn("Failed to serialize websocket event.", ex);
             return;
         }
@@ -49,6 +71,7 @@ public class MarketWebSocketPublisher {
                     registry.remove(session.getId());
                 }
             } catch (Exception ex) {
+                sendFailureCounter.increment();
                 int failureCount = connection.incrementSendFailure();
                 if (isPartialWritingError(ex)) {
                     log.trace("Skipped websocket send while previous message is still writing - sessionId: {}, failureCount: {}",
@@ -95,6 +118,7 @@ public class MarketWebSocketPublisher {
         } catch (Exception ex) {
             log.warn("Failed to close unreliable websocket session {}.", sessionId, ex);
         } finally {
+            closedByFailureCounter.increment();
             registry.remove(sessionId);
             log.info("Closed websocket session due to repeated send failures - sessionId: {}, threshold: {}",
                     sessionId, sendFailureThreshold);
