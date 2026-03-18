@@ -85,9 +85,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 	@Override
 	public void closeAllSessions() {
-		subscribedStocks.clear();
-		currentPrices.clear();
-		log.info("[Mock] 전체 구독 초기화");
+		// no-op: Mock은 장 시간과 무관하게 항상 활성 상태를 유지합니다.
 	}
 
 	@Override
