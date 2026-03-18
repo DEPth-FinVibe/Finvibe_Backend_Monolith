@@ -1,0 +1,297 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "uid": "finvibe-app-metrics",
+  "title": "Finvibe Application Metrics",
+  "description": "Trade, wallet, asset, auth, news, and startup metrics introduced in the first observability pass.",
+  "tags": ["finvibe", "application", "prometheus"],
+  "timezone": "Asia/Seoul",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "pluginId": "prometheus",
+        "label": "Datasource",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "application",
+        "type": "query",
+        "label": "Application",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(auth_login_attempts_total, application)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "finvibe-backend-monolith",
+          "value": "finvibe-backend-monolith"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Trade",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Orders Created (1h)",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(trade_orders_created_total{application=\"$application\"}[1h]))", "legendFormat": "created" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Orders Executed (1h)",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(trade_orders_executed_total{application=\"$application\"}[1h]))", "legendFormat": "executed" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Orders Failed (1h)",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(trade_orders_failed_total{application=\"$application\"}[1h]))", "legendFormat": "failed" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Reserved Exec Avg (1h)",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 2, "color": { "mode": "background" } } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(rate(trade_reserved_execution_latency_seconds_sum{application=\"$application\"}[1h])) / sum(rate(trade_reserved_execution_latency_seconds_count{application=\"$application\"}[1h]))", "legendFormat": "avg" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Trade Throughput By Type",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_created_total{application=\"$application\"}[5m]))", "legendFormat": "created {{order_type}} {{transaction_type}}" },
+        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_executed_total{application=\"$application\"}[5m]))", "legendFormat": "executed {{order_type}} {{transaction_type}}" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Trade Failures By Reason",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "table", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (stage, reason) (rate(trade_orders_failed_total{application=\"$application\"}[5m]))", "legendFormat": "{{stage}} / {{reason}}" }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Wallet And Assets",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Wallet Mutations (1h)",
+      "gridPos": { "x": 0, "y": 13, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(wallet_balance_mutations_total{application=\"$application\"}[1h]))", "legendFormat": "mutations" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Wallet Amount Sum (1h)",
+      "gridPos": { "x": 6, "y": 13, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "currencyKRW" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(wallet_balance_mutation_amount_sum{application=\"$application\"}[1h]))", "legendFormat": "amount" }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Profit Recalc Avg (15m)",
+      "gridPos": { "x": 12, "y": 13, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 2 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "avg" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Top Holdings Cache Hit Ratio (1h)",
+      "gridPos": { "x": 18, "y": 13, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\",result=\"hit\"}[1h])) / clamp_min(sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\"}[1h])), 1)", "legendFormat": "hit ratio" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Wallet Mutations By Type",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (type) (rate(wallet_balance_mutations_total{application=\"$application\"}[5m]))", "legendFormat": "{{type}}" }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Profit Recalculation Duration",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[5m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "avg" },
+        { "expr": "max(asset_profit_recalculation_duration_seconds_max{application=\"$application\"})", "legendFormat": "max" }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Auth, News, Startup",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Login Success Ratio (1h)",
+      "gridPos": { "x": 0, "y": 25, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(auth_login_attempts_total{application=\"$application\",result=\"success\"}[1h])) / clamp_min(sum(increase(auth_login_attempts_total{application=\"$application\"}[1h])), 1)", "legendFormat": "success ratio" }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "News AI Avg (15m)",
+      "gridPos": { "x": 8, "y": 25, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 2 } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "avg" }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "stat",
+      "title": "Startup Failures (24h)",
+      "gridPos": { "x": 16, "y": 25, "w": 8, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
+      "targets": [
+        { "expr": "sum(increase(startup_dependency_checks_total{application=\"$application\",result=\"failure\"}[24h]))", "legendFormat": "failures" }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Auth Attempts By Result",
+      "gridPos": { "x": 0, "y": 29, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (method, result) (rate(auth_login_attempts_total{application=\"$application\"}[5m]))", "legendFormat": "{{method}} / {{result}}" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "News AI Analysis Duration",
+      "gridPos": { "x": 8, "y": 29, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum by (provider) (rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[5m])) / sum by (provider) (rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "avg {{provider}}" },
+        { "expr": "max by (provider) (news_ai_analysis_duration_seconds_max{application=\"$application\"})", "legendFormat": "max {{provider}}" }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Startup Dependency Checks",
+      "gridPos": { "x": 16, "y": 29, "w": 8, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": {} },
+      "options": { "showHeader": true },
+      "targets": [
+        { "format": "table", "instant": true, "expr": "sum by (dependency, result) (startup_dependency_checks_total{application=\"$application\"})", "legendFormat": "{{dependency}} {{result}}" }
+      ]
+    }
+  ]
+}

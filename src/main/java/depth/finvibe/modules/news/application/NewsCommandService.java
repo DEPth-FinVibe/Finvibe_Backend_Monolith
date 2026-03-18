@@ -14,6 +14,8 @@ import depth.finvibe.common.insight.application.port.out.UserMetricEventPort;
 import depth.finvibe.common.insight.domain.CategoryInfo;
 import depth.finvibe.common.insight.dto.MetricEventType;
 import depth.finvibe.common.error.DomainException;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import org.jsoup.Jsoup;
 import org.springframework.stereotype.Service;
@@ -41,6 +43,7 @@ public class NewsCommandService implements NewsCommandUseCase {
     private final NewsDiscussionPort newsDiscussionPort;
     private final CategoryCatalogPort categoryCatalogPort;
     private final UserMetricEventPort userMetricEventPort;
+    private final MeterRegistry meterRegistry;
 
     @Override
     public void syncLatestNews() {
@@ -58,7 +61,12 @@ public class NewsCommandService implements NewsCommandUseCase {
 
             String contentText = resolveAnalysisText(rawData);
             String analysisInput = "제목: " + rawData.title() + "\n요약: " + contentText;
+            Timer.Sample sample = Timer.start(meterRegistry);
             NewsAiAnalyzer.AnalysisResult analysis = newsAiAnalyzer.analyze(analysisInput, categories);
+            sample.stop(Timer.builder("news.ai.analysis.duration")
+                    .description("뉴스 AI 분석 소요 시간")
+                    .tag("provider", providerOf(rawData.provider()))
+                    .register(meterRegistry));
             CategoryInfo category = resolveCategory(analysis.categoryId(), categories, defaultCategory);
 
             LocalDateTime publishedAt = rawData.publishedAt() != null
@@ -150,5 +158,12 @@ public class NewsCommandService implements NewsCommandUseCase {
             return Jsoup.parse(rawData.contentHtml()).text();
         }
         return "";
+    }
+
+    private String providerOf(String provider) {
+        if (provider == null || provider.isBlank()) {
+            return DEFAULT_PROVIDER.toLowerCase();
+        }
+        return provider.toLowerCase();
     }
 }

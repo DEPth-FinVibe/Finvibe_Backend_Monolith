@@ -15,6 +15,9 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -44,19 +47,31 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   private final UserProfitRankingAggregationService userProfitRankingAggregationService;
   private final ApplicationEventPublisher eventPublisher;
   private final GamificationEventProducer gamificationEventProducer;
+  private final MeterRegistry meterRegistry;
 
   @Override
   public void recalculateAllProfits(List<Long> updatedStockIds) {
+    Timer.Sample sample = Timer.start(meterRegistry);
     if (updatedStockIds == null || updatedStockIds.isEmpty()) {
+      sample.stop(profitRecalculationTimer());
       return;
     }
 
     // ① 짧은 read 트랜잭션 — 완료 후 커넥션 즉시 반환
     List<PortfolioGroup> portfolios = txHelper.readPortfoliosByStockIds(updatedStockIds);
+    DistributionSummary.builder("asset.profit.recalculation.portfolios")
+      .description("수익률 재계산 대상 포트폴리오 수")
+      .register(meterRegistry)
+      .record(portfolios.size());
+    DistributionSummary.builder("asset.profit.recalculation.stocks")
+      .description("수익률 재계산 요청 종목 수")
+      .register(meterRegistry)
+      .record(updatedStockIds.size());
     if (portfolios.isEmpty()) {
       log.info("No portfolios found with updated stock IDs for profit recalculation.");
       List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
       publishUserProfitRatesUpdatedEvent(allPortfolios);
+      sample.stop(profitRecalculationTimer());
       return;
     }
 
@@ -65,9 +80,14 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       .map(Asset::getStockId)
       .distinct()
       .toList();
+    DistributionSummary.builder("asset.profit.recalculation.distinct_stocks")
+      .description("수익률 재계산 대상 고유 종목 수")
+      .register(meterRegistry)
+      .record(stockIds.size());
 
     if (stockIds.isEmpty()) {
       log.info("No stock IDs found in portfolios for profit recalculation.");
+      sample.stop(profitRecalculationTimer());
       return;
     }
 
@@ -75,6 +95,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     List<BatchPriceSnapshot> batchPrices = marketPriceClient.getBatchPrices(stockIds);
     if (batchPrices == null || batchPrices.isEmpty()) {
       log.warn("No batch prices retrieved for stock IDs: {}", stockIds);
+      sample.stop(profitRecalculationTimer());
       return;
     }
 
@@ -87,6 +108,13 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     // ④ 짧은 read 트랜잭션 — 랭킹 집계용 전체 조회
     List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
     publishUserProfitRatesUpdatedEvent(allPortfolios);
+    sample.stop(profitRecalculationTimer());
+  }
+
+  private Timer profitRecalculationTimer() {
+    return Timer.builder("asset.profit.recalculation.duration")
+      .description("수익률 재계산 전체 소요 시간")
+      .register(meterRegistry);
   }
 
   private void publishUserProfitRatesUpdatedEvent(List<PortfolioGroup> portfolios) {

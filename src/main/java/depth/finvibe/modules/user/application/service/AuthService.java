@@ -3,6 +3,7 @@ package depth.finvibe.modules.user.application.service;
 import java.util.UUID;
 
 import depth.finvibe.modules.user.domain.vo.*;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,7 @@ public class AuthService implements AuthCommandUseCase {
     private final PasswordEncoder passwordEncoder;
     private final TemporaryTokenProvider temporaryTokenProvider;
     private final TemporaryTokenResolver temporaryTokenResolver;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional
@@ -102,26 +104,38 @@ public class AuthService implements AuthCommandUseCase {
     @Override
     @Transactional
     public UserDto.TokenResponse login(UserDto.LoginRequest request) {
-        User user = userRepository.findByLoginId(new LoginId(request.getLoginId()))
-            .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
+        try {
+            User user = userRepository.findByLoginId(new LoginId(request.getLoginId()))
+                .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
 
-        user.validateLogin(request.getPassword(), passwordEncoder);
+            user.validateLogin(request.getPassword(), passwordEncoder);
+            recordLoginAttempt("local", "success");
 
-        return completeLogin(user);
+            return completeLogin(user);
+        } catch (DomainException ex) {
+            recordLoginAttempt("local", "failure");
+            throw ex;
+        }
     }
 
     @Override
     @Transactional
     public UserDto.OAuthLoginResponse oauthLogin(UserDto.OAuthLoginRequest request) {
-        OAuthInfo oAuthInfo = OAuthInfo.ofSocial(request.getProvider(), request.getProviderId());
+        try {
+            OAuthInfo oAuthInfo = OAuthInfo.ofSocial(request.getProvider(), request.getProviderId());
 
-        return userRepository.findByOauthInfo(oAuthInfo)
-            .map(this::handleExistingOAuthUser)
-            .orElseGet(() -> handleNewOAuthUser(request));
+            return userRepository.findByOauthInfo(oAuthInfo)
+                .map(this::handleExistingOAuthUser)
+                .orElseGet(() -> handleNewOAuthUser(request));
+        } catch (DomainException ex) {
+            recordLoginAttempt("oauth", "failure");
+            throw ex;
+        }
     }
 
     private UserDto.OAuthLoginResponse handleExistingOAuthUser(User user) {
         user.validateActive();
+        recordLoginAttempt("oauth", "success");
 
         return UserDto.OAuthLoginResponse.builder()
             .tokens(completeLogin(user))
@@ -133,6 +147,7 @@ public class AuthService implements AuthCommandUseCase {
         String temporaryToken = temporaryTokenProvider.generateTemporaryToken(
             request.getProvider(),
             request.getProviderId());
+        recordLoginAttempt("oauth", "registration_required");
 
         return UserDto.OAuthLoginResponse.builder()
             .temporaryToken(temporaryToken)
@@ -219,5 +234,9 @@ public class AuthService implements AuthCommandUseCase {
         UserDto.TokenResponse tokenResponse = tokenProvider.generateToken(user.getId(), user.getRole());
         storeRefreshToken(user.getId(), tokenResponse.getRefreshToken());
         return tokenResponse;
+    }
+
+    private void recordLoginAttempt(String method, String result) {
+        meterRegistry.counter("auth.login.attempts", "method", method, "result", result).increment();
     }
 }

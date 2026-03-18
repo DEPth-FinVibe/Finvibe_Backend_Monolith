@@ -13,6 +13,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -54,6 +55,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
     private final WalletClient walletClient;
     private final PortfolioPerformanceSnapshotRepository portfolioPerformanceSnapshotRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional(readOnly = true)
@@ -115,7 +117,14 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
     @Transactional(readOnly = true)
     public TopHoldingStockDto.TopHoldingStockListResponse getTopHoldingStocks(UUID userId) {
         return topHoldingStockCacheRepository.find(TOP_HOLDING_STOCK_CACHE_KEY)
-                .orElseGet(this::getTopHoldingStocksFromSource);
+                .map(response -> {
+                    meterRegistry.counter("asset.top_holdings.cache.requests", "result", "hit").increment();
+                    return response;
+                })
+                .orElseGet(() -> {
+                    meterRegistry.counter("asset.top_holdings.cache.requests", "result", "miss").increment();
+                    return getTopHoldingStocksFromSource();
+                });
     }
 
     @Override

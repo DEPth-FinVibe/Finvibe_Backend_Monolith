@@ -4,10 +4,13 @@ import java.time.Instant;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,12 +38,15 @@ import depth.finvibe.common.error.DomainException;
 @RequiredArgsConstructor
 public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
 
+    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
     private final TradeRepository tradeRepository;
     private final TradeEventProducer tradeEventProducer;
     private final GamificationEventProducer gamificationEventProducer;
     private final AssetClient assetClient;
     private final MarketClient marketClient;
     private final WalletClient walletClient;
+    private final MeterRegistry meterRegistry;
 
 
     @Transactional()
@@ -80,20 +86,25 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
 
     @Transactional
     public TradeDto.TradeResponse createTrade(TradeDto.TransactionRequest request, Requester requester) {
-        validateTradeContexts(request, requester);
+        try {
+            validateTradeContexts(request, requester);
 
-        TradeOrderType orderType = request.getTradeType();
-        if (orderType == null) {
+            TradeOrderType orderType = request.getTradeType();
+            if (orderType == null) {
+                throw new DomainException(TradeErrorCode.INVALID_TRADE_TYPE);
+            }
+
+            if (orderType == TradeOrderType.NORMAL) {
+                return processNormalTrade(request, requester.getUuid());
+            } else if (orderType == TradeOrderType.RESERVED) {
+                return processReservedTrade(request, requester.getUuid());
+            }
+
             throw new DomainException(TradeErrorCode.INVALID_TRADE_TYPE);
+        } catch (DomainException ex) {
+            recordTradeFailure("create", ex);
+            throw ex;
         }
-
-        if (orderType == TradeOrderType.NORMAL) {
-            return processNormalTrade(request, requester.getUuid());
-        } else if (orderType == TradeOrderType.RESERVED) {
-            return processReservedTrade(request, requester.getUuid());
-        }
-
-        throw new DomainException(TradeErrorCode.INVALID_TRADE_TYPE);
     }
 
     private void validateTradeContexts(TradeDto.TransactionRequest request, Requester requester) {
@@ -162,23 +173,38 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
     // 예약 주문 체결
     @Transactional
     public TradeDto.TradeResponse executeReservedTrade(Long tradeId) {
-        Trade trade = tradeRepository.findById(tradeId)
-                .orElseThrow(() -> new DomainException(TradeErrorCode.TRADE_NOT_FOUND));
+        try {
+            Trade trade = tradeRepository.findById(tradeId)
+                    .orElseThrow(() -> new DomainException(TradeErrorCode.TRADE_NOT_FOUND));
 
-        ensureTradeIsReserved(trade);
+            ensureTradeIsReserved(trade);
 
-        if (isInsufficientRequirementsForReservedTrade(trade)) {
-            trade.fail();
-            Trade failedTrade = tradeRepository.save(trade);
-            return TradeDto.TradeResponse.from(failedTrade);
+            if (isInsufficientBalanceForReservedBuy(trade)) {
+                recordTradeFailure("execute_reserved", TradeErrorCode.INSUFFICIENT_BALANCE);
+                trade.fail();
+                Trade failedTrade = tradeRepository.save(trade);
+                return TradeDto.TradeResponse.from(failedTrade);
+            }
+
+            if (isInsufficientHoldingAmountForReservedSell(trade)) {
+                recordTradeFailure("execute_reserved", TradeErrorCode.INSUFFICIENT_HOLDING_AMOUNT);
+                trade.fail();
+                Trade failedTrade = tradeRepository.save(trade);
+                return TradeDto.TradeResponse.from(failedTrade);
+            }
+
+            trade.execute();
+            Trade saveTrade = tradeRepository.save(trade);
+
+            tradeEventProducer.publishNormalTradeExecutedEvent(trade);
+            recordTradeExecuted(TradeType.RESERVED, trade.getTransactionType());
+            recordReservedExecutionLatency(trade);
+
+            return TradeDto.TradeResponse.from(saveTrade);
+        } catch (DomainException ex) {
+            recordTradeFailure("execute_reserved", ex);
+            throw ex;
         }
-
-        trade.execute();
-        Trade saveTrade = tradeRepository.save(trade);
-
-        tradeEventProducer.publishNormalTradeExecutedEvent(trade);
-
-        return TradeDto.TradeResponse.from(saveTrade);
     }
 
     private void ensureTradeIsReserved(Trade trade) {
@@ -241,6 +267,8 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
 
         tradeEventProducer.publishNormalTradeExecutedEvent(trade);
         publishTradeMetricEvent(trade);
+        recordTradeCreated(trade);
+        recordTradeExecuted(trade.getTradeType(), trade.getTransactionType());
 
         return TradeDto.TradeResponse.from(savedTrade);
     }
@@ -284,8 +312,53 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         Trade trade = createTradeFrom(request, stockName, userId);
         Trade savedTrade = tradeRepository.save(trade);
         tradeEventProducer.publishTradeReservedEvent(trade);
+        recordTradeCreated(trade);
 
         return TradeDto.TradeResponse.from(savedTrade);
+    }
+
+    private void recordTradeCreated(Trade trade) {
+        meterRegistry.counter(
+                "trade.orders.created",
+                "order_type", trade.getTradeType().name().toLowerCase(),
+                "transaction_type", trade.getTransactionType().name().toLowerCase()
+        ).increment();
+    }
+
+    private void recordTradeExecuted(TradeType tradeType, TransactionType transactionType) {
+        meterRegistry.counter(
+                "trade.orders.executed",
+                "order_type", tradeType.name().toLowerCase(),
+                "transaction_type", transactionType.name().toLowerCase()
+        ).increment();
+    }
+
+    private void recordTradeFailure(String stage, DomainException ex) {
+        recordTradeFailure(stage, ex.getErrorCode().getCode());
+    }
+
+    private void recordTradeFailure(String stage, TradeErrorCode errorCode) {
+        recordTradeFailure(stage, errorCode.getCode());
+    }
+
+    private void recordTradeFailure(String stage, String reason) {
+        meterRegistry.counter(
+                "trade.orders.failed",
+                "stage", stage,
+                "reason", reason.toLowerCase()
+        ).increment();
+    }
+
+    private void recordReservedExecutionLatency(Trade trade) {
+        if (trade.getCreatedAt() == null) {
+            return;
+        }
+
+        Timer.builder("trade.reserved.execution.latency")
+                .description("예약 주문 생성 후 실제 체결까지 걸린 시간")
+                .tag("transaction_type", trade.getTransactionType().name().toLowerCase())
+                .register(meterRegistry)
+                .record(java.time.Duration.between(trade.getCreatedAt().atZone(KST).toInstant(), Instant.now()));
     }
 
 
