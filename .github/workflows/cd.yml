@@ -135,7 +135,7 @@ jobs:
               --name "${CONTAINER_NAME}" \
               --restart unless-stopped \
               --network "${PRIMARY_DOCKER_NETWORK}" \
-              -e SPRING_PROFILES_ACTIVE=prod,oauth \
+              -e SPRING_PROFILES_ACTIVE=prod,oauth,mock-market \
               -e LOG_JSON_PATH="${CONTAINER_LOG_JSON_PATH}" \
               -e DB_URL="${DB_URL}" \
               -e DB_USERNAME="${DB_USERNAME}" \
