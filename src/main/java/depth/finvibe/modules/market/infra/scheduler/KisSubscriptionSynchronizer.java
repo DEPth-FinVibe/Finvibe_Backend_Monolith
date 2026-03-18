@@ -21,9 +21,9 @@ import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
+import depth.finvibe.modules.market.application.port.out.MarketDataStreamPort;
 import depth.finvibe.modules.market.infra.lock.ActiveNodeRegistry;
 import depth.finvibe.modules.market.infra.lock.SubscriptionOwnershipManager;
-import depth.finvibe.modules.market.infra.websocket.kis.KisConnectionPool;
 import depth.finvibe.common.investment.lock.DistributedLockManager;
 import depth.finvibe.common.investment.lock.LockAcquisitionException;
 
@@ -48,7 +48,7 @@ public class KisSubscriptionSynchronizer {
     private final ReservationRepository reservationRepository;
     private final StockRepository stockRepository;
     private final DistributedLockManager distributedLockManager;
-    private final KisConnectionPool kisConnectionPool;
+    private final MarketDataStreamPort marketDataStreamPort;
     private final ActiveNodeRegistry activeNodeRegistry;
     private final SubscriptionOwnershipManager ownershipManager;
 
@@ -140,18 +140,18 @@ public class KisSubscriptionSynchronizer {
     }
 
     private void handleMarketClosed(String nodeId) {
-        kisConnectionPool.closeAllSessions();
+        marketDataStreamPort.closeAllSessions();
         releaseAllSubscriptions(nodeId);
     }
 
     private void ensureSessionsReady() {
-        kisConnectionPool.synchronizeSessions();
-        if (kisConnectionPool.getAvailableSessionCount() == 0) {
+        marketDataStreamPort.synchronizeSessions();
+        if (marketDataStreamPort.getAvailableSessionCount() == 0) {
             log.debug("KIS WebSocket 세션이 없어 재초기화를 시도합니다.");
-            kisConnectionPool.initializeSessions();
+            marketDataStreamPort.initializeSessions();
         }
 
-        int availableSessionCount = kisConnectionPool.getAvailableSessionCount();
+        int availableSessionCount = marketDataStreamPort.getAvailableSessionCount();
         boolean currentlyUnavailable = availableSessionCount == 0;
         if (currentlyUnavailable != sessionsUnavailable) {
             if (currentlyUnavailable) {
@@ -168,7 +168,7 @@ public class KisSubscriptionSynchronizer {
             return;
         }
 
-        Set<Long> subscribedStockIds = kisConnectionPool.getSubscribedStockIds();
+        Set<Long> subscribedStockIds = marketDataStreamPort.getSubscribedStockIds();
         boolean removed = subscriptionOrder.removeIf(stockId -> !subscribedStockIds.contains(stockId));
         if (removed) {
             log.debug("WebSocket 세션 변경으로 구독 순서를 정리했습니다. 남은 구독: {}", subscriptionOrder.size());
@@ -183,7 +183,7 @@ public class KisSubscriptionSynchronizer {
      */
     private int calculateMaxSubscriptionsForNode(int totalActiveStocks) {
         int activeNodeCount = activeNodeRegistry.getActiveNodeCount();
-        int availableSessionCount = kisConnectionPool.getAvailableSessionCount();
+        int availableSessionCount = marketDataStreamPort.getAvailableSessionCount();
 
         if (availableSessionCount == 0) {
             log.debug("사용 가능한 KIS 세션이 없습니다. 구독을 중단합니다.");
@@ -297,7 +297,7 @@ public class KisSubscriptionSynchronizer {
 
             if (symbol != null) {
                 try {
-                    kisConnectionPool.unsubscribe(oldestStockId, symbol);
+                    marketDataStreamPort.unsubscribe(oldestStockId, symbol);
                     ownershipManager.releaseOwnership(oldestStockId, nodeId);
                     subscriptionOrder.remove(oldestStockId);
                     releasedCount++;
@@ -353,7 +353,7 @@ public class KisSubscriptionSynchronizer {
 
         try {
             if (symbol != null) {
-                kisConnectionPool.unsubscribe(stockId, symbol);
+                marketDataStreamPort.unsubscribe(stockId, symbol);
             }
         } catch (Exception ex) {
             log.error("소유권 상실로 구독 해제 실패 - stockId: {}", stockId, ex);
@@ -387,7 +387,7 @@ public class KisSubscriptionSynchronizer {
             }
 
             try {
-                kisConnectionPool.subscribe(stockId, symbol);
+                marketDataStreamPort.subscribe(stockId, symbol);
                 subscriptionOrder.add(stockId);
                 logNewSubscription(stockId, symbol);
                 return SubscriptionAttempt.success();
@@ -419,7 +419,7 @@ public class KisSubscriptionSynchronizer {
             }
 
             try {
-                kisConnectionPool.subscribe(stockId, symbol);
+                marketDataStreamPort.subscribe(stockId, symbol);
                 subscriptionOrder.add(stockId);
                 logNewSubscription(stockId, symbol);
                 return SubscriptionAttempt.success();
@@ -448,14 +448,14 @@ public class KisSubscriptionSynchronizer {
     }
 
     private void logNewSubscription(Long stockId, String symbol) {
-        if (!kisConnectionPool.isSubscribed(stockId)) {
+        if (!marketDataStreamPort.isSubscribed(stockId)) {
             log.debug("KIS 실시간 신규 구독 성공 - stockId: {}, symbol: {}", stockId, symbol);
         }
     }
 
     private void cleanupInactiveStocks(List<Long> activeStockIds, String nodeId) {
         Set<Long> activeStockIdSet = Set.copyOf(activeStockIds);
-        Set<Long> subscribedStockIds = kisConnectionPool.getSubscribedStockIds();
+        Set<Long> subscribedStockIds = marketDataStreamPort.getSubscribedStockIds();
 
         List<Long> inactiveStockIds = subscribedStockIds.stream()
                 .filter(stockId -> !activeStockIdSet.contains(stockId))
@@ -480,7 +480,7 @@ public class KisSubscriptionSynchronizer {
             try {
                 String symbol = stockIdToSymbol.get(stockId);
                 if (symbol != null) {
-                    kisConnectionPool.unsubscribe(stockId, symbol);
+                    marketDataStreamPort.unsubscribe(stockId, symbol);
                     unsubscribeCount++;
                     log.debug("비활성 종목 구독 해제 - stockId: {}, symbol: {}", stockId, symbol);
                 }
@@ -539,7 +539,7 @@ public class KisSubscriptionSynchronizer {
      * 활성 종목이 없을 때 모든 구독을 해제합니다.
      */
     private void unsubscribeAllIfNeeded(String nodeId) {
-        Set<Long> subscribedStockIds = kisConnectionPool.getSubscribedStockIds();
+        Set<Long> subscribedStockIds = marketDataStreamPort.getSubscribedStockIds();
         if (subscribedStockIds.isEmpty()) {
             return;
         }
@@ -551,7 +551,7 @@ public class KisSubscriptionSynchronizer {
             try {
                 String symbol = stockIdToSymbol.get(stockId);
                 if (symbol != null) {
-                    kisConnectionPool.unsubscribe(stockId, symbol);
+                    marketDataStreamPort.unsubscribe(stockId, symbol);
                 }
                 ownershipManager.releaseOwnership(stockId, nodeId);
             } catch (Exception ex) {
@@ -585,7 +585,7 @@ public class KisSubscriptionSynchronizer {
      */
     private void cleanupClosedSessions() {
         try {
-            int removedCount = kisConnectionPool.removeClosedSessions();
+            int removedCount = marketDataStreamPort.removeClosedSessions();
             if (removedCount > 0) {
                 log.warn("닫힌 WebSocket 세션 감지 및 제거 - 제거된 세션 수: {}", removedCount);
             }

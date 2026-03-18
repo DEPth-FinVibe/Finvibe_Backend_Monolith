@@ -13,12 +13,14 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
+import depth.finvibe.modules.market.application.port.out.MarketDataStreamPort;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import depth.finvibe.modules.market.infra.client.KisCredentialAllocator;
 import depth.finvibe.modules.market.infra.client.KisRateLimiter;
@@ -29,7 +31,8 @@ import depth.finvibe.modules.market.infra.websocket.kis.model.KisMessage;
 
 @Slf4j
 @Component
-public class KisConnectionPool {
+@ConditionalOnProperty(name = "market.provider", havingValue = "kis", matchIfMissing = true)
+public class KisConnectionPool implements MarketDataStreamPort {
 
     private static final int MAX_SUBSCRIPTIONS_PER_SESSION = 41;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
