@@ -9,6 +9,8 @@ spring:
     active: local
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  jpa:
+    open-in-view: false
   web:
     resources:
       add-mappings: true
