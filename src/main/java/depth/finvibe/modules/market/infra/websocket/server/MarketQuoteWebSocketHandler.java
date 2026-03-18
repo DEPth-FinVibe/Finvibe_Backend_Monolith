@@ -22,8 +22,9 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import depth.finvibe.boot.security.investment.JwtTokenVerifier;
-import depth.finvibe.boot.security.investment.JwtTokenVerifier.JwtVerificationException;
+import depth.finvibe.modules.user.infra.security.JwtTokenProvider;
+import io.jsonwebtoken.Claims;
+import java.util.UUID;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
@@ -42,7 +43,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_SUBSCRIPTIONS = 30;
 
     private final MarketWebSocketRegistry registry;
-    private final JwtTokenVerifier jwtTokenVerifier;
+    private final JwtTokenProvider jwtTokenProvider;
     private final MarketQueryUseCase marketQueryUseCase;
     private final ObjectMapper objectMapper;
     private final TaskScheduler taskScheduler;
@@ -156,13 +157,13 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         try {
-            JwtTokenVerifier.VerifiedToken verified = jwtTokenVerifier.verify(token);
-            registry.authenticate(connection, verified.userId());
+            UUID userId = jwtTokenProvider.getUserId(token);
+            registry.authenticate(connection, userId);
             connection.getState().resetPongCount();
             cancelTask(connection.getAuthTimeoutTask());
             startHeartbeat(connection);
             sendAuthAck(session);
-        } catch (JwtVerificationException ex) {
+        } catch (Exception ex) {
             sendError(session, null, "UNAUTHORIZED", "Invalid token.", null);
             closeSession(session, CloseStatus.POLICY_VIOLATION);
         }

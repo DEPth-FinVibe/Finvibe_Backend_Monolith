@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
 
+
 @Component
 public class JwtTokenProvider implements TokenProvider, TokenResolver {
     private static final String CLAIM_ID = "id";
@@ -118,6 +119,15 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
                 .parseSignedClaims(token)
                 .getPayload();
     }
+
+    /**
+     * WS 인증용: 토큰 검증 후 userId 추출
+     */
+    public UUID getUserId(String token) {
+        Claims claims = parseClaims(token);
+        return UUID.fromString(claims.getSubject());
+    }
+
 
     private UserRole parseRoleClaim(Claims claims) {
         Object value = claims.get(CLAIM_ROLE);
