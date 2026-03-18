@@ -51,6 +51,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	);
 	private ExecutorService publishPool;
 	private ScheduledFuture<?> emitTask;
+	private volatile boolean initialized;
 
 	public MockMarketDataStreamAdapter(
 			ApplicationEventPublisher eventPublisher,
@@ -62,6 +63,9 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 	@Override
 	public void initializeSessions() {
+		if (initialized) {
+			return;
+		}
 		publishPool = Executors.newFixedThreadPool(
 				properties.publishThreads(),
 				r -> new Thread(r, "mock-market-publisher")
@@ -71,6 +75,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 				properties.stocksPerTick() == 0 ? "전체" : properties.stocksPerTick(),
 				properties.publishThreads());
 		startEmitting();
+		initialized = true;
 	}
 
 	@Override
@@ -90,7 +95,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 	@Override
 	public int getAvailableSessionCount() {
-		return 1;
+		return initialized ? 1 : 0;
 	}
 
 	@Override

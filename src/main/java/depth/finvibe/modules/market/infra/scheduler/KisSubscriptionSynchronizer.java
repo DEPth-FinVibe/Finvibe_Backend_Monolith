@@ -16,6 +16,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,9 @@ public class KisSubscriptionSynchronizer {
     private final ActiveNodeRegistry activeNodeRegistry;
     private final SubscriptionOwnershipManager ownershipManager;
     private final MeterRegistry meterRegistry;
+
+    @Value("${market.provider:kis}")
+    private String marketProvider;
 
     // FIFO 방식으로 구독 순서를 추적 (LinkedHashSet)
     private final LinkedHashSet<Long> subscriptionOrder = new LinkedHashSet<>();
@@ -128,7 +132,7 @@ public class KisSubscriptionSynchronizer {
             MarketStatus marketStatus = MarketHours.getStatusAt(now());
             logMarketStatusTransition(marketStatus);
 
-            if (marketStatus != MarketStatus.OPEN) {
+            if (marketStatus != MarketStatus.OPEN && !isMockProvider()) {
                 handleMarketClosed(nodeId);
                 return;
             }
@@ -173,6 +177,10 @@ public class KisSubscriptionSynchronizer {
     private void handleMarketClosed(String nodeId) {
         marketDataStreamPort.closeAllSessions();
         releaseAllSubscriptions(nodeId);
+    }
+
+    private boolean isMockProvider() {
+        return "mock".equalsIgnoreCase(marketProvider);
     }
 
     private void ensureSessionsReady() {

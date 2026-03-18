@@ -34,6 +34,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Component
@@ -57,6 +58,9 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
 
     @Value("${market.ws.rate-limit-per-second:20}")
     private int rateLimitPerSecond;
+
+    @Value("${market.provider:kis}")
+    private String marketProvider;
 
     private Counter authTimeoutCounter;
     private Counter rateLimitViolationCounter;
@@ -282,6 +286,9 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     }
 
     private Map<String, Object> buildMarketClosedWarning() {
+        if ("mock".equalsIgnoreCase(marketProvider)) {
+            return null;
+        }
         if (MarketHours.getCurrentStatus() == MarketStatus.OPEN) {
             return null;
         }
