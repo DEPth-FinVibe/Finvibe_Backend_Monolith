@@ -17,8 +17,8 @@
     { "type": "panel", "id": "table", "name": "Table", "version": "" }
   ],
   "uid": "finvibe-app-metrics",
-  "title": "Finvibe Application Metrics",
-  "description": "Trade, wallet, asset, auth, news, and startup metrics introduced in the first observability pass.",
+  "title": "Finvibe 애플리케이션 메트릭",
+  "description": "1차 관측성 작업으로 추가한 거래, 지갑, 자산, 인증, 뉴스, 스타트업 점검 메트릭 대시보드입니다.",
   "tags": ["finvibe", "application", "prometheus"],
   "timezone": "Asia/Seoul",
   "refresh": "30s",
@@ -31,14 +31,14 @@
         "name": "datasource",
         "type": "datasource",
         "pluginId": "prometheus",
-        "label": "Datasource",
+        "label": "데이터소스",
         "current": {},
         "hide": 0
       },
       {
         "name": "application",
         "type": "query",
-        "label": "Application",
+        "label": "애플리케이션",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
         "query": "label_values(auth_login_attempts_total, application)",
         "refresh": 1,
@@ -56,75 +56,75 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Trade",
+      "title": "거래",
       "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
       "collapsed": false
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Orders Created (1h)",
+      "title": "생성된 주문 수 (1시간)",
       "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(trade_orders_created_total{application=\"$application\"}[1h]))", "legendFormat": "created" }
+        { "expr": "sum(increase(trade_orders_created_total{application=\"$application\"}[1h]))", "legendFormat": "생성" }
       ]
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Orders Executed (1h)",
+      "title": "체결된 주문 수 (1시간)",
       "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(trade_orders_executed_total{application=\"$application\"}[1h]))", "legendFormat": "executed" }
+        { "expr": "sum(increase(trade_orders_executed_total{application=\"$application\"}[1h]))", "legendFormat": "체결" }
       ]
     },
     {
       "id": 4,
       "type": "stat",
-      "title": "Orders Failed (1h)",
+      "title": "실패한 주문 수 (1시간)",
       "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "background" } } },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(trade_orders_failed_total{application=\"$application\"}[1h]))", "legendFormat": "failed" }
+        { "expr": "sum(increase(trade_orders_failed_total{application=\"$application\"}[1h]))", "legendFormat": "실패" }
       ]
     },
     {
       "id": 5,
       "type": "stat",
-      "title": "Reserved Exec Avg (1h)",
+      "title": "예약 주문 평균 체결 시간 (1시간)",
       "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
-      "fieldConfig": { "defaults": { "unit": "s", "decimals": 2, "color": { "mode": "background" } } },
+      "fieldConfig": { "defaults": { "unit": "s", "decimals": 2, "color": { "mode": "thresholds" } } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(rate(trade_reserved_execution_latency_seconds_sum{application=\"$application\"}[1h])) / sum(rate(trade_reserved_execution_latency_seconds_count{application=\"$application\"}[1h]))", "legendFormat": "avg" }
+        { "expr": "sum(rate(trade_reserved_execution_latency_seconds_sum{application=\"$application\"}[1h])) / sum(rate(trade_reserved_execution_latency_seconds_count{application=\"$application\"}[1h]))", "legendFormat": "평균" }
       ]
     },
     {
       "id": 6,
       "type": "timeseries",
-      "title": "Trade Throughput By Type",
+      "title": "유형별 거래 처리량",
       "gridPos": { "x": 0, "y": 5, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
-        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_created_total{application=\"$application\"}[5m]))", "legendFormat": "created {{order_type}} {{transaction_type}}" },
-        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_executed_total{application=\"$application\"}[5m]))", "legendFormat": "executed {{order_type}} {{transaction_type}}" }
+        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_created_total{application=\"$application\"}[5m]))", "legendFormat": "생성 {{order_type}} {{transaction_type}}" },
+        { "expr": "sum by (order_type, transaction_type) (rate(trade_orders_executed_total{application=\"$application\"}[5m]))", "legendFormat": "체결 {{order_type}} {{transaction_type}}" }
       ]
     },
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Trade Failures By Reason",
+      "title": "사유별 거래 실패",
       "gridPos": { "x": 12, "y": 5, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
@@ -136,62 +136,62 @@
     {
       "id": 8,
       "type": "row",
-      "title": "Wallet And Assets",
+      "title": "지갑 및 자산",
       "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 },
       "collapsed": false
     },
     {
       "id": 9,
       "type": "stat",
-      "title": "Wallet Mutations (1h)",
+      "title": "지갑 변동 횟수 (1시간)",
       "gridPos": { "x": 0, "y": 13, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(wallet_balance_mutations_total{application=\"$application\"}[1h]))", "legendFormat": "mutations" }
+        { "expr": "sum(increase(wallet_balance_mutations_total{application=\"$application\"}[1h]))", "legendFormat": "변동 횟수" }
       ]
     },
     {
       "id": 10,
       "type": "stat",
-      "title": "Wallet Amount Sum (1h)",
+      "title": "지갑 변동 금액 합계 (1시간)",
       "gridPos": { "x": 6, "y": 13, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "currencyKRW" } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(wallet_balance_mutation_amount_sum{application=\"$application\"}[1h]))", "legendFormat": "amount" }
+        { "expr": "sum(increase(wallet_balance_mutation_amount_sum{application=\"$application\"}[1h]))", "legendFormat": "금액" }
       ]
     },
     {
       "id": 11,
       "type": "stat",
-      "title": "Profit Recalc Avg (15m)",
+      "title": "수익률 재계산 평균 시간 (15분)",
       "gridPos": { "x": 12, "y": 13, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s", "decimals": 2 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "avg" }
+        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "평균" }
       ]
     },
     {
       "id": 12,
       "type": "stat",
-      "title": "Top Holdings Cache Hit Ratio (1h)",
+      "title": "상위 보유 종목 캐시 적중률 (1시간)",
       "gridPos": { "x": 18, "y": 13, "w": 6, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\",result=\"hit\"}[1h])) / clamp_min(sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\"}[1h])), 1)", "legendFormat": "hit ratio" }
+        { "expr": "sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\",result=\"hit\"}[1h])) / clamp_min(sum(increase(asset_top_holdings_cache_requests_total{application=\"$application\"}[1h])), 1)", "legendFormat": "적중률" }
       ]
     },
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Wallet Mutations By Type",
+      "title": "유형별 지갑 변동",
       "gridPos": { "x": 0, "y": 17, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
@@ -203,63 +203,63 @@
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Profit Recalculation Duration",
+      "title": "수익률 재계산 소요 시간",
       "gridPos": { "x": 12, "y": 17, "w": 12, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
-        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[5m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "avg" },
-        { "expr": "max(asset_profit_recalculation_duration_seconds_max{application=\"$application\"})", "legendFormat": "max" }
+        { "expr": "sum(rate(asset_profit_recalculation_duration_seconds_sum{application=\"$application\"}[5m])) / sum(rate(asset_profit_recalculation_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "평균" },
+        { "expr": "max(asset_profit_recalculation_duration_seconds_max{application=\"$application\"})", "legendFormat": "최대" }
       ]
     },
     {
       "id": 15,
       "type": "row",
-      "title": "Auth, News, Startup",
+      "title": "인증, 뉴스, 스타트업",
       "gridPos": { "x": 0, "y": 24, "w": 24, "h": 1 },
       "collapsed": false
     },
     {
       "id": 16,
       "type": "stat",
-      "title": "Login Success Ratio (1h)",
+      "title": "로그인 성공률 (1시간)",
       "gridPos": { "x": 0, "y": 25, "w": 8, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 2 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(auth_login_attempts_total{application=\"$application\",result=\"success\"}[1h])) / clamp_min(sum(increase(auth_login_attempts_total{application=\"$application\"}[1h])), 1)", "legendFormat": "success ratio" }
+        { "expr": "sum(increase(auth_login_attempts_total{application=\"$application\",result=\"success\"}[1h])) / clamp_min(sum(increase(auth_login_attempts_total{application=\"$application\"}[1h])), 1)", "legendFormat": "성공률" }
       ]
     },
     {
       "id": 17,
       "type": "stat",
-      "title": "News AI Avg (15m)",
+      "title": "뉴스 AI 평균 분석 시간 (15분)",
       "gridPos": { "x": 8, "y": 25, "w": 8, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s", "decimals": 2 } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "avg" }
+        { "expr": "sum(rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[15m])) / sum(rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[15m]))", "legendFormat": "평균" }
       ]
     },
     {
       "id": 18,
       "type": "stat",
-      "title": "Startup Failures (24h)",
+      "title": "스타트업 점검 실패 수 (24시간)",
       "gridPos": { "x": 16, "y": 25, "w": 8, "h": 4 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "value" },
       "targets": [
-        { "expr": "sum(increase(startup_dependency_checks_total{application=\"$application\",result=\"failure\"}[24h]))", "legendFormat": "failures" }
+        { "expr": "sum(increase(startup_dependency_checks_total{application=\"$application\",result=\"failure\"}[24h]))", "legendFormat": "실패" }
       ]
     },
     {
       "id": 19,
       "type": "timeseries",
-      "title": "Auth Attempts By Result",
+      "title": "결과별 인증 시도",
       "gridPos": { "x": 0, "y": 29, "w": 8, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } } },
@@ -271,20 +271,20 @@
     {
       "id": 20,
       "type": "timeseries",
-      "title": "News AI Analysis Duration",
+      "title": "뉴스 AI 분석 시간",
       "gridPos": { "x": 8, "y": 29, "w": 8, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
       "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
-        { "expr": "sum by (provider) (rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[5m])) / sum by (provider) (rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "avg {{provider}}" },
-        { "expr": "max by (provider) (news_ai_analysis_duration_seconds_max{application=\"$application\"})", "legendFormat": "max {{provider}}" }
+        { "expr": "sum by (provider) (rate(news_ai_analysis_duration_seconds_sum{application=\"$application\"}[5m])) / sum by (provider) (rate(news_ai_analysis_duration_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "평균 {{provider}}" },
+        { "expr": "max by (provider) (news_ai_analysis_duration_seconds_max{application=\"$application\"})", "legendFormat": "최대 {{provider}}" }
       ]
     },
     {
       "id": 21,
       "type": "table",
-      "title": "Startup Dependency Checks",
+      "title": "스타트업 의존성 점검 현황",
       "gridPos": { "x": 16, "y": 29, "w": 8, "h": 7 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "fieldConfig": { "defaults": {} },
