@@ -1,0 +1,528 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "uid": "finvibe-websocket",
+  "title": "Finvibe WebSocket",
+  "description": "WebSocket 서버/KIS 연결 상태 및 이벤트 메트릭",
+  "tags": ["finvibe", "websocket"],
+  "timezone": "Asia/Seoul",
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "pluginId": "prometheus",
+        "label": "Datasource",
+        "current": {},
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "클라이언트 WebSocket 연결",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "활성 연결 수",
+      "description": "현재 서버에 연결된 WebSocket 클라이언트 수",
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 100 },
+            { "color": "red", "value": 300 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_connections_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "연결 수" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "인증된 연결 수",
+      "description": "JWT 인증을 완료한 WebSocket 연결 수",
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 100 },
+            { "color": "red", "value": 300 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_connections_authenticated{application=\"finvibe-backend-monolith\"}", "legendFormat": "인증된 연결" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "활성 사용자 수",
+      "description": "WebSocket에 연결된 고유 사용자 수",
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 100 },
+            { "color": "red", "value": 300 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_users_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "사용자 수" }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "구독 중인 토픽(종목) 수",
+      "description": "현재 1명 이상이 구독 중인 종목 수",
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 25 },
+            { "color": "red", "value": 30 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_topics_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "활성 토픽" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "연결 수 추이",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_connections_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "전체 연결" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_connections_authenticated{application=\"finvibe-backend-monolith\"}", "legendFormat": "인증된 연결" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "ws_users_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "사용자 수" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "클라이언트 에러 이벤트 (rate)",
+      "description": "인증 타임아웃, 레이트 리밋, 전송 실패 발생률",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_auth_timeout_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "인증 타임아웃" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_rate_limit_violations_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "레이트 리밋 위반" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_message_send_failures_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "메시지 전송 실패" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_connection_closed_unreliable_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "반복 실패로 강제 종료" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_subscriptions_rejected_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "구독 한도 초과 거부" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "KIS WebSocket (업스트림)",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "KIS 세션 수",
+      "description": "연결된 KIS WebSocket 세션 수",
+      "gridPos": { "x": 0, "y": 13, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "green", "value": 2 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "kis_sessions_available{application=\"finvibe-backend-monolith\"}", "legendFormat": "KIS 세션" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "KIS 구독 종목 수",
+      "description": "이 노드가 KIS에 구독 중인 종목 수",
+      "gridPos": { "x": 4, "y": 13, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 35 },
+            { "color": "red", "value": 40 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "kis_subscriptions_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "구독 종목" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "노드 구독 수 (Sync 기준)",
+      "description": "KisSubscriptionSynchronizer가 추적하는 이 노드의 구독 수",
+      "gridPos": { "x": 8, "y": 13, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 35 },
+            { "color": "red", "value": 41 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "kis_sync_subscriptions_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "Sync 추적 구독" }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "KIS 구독 종목 수 추이",
+      "gridPos": { "x": 0, "y": 17, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "kis_subscriptions_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "KIS 구독 (Connection Pool)" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "kis_sync_subscriptions_active{application=\"finvibe-backend-monolith\"}", "legendFormat": "KIS 구독 (Sync 추적)" }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "KIS 에러 이벤트 (rate)",
+      "description": "세션 연결 실패, 구독 실패, 락 획득 실패",
+      "gridPos": { "x": 12, "y": 17, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_session_connect_failures_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "세션 연결 실패" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_subscribe_no_session_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "가용 세션 없음" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_sync_errors_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "동기화 에러" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_sync_lock_failures_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "분산 락 실패" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Sync 성능",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "동기화 사이클 실행 시간",
+      "description": "KIS 구독 동기화 사이클 1회 실행에 걸리는 시간 (p50/p95/p99)",
+      "gridPos": { "x": 0, "y": 25, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(kis_sync_execution_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, rate(kis_sync_execution_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p95" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, rate(kis_sync_execution_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "동기화 처리량 (ops/s)",
+      "description": "초당 동기화 사이클 실행 횟수 및 에러율",
+      "gridPos": { "x": 12, "y": 25, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_sync_execution_seconds_count{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "동기화 처리량" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(kis_sync_errors_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "에러율" }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Redis / 이벤트 파이프라인",
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Redis 이벤트 파이프라인 에러 (rate)",
+      "description": "Redis → WebSocket 전달 과정의 역직렬화 실패 및 직렬화 실패",
+      "gridPos": { "x": 0, "y": 33, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(redis_event_deserialization_errors_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "Redis 역직렬화 실패" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(ws_message_serialization_errors_total{application=\"finvibe-backend-monolith\"}[1m])", "legendFormat": "WS 직렬화 실패" }
+      ]
+    },
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Fanout 부하",
+      "gridPos": { "x": 0, "y": 40, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 41,
+      "type": "stat",
+      "title": "Fanout 중앙값 (수신자 수)",
+      "description": "이벤트 1건당 실제로 메시지를 받은 클라이언트 수의 p50. 핫 종목 집중도 지표.",
+      "gridPos": { "x": 0, "y": 41, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 500 },
+            { "color": "red", "value": 2000 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(ws_fanout_recipients_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50 수신자" }
+      ]
+    },
+    {
+      "id": 42,
+      "type": "stat",
+      "title": "구독 처리 시간 p50",
+      "description": "subscribe 요청 수신 후 ack 전송까지 걸리는 중앙값. Redis 조회 포함.",
+      "gridPos": { "x": 4, "y": 41, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.1 },
+            { "color": "red", "value": 0.5 }
+          ]},
+          "unit": "s"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(ws_subscribe_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50 구독 처리" }
+      ]
+    },
+    {
+      "id": 43,
+      "type": "stat",
+      "title": "이벤트 디스패치 처리량",
+      "description": "초당 클라이언트에게 전송된 이벤트 총량 (fanout 후 개별 전송 건수).",
+      "gridPos": { "x": 8, "y": 41, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 50000 },
+            { "color": "red", "value": 100000 }
+          ]},
+          "unit": "ops"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(ws_events_dispatched_total{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "dispatch ops/s" }
+      ]
+    },
+    {
+      "id": 44,
+      "type": "stat",
+      "title": "최대 핫 종목 구독자 수",
+      "description": "현재 가장 많이 구독된 종목의 구독자 수. fanout 폭발 위험 지표.",
+      "gridPos": { "x": 12, "y": 41, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 1000 },
+            { "color": "red", "value": 5000 }
+          ]},
+          "unit": "short"
+        }
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "max(ws_topic_subscriber_count{application=\"finvibe-backend-monolith\"})", "legendFormat": "최대 구독자" }
+      ]
+    },
+    {
+      "id": 45,
+      "type": "timeseries",
+      "title": "Fanout 수신자 수 분포 (p50/p95/p99)",
+      "description": "이벤트 1건당 수신자 수 분포. p99가 급증하면 핫 종목 집중 fanout 발생 신호.",
+      "gridPos": { "x": 0, "y": 45, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(ws_fanout_recipients_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, rate(ws_fanout_recipients_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p95" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, rate(ws_fanout_recipients_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 46,
+      "type": "timeseries",
+      "title": "Fanout 처리 시간 (p50/p95/p99)",
+      "description": "이벤트 1건의 fanout 완료까지 걸리는 시간. p99 상승 시 write 스레드 포화 의심.",
+      "gridPos": { "x": 12, "y": 45, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(ws_fanout_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, rate(ws_fanout_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p95" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, rate(ws_fanout_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 47,
+      "type": "timeseries",
+      "title": "종목별 구독자 수 Top 10",
+      "description": "구독자가 많은 상위 10개 종목의 추이. Zipf 집중 현상과 핫 종목 변화 파악.",
+      "gridPos": { "x": 0, "y": 52, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "topk(10, ws_topic_subscriber_count{application=\"finvibe-backend-monolith\"})", "legendFormat": "{{topic}}" }
+      ]
+    },
+    {
+      "id": 48,
+      "type": "timeseries",
+      "title": "구독 처리 시간 (p50/p95/p99)",
+      "description": "subscribe 요청 처리 지연 분포. p95 상승 시 Redis 조회 또는 잠금 경합 의심.",
+      "gridPos": { "x": 12, "y": 52, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, rate(ws_subscribe_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p50" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, rate(ws_subscribe_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p95" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, rate(ws_subscribe_duration_seconds_bucket{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "p99" }
+      ]
+    },
+    {
+      "id": 49,
+      "type": "timeseries",
+      "title": "이벤트 디스패치 처리량 및 에러율",
+      "description": "초당 클라이언트 전송 건수(fanout 후 총합)와 전송 실패율 추이.",
+      "gridPos": { "x": 0, "y": 59, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "custom": { "lineWidth": 2 } }
+      },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(ws_events_dispatched_total{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "디스패치 처리량" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(ws_message_send_failures_total{application=\"finvibe-backend-monolith\"}[1m]))", "legendFormat": "전송 실패율" }
+      ]
+    }
+  ]
+}

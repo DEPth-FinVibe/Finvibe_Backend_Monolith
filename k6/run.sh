@@ -3,14 +3,95 @@
 VENV_DIR="${K6_VENV_DIR:-.venv}"
 VENV_PYTHON="$VENV_DIR/bin/python3"
 REQUIREMENTS_FILE="k6/requirements.txt"
+REQUIREMENTS_STAMP="$VENV_DIR/.k6_requirements.sha256"
+
+compute_requirements_hash() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$REQUIREMENTS_FILE" | awk '{print $1}'
+    return
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$REQUIREMENTS_FILE" | awk '{print $1}'
+    return
+  fi
+  python3 - <<PY
+import hashlib
+from pathlib import Path
+print(hashlib.sha256(Path("$REQUIREMENTS_FILE").read_bytes()).hexdigest())
+PY
+}
+
+ensure_python_runtime() {
+  mode="$1"
+
+  if [ ! -f "$REQUIREMENTS_FILE" ]; then
+    echo "⚠️  requirements 파일을 찾을 수 없습니다: $REQUIREMENTS_FILE"
+    return 1
+  fi
+
+  if [ ! -x "$VENV_PYTHON" ]; then
+    echo "📦 Python venv가 없어 새로 생성합니다: $VENV_DIR"
+    if ! python3 -m venv "$VENV_DIR"; then
+      echo "⚠️  venv 생성에 실패했습니다."
+      return 1
+    fi
+  fi
+
+  case "$mode" in
+    ws-watch)
+      required_modules="websockets"
+      ;;
+    report)
+      required_modules="google.generativeai dotenv"
+      ;;
+    *)
+      required_modules=""
+      ;;
+  esac
+
+  missing_modules=""
+  if [ -n "$required_modules" ]; then
+    for module in $required_modules; do
+      if ! "$VENV_PYTHON" -c "import $module" >/dev/null 2>&1; then
+        missing_modules="$missing_modules $module"
+      fi
+    done
+  fi
+
+  current_hash="$(compute_requirements_hash)"
+  installed_hash=""
+  if [ -f "$REQUIREMENTS_STAMP" ]; then
+    installed_hash="$(cat "$REQUIREMENTS_STAMP" 2>/dev/null)"
+  fi
+
+  if [ -n "$missing_modules" ] || [ "$current_hash" != "$installed_hash" ]; then
+    echo "📦 Python 의존성 설치 중... ($REQUIREMENTS_FILE)"
+    if [ -n "$missing_modules" ]; then
+      echo "   누락 모듈:$missing_modules"
+    fi
+    if [ "$current_hash" != "$installed_hash" ]; then
+      echo "   requirements 변경 감지: 재설치 수행"
+    fi
+    if ! "$VENV_PYTHON" -m pip install -r "$REQUIREMENTS_FILE"; then
+      echo "⚠️  의존성 설치에 실패했습니다."
+      return 1
+    fi
+    printf '%s\n' "$current_hash" > "$REQUIREMENTS_STAMP"
+  else
+    echo "✓ Python 의존성 확인 완료. 추가 설치 없음."
+  fi
+
+  return 0
+}
 
 echo "============================================================"
 echo "  Finvibe k6 부하테스트 실행기"
 echo "============================================================"
 echo "1) REST API 테스트"
 echo "2) WebSocket 테스트  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
+echo "3) WebSocket 실시간 모니터링  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "============================================================"
-read -p "테스트 종류 선택 (1~2): " test_type
+read -p "테스트 종류 선택 (1~3): " test_type
 
 case $test_type in
   1)
@@ -66,6 +147,10 @@ case $test_type in
     echo "------------------------------------------------------------"
     echo "  WebSocket 프로파일  (VU 수 = 동시 연결 수)"
     echo "------------------------------------------------------------"
+    echo "0) ws-connect │ 30초  │   5 VU (고정)"
+    echo "   연결·인증·10초 유지·정상 종료를 빠르게 검증합니다."
+    echo "   WS 서버가 기동되었는지 가장 빠르게 확인할 때 사용하세요."
+    echo ""
     echo "1) ws-smoke  │  5분  │  10 VU (고정)"
     echo "   10개 연결을 유지하며 인증·구독·이벤트 수신이 정상인지 확인합니다."
     echo "   WS 기능이 처음 올바르게 동작하는지 확인할 때 먼저 실행하세요."
@@ -82,20 +167,48 @@ case $test_type in
     echo "   연결이 30초 만에 10배로 급증했다가 다시 줄어드는 시나리오입니다."
     echo "   급격한 연결 폭증 후 lag가 회복되는지, 연결이 끊기지 않는지 봅니다."
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (1~4): " choice
+    read -p "프로파일 선택 (0~4): " choice
     case $choice in
+      0) ENV_FILE="k6/.env.ws-connect" ;;
       1) ENV_FILE="k6/.env.ws-smoke" ;;
       2) ENV_FILE="k6/.env.ws-ramp" ;;
       3) ENV_FILE="k6/.env.ws-stress" ;;
       4) ENV_FILE="k6/.env.ws-spike" ;;
       *)
-        echo "잘못된 선택입니다. 1~4 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~4 중 하나를 입력하세요."
         exit 1
         ;;
     esac
     ;;
+  3)
+    echo ""
+    set -a
+    # shellcheck source=/dev/null
+    if [ -f ".env" ]; then
+      source ".env"
+    fi
+    source "k6/.env.ws-connect"
+    set +a
+
+    # .env.ws-connect 의 상대 경로를 repo 루트 기준으로 재정의
+    export TOKENS_FILE="k6/data/tokens.json"
+    export IDS_FILE="k6/data/ids.json"
+
+    read -p "구독할 종목 수 (default: 10): " ws_count
+    export WS_SUBSCRIBE_COUNT="${ws_count:-10}"
+
+    if ! ensure_python_runtime "ws-watch"; then
+      exit 1
+    fi
+
+    echo ""
+    echo "▶ WebSocket 실시간 모니터링 시작 (Ctrl+C 로 종료)"
+    echo ""
+    "$VENV_PYTHON" k6/ws-watch.py
+    exit $?
+    ;;
   *)
-    echo "잘못된 선택입니다. 1~2 중 하나를 입력하세요."
+    echo "잘못된 선택입니다. 1~3 중 하나를 입력하세요."
     exit 1
     ;;
 esac
@@ -145,22 +258,8 @@ if [ -f "$SUMMARY_FILE" ]; then
     echo "   GEMINI_API_KEY=<your-key> $VENV_PYTHON k6/report.py $SUMMARY_FILE $PROFILE_NAME"
   else
     echo ""
-    if [ ! -x "$VENV_PYTHON" ]; then
-      echo "⚠️  venv python 실행 파일을 찾을 수 없습니다: $VENV_PYTHON"
-      echo "   아래 명령으로 venv를 생성/설치한 뒤 다시 실행하세요:"
-      echo "   python3 -m venv $VENV_DIR && $VENV_PYTHON -m pip install -r k6/requirements.txt"
-      exit $K6_EXIT
-    fi
-
-    if [ ! -f "$REQUIREMENTS_FILE" ]; then
-      echo "⚠️  requirements 파일을 찾을 수 없습니다: $REQUIREMENTS_FILE"
-      echo "   보고서 생성을 건너뜁니다."
-      exit $K6_EXIT
-    fi
-
-    echo "📦 Python 의존성 설치 중... ($REQUIREMENTS_FILE)"
-    if ! "$VENV_PYTHON" -m pip install -r "$REQUIREMENTS_FILE"; then
-      echo "⚠️  의존성 설치에 실패하여 보고서 생성을 건너뜁니다."
+    if ! ensure_python_runtime "report"; then
+      echo "⚠️  Python 런타임 준비에 실패하여 보고서 생성을 건너뜁니다."
       exit $K6_EXIT
     fi
 

@@ -1,6 +1,7 @@
 import { wsLoadProfileName, getWsScenarios, getWsThresholds } from './lib/ws-config.js';
 import { ensureRuntimeConfig, printRuntimeSummary, sharedRuntimeData } from './lib/data.js';
 import { runWsQuoteFlow } from './scenarios/ws-quote.js';
+import { runWsConnectFlow } from './scenarios/ws-connect.js';
 
 const profileName = wsLoadProfileName();
 
@@ -19,11 +20,16 @@ export function setup() {
 	};
 }
 
+function getWsUrl() {
+	return sharedRuntimeData.baseUrl.replace(/^http/, 'ws') + '/market/ws';
+}
+
 export default function () {
-	const baseUrl = sharedRuntimeData.baseUrl;
-	// http(s):// → ws(s)://
-	const wsUrl = baseUrl.replace(/^http/, 'ws') + '/market/ws';
-	runWsQuoteFlow(wsUrl);
+	runWsQuoteFlow(getWsUrl());
+}
+
+export function wsConnectFlow() {
+	runWsConnectFlow(getWsUrl());
 }
 
 export function handleSummary(data) {

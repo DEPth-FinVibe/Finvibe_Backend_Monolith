@@ -10,6 +10,7 @@ import {
 	wsEventsReceived,
 	wsConnectFail,
 	wsActiveConnections,
+	wsAuthFailCount,
 } from '../lib/ws-metrics.js';
 
 function pickRandomSubset(arr, count) {
@@ -87,8 +88,10 @@ export function runWsQuoteFlow(wsUrl) {
 				}
 
 				case 'error': {
-					// UNAUTHORIZED: 재연결해도 소용없으므로 종료
+					// UNAUTHORIZED: 서버가 토큰 거부(만료·서명 오류 등) → 메트릭 기록 후 종료
 					if (msg.code === 'UNAUTHORIZED') {
+						wsAuthRate.add(false);
+						wsAuthFailCount.add(1);
 						socket.close();
 					}
 					break;

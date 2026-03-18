@@ -17,3 +17,12 @@ export const wsConnectFail = new Counter('ws_connect_fail');
 
 // 현재 열린 연결 수
 export const wsActiveConnections = new Gauge('ws_active_connections');
+
+// 인증 거부 수 (만료·서명 오류 등으로 서버가 UNAUTHORIZED 에러를 반환한 경우)
+export const wsAuthFailCount = new Counter('ws_auth_fail_count');
+
+// 세션 유지 시간 (ms) — 연결 수립부터 종료까지
+export const wsSessionDuration = new Trend('ws_session_duration_ms', true);
+
+// 정상 종료율 (에러 없이 클라이언트가 close를 주도한 경우)
+export const wsCleanCloseRate = new Rate('ws_clean_close_rate');
