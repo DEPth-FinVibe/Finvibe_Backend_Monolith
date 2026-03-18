@@ -30,6 +30,8 @@ import depth.finvibe.modules.market.domain.enums.MarketStatus;
 import depth.finvibe.modules.market.dto.CurrentPriceDto;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
 
 @Slf4j
@@ -57,6 +59,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
 
     private Counter authTimeoutCounter;
     private Counter rateLimitViolationCounter;
+    private Timer subscribeDurationTimer;
 
     @PostConstruct
     public void initMetrics() {
@@ -65,6 +68,10 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
                 .register(meterRegistry);
         rateLimitViolationCounter = Counter.builder("ws.rate.limit.violations")
                 .description("초당 메시지 한도 초과 횟수")
+                .register(meterRegistry);
+        subscribeDurationTimer = Timer.builder("ws.subscribe.duration")
+                .description("subscribe 요청 처리 시간 (registry 등록 + Redis 호출 포함)")
+                .publishPercentileHistogram()
                 .register(meterRegistry);
     }
 
@@ -188,7 +195,9 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
                 .filter(this::isValidTopic)
                 .collect(Collectors.toList());
 
+        long subscribeStartNs = System.nanoTime();
         MarketWebSocketRegistry.SubscribeResult result = registry.subscribe(connection, validTopics, MAX_SUBSCRIPTIONS);
+        subscribeDurationTimer.record(System.nanoTime() - subscribeStartNs, TimeUnit.NANOSECONDS);
         List<String> rejected = new ArrayList<>(result.rejected());
         if (!invalidTopics.isEmpty()) {
             rejected.addAll(invalidTopics);

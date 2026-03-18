@@ -11,6 +11,9 @@ import depth.finvibe.modules.market.application.port.in.CurrentPriceCommandUseCa
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.MultiGauge;
+import io.micrometer.core.instrument.Tags;
+import java.util.stream.Collectors;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +39,7 @@ public class MarketWebSocketRegistry {
   private ScheduledFuture<?> ttlRefreshTask;
   private Counter subscriptionsRejectedCounter;
   private Counter subscriptionsLimitExceededCounter;
+  private MultiGauge topicSubscriberGauge;
   
   // TTL 갱신 주기: 5분 (TTL 10분의 절반)
   private static final long TTL_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
@@ -77,6 +81,9 @@ public class MarketWebSocketRegistry {
         .register(meterRegistry);
     subscriptionsLimitExceededCounter = Counter.builder("ws.subscriptions.limit.exceeded")
         .description("사용자별 구독 한도 초과 이벤트 수")
+        .register(meterRegistry);
+    topicSubscriberGauge = MultiGauge.builder("ws.topic.subscriber.count")
+        .description("종목별 WebSocket 구독자 수")
         .register(meterRegistry);
   }
   
@@ -163,6 +170,7 @@ public class MarketWebSocketRegistry {
         }
       }
     }
+    updateTopicSubscriberGauge();
   }
 
     public void authenticate(MarketWebSocketConnection connection, UUID userId) {
@@ -218,6 +226,9 @@ public class MarketWebSocketRegistry {
     if (limitExceeded) {
       subscriptionsLimitExceededCounter.increment();
     }
+    if (!subscribed.isEmpty()) {
+      updateTopicSubscriberGauge();
+    }
     return new SubscribeResult(subscribed, alreadySubscribed, rejected, limitExceeded);
   }
 
@@ -265,6 +276,9 @@ public class MarketWebSocketRegistry {
       }
     }
 
+    if (!unsubscribed.isEmpty()) {
+      updateTopicSubscriberGauge();
+    }
     return new UnsubscribeResult(unsubscribed, notSubscribed);
   }
 
@@ -311,6 +325,15 @@ public class MarketWebSocketRegistry {
       userTopics.put(topic, count - 1);
       return false; // 아직 다른 세션에서 구독 중
     }
+  }
+
+  private void updateTopicSubscriberGauge() {
+    topicSubscriberGauge.register(
+        topicSubscribers.entrySet().stream()
+            .map(e -> MultiGauge.Row.of(Tags.of("topic", e.getKey()), e.getValue(), s -> (double) s.size()))
+            .collect(Collectors.toList()),
+        true
+    );
   }
 
   /**

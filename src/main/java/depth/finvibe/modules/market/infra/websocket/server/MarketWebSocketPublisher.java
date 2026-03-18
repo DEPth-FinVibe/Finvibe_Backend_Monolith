@@ -2,10 +2,14 @@ package depth.finvibe.modules.market.infra.websocket.server;
 
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +36,9 @@ public class MarketWebSocketPublisher {
     private Counter sendFailureCounter;
     private Counter closedByFailureCounter;
     private Counter serializationErrorCounter;
+    private Counter eventsDispatchedCounter;
+    private DistributionSummary fanoutRecipientsHistogram;
+    private Timer fanoutDurationTimer;
 
     @PostConstruct
     public void initMetrics() {
@@ -43,6 +50,17 @@ public class MarketWebSocketPublisher {
                 .register(meterRegistry);
         serializationErrorCounter = Counter.builder("ws.message.serialization.errors")
                 .description("WebSocket 이벤트 직렬화 실패 수")
+                .register(meterRegistry);
+        eventsDispatchedCounter = Counter.builder("ws.events.dispatched")
+                .description("클라이언트에게 전송된 이벤트 총 건수 (fanout 후 개별 전송 합계)")
+                .register(meterRegistry);
+        fanoutRecipientsHistogram = DistributionSummary.builder("ws.fanout.recipients")
+                .description("이벤트 1건당 fanout 수신자 수")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        fanoutDurationTimer = Timer.builder("ws.fanout.duration")
+                .description("이벤트 1건의 fanout 완료까지 걸리는 시간")
+                .publishPercentileHistogram()
                 .register(meterRegistry);
     }
 
@@ -62,11 +80,15 @@ public class MarketWebSocketPublisher {
         }
 
         TextMessage textMessage = new TextMessage(message);
-        for (MarketWebSocketConnection connection : registry.getSubscribers(topic)) {
+        List<MarketWebSocketConnection> subscribers = registry.getSubscribers(topic);
+        fanoutRecipientsHistogram.record(subscribers.size());
+        long fanoutStartNs = System.nanoTime();
+        for (MarketWebSocketConnection connection : subscribers) {
             try {
                 WebSocketSession session = connection.getSession();
                 if (sendMessageSafely(session, textMessage)) {
                     connection.recordSendSuccess();
+                    eventsDispatchedCounter.increment();
                 } else {
                     registry.remove(session.getId());
                 }
@@ -91,6 +113,7 @@ public class MarketWebSocketPublisher {
                 }
             }
         }
+        fanoutDurationTimer.record(System.nanoTime() - fanoutStartNs, TimeUnit.NANOSECONDS);
     }
 
     private boolean sendMessageSafely(WebSocketSession session, TextMessage message) throws Exception {
