@@ -3,6 +3,7 @@ package depth.finvibe.common.infra.error;
 import depth.finvibe.common.error.DomainErrorCode;
 import depth.finvibe.common.error.DomainException;
 import depth.finvibe.common.error.GlobalErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.MissingPathVariableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -125,6 +127,19 @@ public class GlobalExceptionHandler {
 			code.getMessage()
 		);
 		return ResponseEntity.status(status).body(body);
+	}
+
+	@ExceptionHandler(AsyncRequestNotUsableException.class)
+	public void handleAsyncRequestNotUsableException(
+		AsyncRequestNotUsableException ex,
+		HttpServletRequest request
+	) {
+		log.warn(
+			"클라이언트가 응답 전송 중 연결을 종료했습니다. method={}, uri={}, message={}",
+			request.getMethod(),
+			request.getRequestURI(),
+			ex.getMessage()
+		);
 	}
 
 	@ExceptionHandler(Exception.class)
