@@ -21,13 +21,13 @@ public class MarketWebSocketSessionSender {
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
 
-	@Value("${market.ws.send-failure-threshold:3}")
+	@Value("${market.ws.send.failure-threshold:3}")
 	private int sendFailureThreshold;
 
-	@Value("${market.ws.send-slow-threshold-ms:1000}")
+	@Value("${market.ws.send.slow-threshold-ms:1000}")
 	private long slowSendThresholdMs;
 
-	@Value("${market.ws.send-slow-strikes-threshold:2}")
+	@Value("${market.ws.send.slow-strikes-threshold:2}")
 	private int slowSendStrikesThreshold;
 
 	private Counter sendFailureCounter;
