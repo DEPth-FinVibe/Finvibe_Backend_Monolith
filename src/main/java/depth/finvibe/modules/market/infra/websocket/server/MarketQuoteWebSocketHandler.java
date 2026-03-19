@@ -263,6 +263,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         Map<String, Object> payload = new HashMap<>();
         payload.put("type", "auth");
         payload.put("ok", true);
+        payload.put("ts", Instant.now().toEpochMilli());
         sendMessage(session, payload);
     }
 

@@ -29,12 +29,15 @@ export function runWsQuoteFlow(wsUrl) {
 	const subscribeCount = getWsSubscribeCount();
 	const selectedStockIds = pickRandomSubset(sharedRuntimeData.stockIds, subscribeCount);
 	const topics = selectedStockIds.map((id) => `quote:${id}`);
+	let authSentAtMs = 0;
+	let clockOffsetMs = 0;
 
 	const response = ws.connect(wsUrl, {}, function (socket) {
 		wsActiveConnections.add(1);
 
 		socket.on('open', function () {
 			wsConnectRate.add(true);
+			authSentAtMs = Date.now();
 			socket.send(JSON.stringify({ type: 'auth', token }));
 		});
 
@@ -51,6 +54,11 @@ export function runWsQuoteFlow(wsUrl) {
 					const ok = msg.ok === true;
 					wsAuthRate.add(ok);
 					if (ok) {
+						if (typeof msg.ts === 'number' && authSentAtMs > 0) {
+							const authReceivedAtMs = Date.now();
+							const rttMs = authReceivedAtMs - authSentAtMs;
+							clockOffsetMs = msg.ts - (authSentAtMs + rttMs / 2);
+						}
 						socket.send(
 							JSON.stringify({
 								type: 'subscribe',
@@ -75,7 +83,7 @@ export function runWsQuoteFlow(wsUrl) {
 
 				case 'event': {
 					if (typeof msg.ts === 'number') {
-						const lag = Date.now() - msg.ts;
+						const lag = Date.now() + clockOffsetMs - msg.ts;
 						wsDeliveryLag.add(lag);
 					}
 					wsEventsReceived.add(1);
