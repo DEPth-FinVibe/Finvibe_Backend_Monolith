@@ -163,23 +163,28 @@ case $test_type in
     echo "   연결 수를 단계적으로 늘리며 delivery lag 추이를 관찰합니다."
     echo "   어느 연결 수부터 지연이 커지는지 파악할 때 사용합니다."
     echo ""
-    echo "3) ws-stress │ 20분  │  20 → 100 → 300 → 500 → 800 → 1000 VU"
-    echo "   연결 수를 빠르게 1000까지 끌어올려 서버의 한계점을 탐색합니다."
+    echo "3) ws-stress │ 20분  │  20 → 100 → 300 → 500 → 800 → 1200 → 1800 → 2400 → 3000 VU"
+    echo "   연결 수를 빠르게 3000까지 끌어올려 서버의 한계점을 탐색합니다."
     echo "   연결 실패율과 delivery lag가 무너지기 시작하는 구간을 확인하세요."
     echo ""
-    echo "4) ws-spike  │ 10분  │  20 → 200 → 20 VU"
+    echo "4) ws-fast-stress │ 10분 │  20 → 500 → 1500 → 3000 → 5000 → 7500 → 10000 VU"
+    echo "   10분 안에 10000까지 빠르게 상승시켜 조기 병목과 연결 붕괴 지점을 찾습니다."
+    echo "   짧은 시간 안에 한계 구간을 스캔할 때 사용하세요."
+    echo ""
+    echo "5) ws-spike  │ 10분  │  20 → 200 → 20 VU"
     echo "   연결이 30초 만에 10배로 급증했다가 다시 줄어드는 시나리오입니다."
     echo "   급격한 연결 폭증 후 lag가 회복되는지, 연결이 끊기지 않는지 봅니다."
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~4): " choice
+    read -p "프로파일 선택 (0~5): " choice
     case $choice in
       0) ENV_FILE="k6/.env.ws-connect" ;;
       1) ENV_FILE="k6/.env.ws-smoke" ;;
       2) ENV_FILE="k6/.env.ws-ramp" ;;
       3) ENV_FILE="k6/.env.ws-stress" ;;
-      4) ENV_FILE="k6/.env.ws-spike" ;;
+      4) ENV_FILE="k6/.env.ws-fast-stress" ;;
+      5) ENV_FILE="k6/.env.ws-spike" ;;
       *)
-        echo "잘못된 선택입니다. 0~4 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~5 중 하나를 입력하세요."
         exit 1
         ;;
     esac

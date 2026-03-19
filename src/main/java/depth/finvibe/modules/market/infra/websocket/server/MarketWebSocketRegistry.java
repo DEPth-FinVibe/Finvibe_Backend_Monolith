@@ -138,29 +138,21 @@ public class MarketWebSocketRegistry {
     }
     CustomWebSocketSession state = connection.getState();
     UUID userId = connection.getUserId();
+
+    // 1. 사용자 기반 구독 인덱스 정리
     if (userId != null) {
       Map<String, Integer> userTopics = userSubscriptions.get(userId);
       if (userTopics != null) {
         for (String topic : state.getSubscribedTopics()) {
-          boolean wasLastSubscription = decrementUserTopic(userTopics, topic);
-          // 해당 유저의 해당 종목 구독이 모두 해제된 경우
-          if (wasLastSubscription) {
-            Long stockId = extractStockId(topic);
-            if (stockId != null) {
-              try {
-                currentPriceCommandUseCase.unregisterWatchingStock(stockId, userId);
-                log.debug("연결 해제로 인한 종목 실시간 감시 해제 - stockId: {}, userId: {}", stockId, userId);
-              } catch (Exception ex) {
-                log.error("연결 해제로 인한 종목 실시간 감시 해제 실패 - stockId: {}, userId: {}", stockId, userId, ex);
-              }
-            }
-          }
+          decrementUserTopic(userTopics, topic);
         }
         if (userTopics.isEmpty()) {
           userSubscriptions.remove(userId);
         }
       }
     }
+
+    // 2. 토픽 기반 구독자 인덱스 정리 (가장 중요한 부분: Fanout 대상에서 즉시 제외)
     for (String topic : state.getSubscribedTopics()) {
       Set<String> subscribers = topicSubscribers.get(topic);
       if (subscribers != null) {
@@ -170,6 +162,11 @@ public class MarketWebSocketRegistry {
         }
       }
     }
+
+    // 3. 내부 상태 참조 해제 (명시적 null 처리로 GC 지원)
+    state.getSubscribedTopics().clear();
+    log.debug("WebSocket 세션 등록 해제 완료 - sessionId: {}", sessionId);
+
     updateTopicSubscriberGauge();
   }
 
@@ -287,7 +284,9 @@ public class MarketWebSocketRegistry {
         if (subscriberIds == null || subscriberIds.isEmpty()) {
             return List.of();
         }
-        List<MarketWebSocketConnection> result = new ArrayList<>();
+
+        // 할당 오버헤드를 줄이기 위해 ArrayList 크기를 미리 지정
+        List<MarketWebSocketConnection> result = new ArrayList<>(subscriberIds.size());
         for (String sessionId : subscriberIds) {
             MarketWebSocketConnection connection = connections.get(sessionId);
             if (connection != null) {

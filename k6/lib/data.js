@@ -70,11 +70,8 @@ export const sharedRuntimeData = {
 	tradeIds: normalizeNumberArray(idsPayload.tradeIds, DEFAULT_IDS.tradeIds),
 };
 
-sharedRuntimeData.wsStockPool = pickRandomSubset(sharedRuntimeData.stockIds, WS_STOCK_POOL_LIMIT);
-
 sharedRuntimeData.idStatsSummary = [
 	`stocks=${sharedRuntimeData.stockIds.length}`,
-	`wsStockPool=${sharedRuntimeData.wsStockPool.length}`,
 	`news=${sharedRuntimeData.newsIds.length}`,
 	`categories=${sharedRuntimeData.categoryIds.length}`,
 	`users=${sharedRuntimeData.userIds.length}`,
@@ -88,7 +85,7 @@ export function ensureRuntimeConfig() {
 	}
 }
 
-export function printRuntimeSummary(profileName) {
+export function printRuntimeSummary(profileName, wsStockPool = []) {
 	console.log(
 		[
 			`[k6] profile=${profileName}`,
@@ -97,6 +94,7 @@ export function printRuntimeSummary(profileName) {
 			`[k6] tokensFile=${sharedRuntimeData.tokensFilePath}`,
 			`[k6] tokensLoaded=${sharedRuntimeData.tokens.length}`,
 			`[k6] idsLoaded=${sharedRuntimeData.idStatsSummary}`,
+			`[k6] wsStockPool=${wsStockPool.length}`,
 		].join('\n')
 	);
 }
@@ -110,4 +108,8 @@ export function pickToken() {
 		return null;
 	}
 	return pickFrom(sharedRuntimeData.tokens);
+}
+
+export function pickWsStockPool() {
+	return pickRandomSubset(sharedRuntimeData.stockIds, WS_STOCK_POOL_LIMIT);
 }

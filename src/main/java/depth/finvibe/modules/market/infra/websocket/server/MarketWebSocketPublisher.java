@@ -70,48 +70,64 @@ public class MarketWebSocketPublisher {
         }
         String topic = "quote:" + event.getStockId();
         Map<String, Object> payload = buildEventPayload(event, topic);
-        String message;
+        String messageBody = null;
+        TextMessage textMessage = null;
+
         try {
-            message = objectMapper.writeValueAsString(payload);
+            messageBody = objectMapper.writeValueAsString(payload);
+            textMessage = new TextMessage(messageBody);
         } catch (Exception ex) {
             serializationErrorCounter.increment();
             log.warn("Failed to serialize websocket event.", ex);
             return;
+        } finally {
+            payload = null; // 원본 맵 조기 해제 대상 포함
         }
 
-        TextMessage textMessage = new TextMessage(message);
         List<MarketWebSocketConnection> subscribers = registry.getSubscribers(topic);
         fanoutRecipientsHistogram.record(subscribers.size());
         long fanoutStartNs = System.nanoTime();
-        for (MarketWebSocketConnection connection : subscribers) {
-            try {
-                WebSocketSession session = connection.getSession();
-                if (sendMessageSafely(session, textMessage)) {
-                    connection.recordSendSuccess();
-                    eventsDispatchedCounter.increment();
-                } else {
-                    registry.remove(session.getId());
-                }
-            } catch (Exception ex) {
-                sendFailureCounter.increment();
-                int failureCount = connection.incrementSendFailure();
-                if (isPartialWritingError(ex)) {
-                    log.trace("Skipped websocket send while previous message is still writing - sessionId: {}, failureCount: {}",
-                            connection.getSession().getId(), failureCount);
-                } else {
-                    if (failureCount >= sendFailureThreshold) {
-                        log.warn("Failed to send websocket event repeatedly - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
-                                connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
+
+        try {
+            for (MarketWebSocketConnection connection : subscribers) {
+                try {
+                    WebSocketSession session = connection.getSession();
+                    if (sendMessageSafely(session, textMessage)) {
+                        connection.recordSendSuccess();
+                        eventsDispatchedCounter.increment();
                     } else {
-                        log.debug("Failed to send websocket event (will retry) - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
-                                connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
+                        registry.remove(session.getId());
+                    }
+                } catch (Exception ex) {
+                    sendFailureCounter.increment();
+                    int failureCount = connection.incrementSendFailure();
+
+                    if (isPartialWritingError(ex)) {
+                        // 메모리 고갈 방지: 버퍼가 가득 찬 클라이언트는 즉시 연결을 종료하여 서버 리소스 보호
+                        log.warn("Critical backpressure: Closing session due to buffer overflow - sessionId: {}, failureCount: {}",
+                                connection.getSession().getId(), failureCount);
+                        closeAndRemoveSession(connection);
+                        continue;
+                    } else {
+                        if (failureCount >= sendFailureThreshold) {
+                            log.warn("Failed to send websocket event repeatedly - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
+                                    connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
+                        } else {
+                            log.debug("Failed to send websocket event (will retry) - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
+                                    connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
+                        }
+                    }
+
+                    if (failureCount >= sendFailureThreshold) {
+                        closeAndRemoveSession(connection);
                     }
                 }
-
-                if (failureCount >= sendFailureThreshold) {
-                    closeAndRemoveSession(connection);
-                }
             }
+        } finally {
+            // 참조 해제하여 GC가 즉시 수거 가능하도록 함
+            textMessage = null;
+            messageBody = null;
+            subscribers = null;
         }
         fanoutDurationTimer.record(System.nanoTime() - fanoutStartNs, TimeUnit.NANOSECONDS);
     }

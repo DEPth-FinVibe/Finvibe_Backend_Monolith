@@ -7,7 +7,8 @@
 //   ws-connect — 5 VU, 30초: 연결·인증·10초 유지 기본 검증
 //   ws-smoke   — 10 VU, 5분: 기능 검증
 //   ws-ramp    — 10→50→100 VU, 15분: 점진 부하, lag 추이 관찰
-//   ws-stress  — 20→100→300→500→800→1000 VU, 20분: 빠른 한계점 탐색
+//   ws-stress  — 20→100→300→500→800→1200→1800→2400→3000 VU, 20분: 빠른 한계점 탐색
+//   ws-fast-stress — 20→500→1500→3000→5000→7500→10000 VU, 10분: 매우 빠른 한계점 탐색
 //   ws-spike   — 20→200→20 VU, 10분: 급증 대응 및 복구
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -78,9 +79,37 @@ const WS_LOAD_PROFILES = {
 					{ target: 20, duration: '1m' },
 					{ target: 100, duration: '2m' },
 					{ target: 300, duration: '3m' },
-					{ target: 500, duration: '4m' },
-					{ target: 800, duration: '4m' },
-					{ target: 1000, duration: '6m' },
+					{ target: 500, duration: '2m' },
+					{ target: 800, duration: '2m' },
+					{ target: 1200, duration: '2m' },
+					{ target: 1800, duration: '2m' },
+					{ target: 2400, duration: '3m' },
+					{ target: 3000, duration: '3m' },
+				],
+				exec: 'default',
+				tags: { scenario_group: 'ws_quote' },
+			},
+		},
+		thresholds: {
+			ws_connect_rate: ['rate>0.95'],
+			ws_auth_rate: ['rate>0.95'],
+			'ws_delivery_lag_ms{scenario_group:ws_quote}': ['p(95)<2000', 'p(99)<5000'],
+		},
+	},
+
+	'ws-fast-stress': {
+		scenarios: {
+			ws_quote: {
+				executor: 'ramping-vus',
+				startVUs: 20,
+				stages: [
+					{ target: 20, duration: '1m' },
+					{ target: 500, duration: '1m' },
+					{ target: 1500, duration: '2m' },
+					{ target: 3000, duration: '2m' },
+					{ target: 5000, duration: '2m' },
+					{ target: 7500, duration: '1m' },
+					{ target: 10000, duration: '1m' },
 				],
 				exec: 'default',
 				tags: { scenario_group: 'ws_quote' },

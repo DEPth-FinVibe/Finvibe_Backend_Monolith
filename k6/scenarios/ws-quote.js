@@ -18,7 +18,7 @@ function pickRandomSubset(arr, count) {
 	return shuffled.slice(0, Math.min(count, arr.length));
 }
 
-export function runWsQuoteFlow(wsUrl) {
+export function runWsQuoteFlow(wsUrl, wsStockPool) {
 	const token = pickToken();
 	if (!token) {
 		wsConnectFail.add(1);
@@ -26,8 +26,14 @@ export function runWsQuoteFlow(wsUrl) {
 		return;
 	}
 
+	if (!Array.isArray(wsStockPool) || wsStockPool.length === 0) {
+		wsConnectFail.add(1);
+		wsConnectRate.add(false);
+		return;
+	}
+
 	const subscribeCount = getWsSubscribeCount();
-	const selectedStockIds = pickRandomSubset(sharedRuntimeData.wsStockPool, subscribeCount);
+	const selectedStockIds = pickRandomSubset(wsStockPool, subscribeCount);
 	const topics = selectedStockIds.map((id) => `quote:${id}`);
 	let authSentAtMs = 0;
 	let clockOffsetMs = 0;
