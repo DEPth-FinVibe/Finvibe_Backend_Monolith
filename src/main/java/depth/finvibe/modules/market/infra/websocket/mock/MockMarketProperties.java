@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     emit-interval-ms: 1000   # 스케줄러 발화 주기 (기본값: 1000ms)
  *     stocks-per-tick: 0       # 틱당 이벤트를 발행할 종목 수 (기본값: 0 = 전체)
  *     publish-threads: 0       # 병렬 발행 스레드 수 (기본값: 0 = CPU 코어 수)
+ *     publish-queue-capacity: 256 # 발행 작업 큐 크기 (기본값: 256)
  * </pre>
  */
 @ConfigurationProperties(prefix = "market.mock")
@@ -20,12 +21,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record MockMarketProperties(
 		Long emitIntervalMs,
 		Integer stocksPerTick,
-		Integer publishThreads
+		Integer publishThreads,
+		Integer publishQueueCapacity
 ) {
 	public MockMarketProperties {
 		if (emitIntervalMs == null) emitIntervalMs = 1_000L;
 		if (stocksPerTick == null || stocksPerTick <= 0) stocksPerTick = 0;
 		if (publishThreads == null || publishThreads <= 0)
 			publishThreads = Runtime.getRuntime().availableProcessors();
+		if (publishQueueCapacity == null || publishQueueCapacity <= 0) publishQueueCapacity = 256;
 	}
 }

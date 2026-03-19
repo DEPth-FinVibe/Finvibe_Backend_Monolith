@@ -2,5 +2,6 @@ market:
   provider: mock
   mock:
     emit-interval-ms: 1000  # 스케줄러 발화 주기 (ms). 낮출수록 이벤트 빈도 증가
-    stocks-per-tick: 0       # 틱당 이벤트 발행 종목 수. 0 = 전체 구독 종목
-    publish-threads: 0       # 병렬 발행 스레드 수. 0 = CPU 코어 수
+    stocks-per-tick: 100     # 틱당 이벤트 발행 종목 수. 과부하 방지를 위해 기본값을 제한
+    publish-threads: 4       # 병렬 발행 스레드 수. 기본값을 고정해 burst를 낮춤
+    publish-queue-capacity: 64 # 발행 작업 큐 크기. 포화 시 스케줄러 스레드가 직접 처리해 생산 속도를 낮춤

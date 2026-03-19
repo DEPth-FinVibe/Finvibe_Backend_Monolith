@@ -11,9 +11,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -66,14 +68,20 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 		if (initialized) {
 			return;
 		}
-		publishPool = Executors.newFixedThreadPool(
+		publishPool = new ThreadPoolExecutor(
 				properties.publishThreads(),
-				r -> new Thread(r, "mock-market-publisher")
+				properties.publishThreads(),
+				0L,
+				TimeUnit.MILLISECONDS,
+				new LinkedBlockingQueue<>(properties.publishQueueCapacity()),
+				r -> new Thread(r, "mock-market-publisher"),
+				new ThreadPoolExecutor.CallerRunsPolicy()
 		);
-		log.info("[Mock] 시세 스트림 초기화 — emit: {}ms, stocks-per-tick: {}, threads: {}",
+		log.info("[Mock] 시세 스트림 초기화 — emit: {}ms, stocks-per-tick: {}, threads: {}, queue-capacity: {}",
 				properties.emitIntervalMs(),
 				properties.stocksPerTick() == 0 ? "전체" : properties.stocksPerTick(),
-				properties.publishThreads());
+				properties.publishThreads(),
+				properties.publishQueueCapacity());
 		startEmitting();
 		initialized = true;
 	}

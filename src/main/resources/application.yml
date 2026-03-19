@@ -87,23 +87,23 @@ security:
 market:
   ws:
     fanout:
-      chunk-size: ${MARKET_WS_FANOUT_CHUNK_SIZE:200}
-      max-chunk-parallelism: ${MARKET_WS_FANOUT_MAX_CHUNK_PARALLELISM:4}
+      chunk-size: ${MARKET_WS_FANOUT_CHUNK_SIZE:100}
+      max-chunk-parallelism: ${MARKET_WS_FANOUT_MAX_CHUNK_PARALLELISM:8}
       executor:
-        core-size: ${MARKET_WS_FANOUT_EXECUTOR_CORE_SIZE:2}
-        max-size: ${MARKET_WS_FANOUT_EXECUTOR_MAX_SIZE:4}
-        queue-capacity: ${MARKET_WS_FANOUT_EXECUTOR_QUEUE_CAPACITY:256}
+        core-size: ${MARKET_WS_FANOUT_EXECUTOR_CORE_SIZE:4}
+        max-size: ${MARKET_WS_FANOUT_EXECUTOR_MAX_SIZE:8}
+        queue-capacity: ${MARKET_WS_FANOUT_EXECUTOR_QUEUE_CAPACITY:128}
     session:
-      send-time-limit-ms: ${MARKET_WS_SESSION_SEND_TIME_LIMIT_MS:1000}
+      send-time-limit-ms: ${MARKET_WS_SESSION_SEND_TIME_LIMIT_MS:500}
       buffer-size-limit-bytes: ${MARKET_WS_SESSION_BUFFER_SIZE_LIMIT_BYTES:65536}
     send:
-      failure-threshold: ${MARKET_WS_SEND_FAILURE_THRESHOLD:3}
-      slow-threshold-ms: ${MARKET_WS_SEND_SLOW_THRESHOLD_MS:1000}
+      failure-threshold: ${MARKET_WS_SEND_FAILURE_THRESHOLD:2}
+      slow-threshold-ms: ${MARKET_WS_SEND_SLOW_THRESHOLD_MS:250}
       slow-strikes-threshold: ${MARKET_WS_SEND_SLOW_STRIKES_THRESHOLD:2}
       executor:
-        core-size: ${MARKET_WS_SEND_EXECUTOR_CORE_SIZE:8}
-        max-size: ${MARKET_WS_SEND_EXECUTOR_MAX_SIZE:16}
-        queue-capacity: ${MARKET_WS_SEND_EXECUTOR_QUEUE_CAPACITY:512}
+        core-size: ${MARKET_WS_SEND_EXECUTOR_CORE_SIZE:16}
+        max-size: ${MARKET_WS_SEND_EXECUTOR_MAX_SIZE:32}
+        queue-capacity: ${MARKET_WS_SEND_EXECUTOR_QUEUE_CAPACITY:256}
   kis:
     base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
     user-id: ${KIS_USER_ID:}
