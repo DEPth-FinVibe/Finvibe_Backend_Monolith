@@ -13,7 +13,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +22,6 @@ import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class MarketWebSocketPublisher {
 	private static final String EXCHANGE = "KRX";
 
@@ -31,8 +29,21 @@ public class MarketWebSocketPublisher {
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
 	private final MarketWebSocketSessionSender sessionSender;
-	@Qualifier("marketWsFanoutExecutor")
 	private final Executor fanoutExecutor;
+
+	public MarketWebSocketPublisher(
+			MarketWebSocketRegistry registry,
+			ObjectMapper objectMapper,
+			MeterRegistry meterRegistry,
+			MarketWebSocketSessionSender sessionSender,
+			@Qualifier("marketWsFanoutExecutor") Executor fanoutExecutor
+	) {
+		this.registry = registry;
+		this.objectMapper = objectMapper;
+		this.meterRegistry = meterRegistry;
+		this.sessionSender = sessionSender;
+		this.fanoutExecutor = fanoutExecutor;
+	}
 
 	private final Map<String, TopicFanoutState> topicFanoutStates = new ConcurrentHashMap<>();
 	@Value("${market.ws.fanout.chunk-size:200}")

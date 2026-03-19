@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,14 +18,24 @@ import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class MarketWebSocketSessionSender {
 
 	private final MarketWebSocketRegistry registry;
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
-	@Qualifier("marketWsSendExecutor")
 	private final Executor sendExecutor;
+
+	public MarketWebSocketSessionSender(
+			MarketWebSocketRegistry registry,
+			ObjectMapper objectMapper,
+			MeterRegistry meterRegistry,
+			@Qualifier("marketWsSendExecutor") Executor sendExecutor
+	) {
+		this.registry = registry;
+		this.objectMapper = objectMapper;
+		this.meterRegistry = meterRegistry;
+		this.sendExecutor = sendExecutor;
+	}
 
 	@Value("${market.ws.fanout.max-pending-messages-per-session:32}")
 	private int maxPendingMessagesPerSession;
