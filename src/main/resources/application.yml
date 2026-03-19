@@ -85,6 +85,22 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:testsecret12312312313123123123}
 
 market:
+  ws:
+    fanout:
+      chunk-size: ${MARKET_WS_FANOUT_CHUNK_SIZE:200}
+      max-pending-messages-per-session: ${MARKET_WS_MAX_PENDING_MESSAGES_PER_SESSION:32}
+      executor:
+        core-size: ${MARKET_WS_FANOUT_EXECUTOR_CORE_SIZE:2}
+        max-size: ${MARKET_WS_FANOUT_EXECUTOR_MAX_SIZE:4}
+        queue-capacity: ${MARKET_WS_FANOUT_EXECUTOR_QUEUE_CAPACITY:256}
+    send:
+      failure-threshold: ${MARKET_WS_SEND_FAILURE_THRESHOLD:3}
+      slow-threshold-ms: ${MARKET_WS_SEND_SLOW_THRESHOLD_MS:1000}
+      slow-strikes-threshold: ${MARKET_WS_SEND_SLOW_STRIKES_THRESHOLD:2}
+      executor:
+        core-size: ${MARKET_WS_SEND_EXECUTOR_CORE_SIZE:8}
+        max-size: ${MARKET_WS_SEND_EXECUTOR_MAX_SIZE:16}
+        queue-capacity: ${MARKET_WS_SEND_EXECUTOR_QUEUE_CAPACITY:512}
   kis:
     base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
     user-id: ${KIS_USER_ID:}

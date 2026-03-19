@@ -24,3 +24,11 @@ spring:
 market:
   init:
     enabled: false
+  ws:
+    fanout:
+      chunk-size: 200
+      max-pending-messages-per-session: 8
+    send:
+      failure-threshold: 2
+      slow-threshold-ms: 50
+      slow-strikes-threshold: 2

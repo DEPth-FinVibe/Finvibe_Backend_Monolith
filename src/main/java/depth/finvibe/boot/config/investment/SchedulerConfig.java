@@ -15,7 +15,11 @@ public class SchedulerConfig {
 
     @Bean
     public TaskScheduler taskScheduler() {
-        return new ThreadPoolTaskScheduler();
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(4);
+        scheduler.setThreadNamePrefix("market-scheduler-");
+        scheduler.initialize();
+        return scheduler;
     }
 
     @Bean

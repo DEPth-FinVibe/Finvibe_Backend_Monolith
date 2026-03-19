@@ -40,6 +40,7 @@ public class MarketWebSocketRegistry {
   private Counter subscriptionsRejectedCounter;
   private Counter subscriptionsLimitExceededCounter;
   private MultiGauge topicSubscriberGauge;
+  private MultiGauge sessionSendFailureGauge;
   
   // TTL 갱신 주기: 5분 (TTL 10분의 절반)
   private static final long TTL_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
@@ -75,6 +76,14 @@ public class MarketWebSocketRegistry {
     Gauge.builder("ws.topics.active", topicSubscribers, Map::size)
         .description("구독 중인 토픽(종목) 수")
         .register(meterRegistry);
+    Gauge.builder("ws.pending.queue.size", connections,
+            map -> map.values().stream().mapToInt(MarketWebSocketConnection::getPendingMessages).sum())
+        .description("전체 WebSocket 세션 pending queue 크기 합")
+        .register(meterRegistry);
+    Gauge.builder("ws.pending.queue.max", connections,
+            map -> map.values().stream().mapToInt(MarketWebSocketConnection::getPendingMessages).max().orElse(0))
+        .description("세션별 pending queue 최대 크기")
+        .register(meterRegistry);
 
     subscriptionsRejectedCounter = Counter.builder("ws.subscriptions.rejected")
         .description("구독 거부 횟수 (한도 초과)")
@@ -84,6 +93,9 @@ public class MarketWebSocketRegistry {
         .register(meterRegistry);
     topicSubscriberGauge = MultiGauge.builder("ws.topic.subscriber.count")
         .description("종목별 WebSocket 구독자 수")
+        .register(meterRegistry);
+    sessionSendFailureGauge = MultiGauge.builder("ws.session.send.failures")
+        .description("세션별 WebSocket 전송 실패 수")
         .register(meterRegistry);
   }
   
@@ -124,6 +136,7 @@ public class MarketWebSocketRegistry {
     public MarketWebSocketConnection register(WebSocketSession session) {
         MarketWebSocketConnection connection = new MarketWebSocketConnection(session);
         connections.put(session.getId(), connection);
+        updateConnectionGauges();
         return connection;
     }
 
@@ -168,6 +181,7 @@ public class MarketWebSocketRegistry {
     log.debug("WebSocket 세션 등록 해제 완료 - sessionId: {}", sessionId);
 
     updateTopicSubscriberGauge();
+    updateConnectionGauges();
   }
 
     public void authenticate(MarketWebSocketConnection connection, UUID userId) {
@@ -296,6 +310,14 @@ public class MarketWebSocketRegistry {
         return result;
     }
 
+    public String[] snapshotSubscriberIds(String topic) {
+        Set<String> subscriberIds = topicSubscribers.get(topic);
+        if (subscriberIds == null || subscriberIds.isEmpty()) {
+            return new String[0];
+        }
+        return subscriberIds.toArray(String[]::new);
+    }
+
     public record SubscribeResult(
             List<String> subscribed,
             List<String> alreadySubscribed,
@@ -330,6 +352,16 @@ public class MarketWebSocketRegistry {
     topicSubscriberGauge.register(
         topicSubscribers.entrySet().stream()
             .map(e -> MultiGauge.Row.of(Tags.of("topic", e.getKey()), e.getValue(), s -> (double) s.size()))
+            .collect(Collectors.toList()),
+        true
+    );
+  }
+
+  public void updateConnectionGauges() {
+    sessionSendFailureGauge.register(
+        connections.entrySet().stream()
+            .map(e -> MultiGauge.Row.of(Tags.of("sessionId", e.getKey()), e.getValue(),
+                connection -> (double) connection.getTotalSendFailures()))
             .collect(Collectors.toList()),
         true
     );

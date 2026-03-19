@@ -1,186 +1,210 @@
 package depth.finvibe.modules.market.infra.websocket.server;
 
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MarketWebSocketPublisher {
-    private static final String EXCHANGE = "KRX";
+	private static final String EXCHANGE = "KRX";
 
-    private final MarketWebSocketRegistry registry;
-    private final ObjectMapper objectMapper;
-    private final MeterRegistry meterRegistry;
+	private final MarketWebSocketRegistry registry;
+	private final ObjectMapper objectMapper;
+	private final MeterRegistry meterRegistry;
+	private final MarketWebSocketSessionSender sessionSender;
+	@Qualifier("marketWsFanoutExecutor")
+	private final Executor fanoutExecutor;
 
-    @Value("${market.ws.send-failure-threshold:3}")
-    private int sendFailureThreshold;
+	private final Map<String, TopicFanoutState> topicFanoutStates = new ConcurrentHashMap<>();
+	@Value("${market.ws.fanout.chunk-size:200}")
+	private int fanoutChunkSize = 200;
+	private io.micrometer.core.instrument.Counter serializationErrorCounter;
+	private io.micrometer.core.instrument.Counter eventsDispatchedCounter;
+	private io.micrometer.core.instrument.Counter fanoutRejectedCounter;
+	private io.micrometer.core.instrument.Counter coalescedMessageCounter;
+	private DistributionSummary fanoutRecipientsHistogram;
+	private Timer fanoutDurationTimer;
+	private Timer fanoutChunkDurationTimer;
 
-    private Counter sendFailureCounter;
-    private Counter closedByFailureCounter;
-    private Counter serializationErrorCounter;
-    private Counter eventsDispatchedCounter;
-    private DistributionSummary fanoutRecipientsHistogram;
-    private Timer fanoutDurationTimer;
+	@PostConstruct
+	public void initMetrics() {
+		serializationErrorCounter = io.micrometer.core.instrument.Counter.builder("ws.message.serialization.errors")
+				.description("WebSocket 이벤트 직렬화 실패 수")
+				.register(meterRegistry);
+		eventsDispatchedCounter = io.micrometer.core.instrument.Counter.builder("ws.events.dispatched")
+				.description("클라이언트에게 enqueue된 이벤트 총 건수")
+				.register(meterRegistry);
+		fanoutRejectedCounter = io.micrometer.core.instrument.Counter.builder("ws.fanout.rejected")
+				.description("fanout worker 제출 거부 수")
+				.register(meterRegistry);
+		coalescedMessageCounter = io.micrometer.core.instrument.Counter.builder("ws.message.coalesced")
+				.description("토픽 최신값으로 덮어쓴 메시지 수")
+				.register(meterRegistry);
+		fanoutRecipientsHistogram = DistributionSummary.builder("ws.fanout.recipients")
+				.description("이벤트 1건당 fanout 수신자 수")
+				.publishPercentileHistogram()
+				.register(meterRegistry);
+		fanoutDurationTimer = Timer.builder("ws.fanout.duration")
+				.description("이벤트 1건 fanout enqueue 완료 시간")
+				.publishPercentileHistogram()
+				.register(meterRegistry);
+		fanoutChunkDurationTimer = Timer.builder("ws.fanout.chunk.duration")
+				.description("fanout chunk 처리 시간")
+				.publishPercentileHistogram()
+				.register(meterRegistry);
+	}
 
-    @PostConstruct
-    public void initMetrics() {
-        sendFailureCounter = Counter.builder("ws.message.send.failures")
-                .description("WebSocket 메시지 전송 실패 수")
-                .register(meterRegistry);
-        closedByFailureCounter = Counter.builder("ws.connection.closed.unreliable")
-                .description("반복 전송 실패로 강제 종료된 연결 수")
-                .register(meterRegistry);
-        serializationErrorCounter = Counter.builder("ws.message.serialization.errors")
-                .description("WebSocket 이벤트 직렬화 실패 수")
-                .register(meterRegistry);
-        eventsDispatchedCounter = Counter.builder("ws.events.dispatched")
-                .description("클라이언트에게 전송된 이벤트 총 건수 (fanout 후 개별 전송 합계)")
-                .register(meterRegistry);
-        fanoutRecipientsHistogram = DistributionSummary.builder("ws.fanout.recipients")
-                .description("이벤트 1건당 fanout 수신자 수")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-        fanoutDurationTimer = Timer.builder("ws.fanout.duration")
-                .description("이벤트 1건의 fanout 완료까지 걸리는 시간")
-                .publishPercentileHistogram()
-                .register(meterRegistry);
-    }
+	public void publish(CurrentPriceUpdatedEvent event) {
+		if (event == null || event.getStockId() == null) {
+			return;
+		}
+		String topic = "quote:" + event.getStockId();
+		TextMessage payload = serializeEvent(topic, event);
+		if (payload == null) {
+			return;
+		}
 
-    public void publish(CurrentPriceUpdatedEvent event) {
-        if (event == null || event.getStockId() == null) {
-            return;
-        }
-        String topic = "quote:" + event.getStockId();
-        Map<String, Object> payload = buildEventPayload(event, topic);
-        String messageBody = null;
-        TextMessage textMessage = null;
+		TopicFanoutState state = topicFanoutStates.computeIfAbsent(topic, ignored -> new TopicFanoutState());
+		FanoutEnvelope envelope = new FanoutEnvelope(topic, payload);
+		FanoutEnvelope previous = state.latestEnvelope.getAndSet(envelope);
+		if (previous != null) {
+			coalescedMessageCounter.increment();
+		}
+		scheduleTopicDrain(topic, state);
+	}
 
-        try {
-            messageBody = objectMapper.writeValueAsString(payload);
-            textMessage = new TextMessage(messageBody);
-        } catch (Exception ex) {
-            serializationErrorCounter.increment();
-            log.warn("Failed to serialize websocket event.", ex);
-            return;
-        } finally {
-            payload = null; // 원본 맵 조기 해제 대상 포함
-        }
+	private TextMessage serializeEvent(String topic, CurrentPriceUpdatedEvent event) {
+		try {
+			return new TextMessage(objectMapper.writeValueAsString(
+					new QuoteEventPayload(
+							"event",
+							topic,
+							Instant.now().toEpochMilli(),
+							new QuoteEventData(
+									event.getStockId(),
+									EXCHANGE,
+									event.getClose(),
+									event.getOpen(),
+									event.getHigh(),
+									event.getLow(),
+									event.getPrevDayChangePct(),
+									event.getVolume(),
+									event.getValue()
+							)
+					)
+			));
+		} catch (Exception ex) {
+			serializationErrorCounter.increment();
+			log.warn("Failed to serialize websocket event.", ex);
+			return null;
+		}
+	}
 
-        List<MarketWebSocketConnection> subscribers = registry.getSubscribers(topic);
-        fanoutRecipientsHistogram.record(subscribers.size());
-        long fanoutStartNs = System.nanoTime();
+	private void scheduleTopicDrain(String topic, TopicFanoutState state) {
+		if (!state.draining.compareAndSet(false, true)) {
+			return;
+		}
+		try {
+			// topic hash 기반으로 executor/shard를 분리하면 노드 내 fanout worker 또는 외부 fanout service로 확장하기 쉽다.
+			fanoutExecutor.execute(() -> drainTopic(topic, state));
+		} catch (RejectedExecutionException ex) {
+			state.draining.set(false);
+			fanoutRejectedCounter.increment();
+			log.warn("Rejected websocket fanout task - topic: {}", topic, ex);
+		}
+	}
 
-        try {
-            for (MarketWebSocketConnection connection : subscribers) {
-                try {
-                    WebSocketSession session = connection.getSession();
-                    if (sendMessageSafely(session, textMessage)) {
-                        connection.recordSendSuccess();
-                        eventsDispatchedCounter.increment();
-                    } else {
-                        registry.remove(session.getId());
-                    }
-                } catch (Exception ex) {
-                    sendFailureCounter.increment();
-                    int failureCount = connection.incrementSendFailure();
+	private void drainTopic(String topic, TopicFanoutState state) {
+		try {
+			while (true) {
+				FanoutEnvelope envelope = state.latestEnvelope.getAndSet(null);
+				if (envelope == null) {
+					return;
+				}
+				fanout(envelope);
+			}
+		} finally {
+			state.draining.set(false);
+			if (state.latestEnvelope.get() != null) {
+				scheduleTopicDrain(topic, state);
+			} else {
+				topicFanoutStates.remove(topic, state);
+			}
+		}
+	}
 
-                    if (isPartialWritingError(ex)) {
-                        // 메모리 고갈 방지: 버퍼가 가득 찬 클라이언트는 즉시 연결을 종료하여 서버 리소스 보호
-                        log.warn("Critical backpressure: Closing session due to buffer overflow - sessionId: {}, failureCount: {}",
-                                connection.getSession().getId(), failureCount);
-                        closeAndRemoveSession(connection);
-                        continue;
-                    } else {
-                        if (failureCount >= sendFailureThreshold) {
-                            log.warn("Failed to send websocket event repeatedly - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
-                                    connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
-                        } else {
-                            log.debug("Failed to send websocket event (will retry) - sessionId: {}, failureCount: {}, threshold: {}, cause: {}",
-                                    connection.getSession().getId(), failureCount, sendFailureThreshold, ex.toString());
-                        }
-                    }
+	private void fanout(FanoutEnvelope envelope) {
+		String[] subscriberIds = registry.snapshotSubscriberIds(envelope.topic());
+		fanoutRecipientsHistogram.record(subscriberIds.length);
+		long fanoutStartNs = System.nanoTime();
 
-                    if (failureCount >= sendFailureThreshold) {
-                        closeAndRemoveSession(connection);
-                    }
-                }
-            }
-        } finally {
-            // 참조 해제하여 GC가 즉시 수거 가능하도록 함
-            textMessage = null;
-            messageBody = null;
-            subscribers = null;
-        }
-        fanoutDurationTimer.record(System.nanoTime() - fanoutStartNs, TimeUnit.NANOSECONDS);
-    }
+		for (int start = 0; start < subscriberIds.length; start += fanoutChunkSize) {
+			long chunkStartNs = System.nanoTime();
+			int endExclusive = Math.min(start + fanoutChunkSize, subscriberIds.length);
+			for (int index = start; index < endExclusive; index++) {
+				MarketWebSocketConnection connection = registry.getConnection(subscriberIds[index]);
+				if (connection == null) {
+					continue;
+				}
+				if (sessionSender.enqueueQuote(connection, envelope.message(), envelope.topic())) {
+					eventsDispatchedCounter.increment();
+				}
+			}
+			fanoutChunkDurationTimer.record(System.nanoTime() - chunkStartNs, TimeUnit.NANOSECONDS);
+		}
 
-    private boolean sendMessageSafely(WebSocketSession session, TextMessage message) throws Exception {
-        synchronized (session) {
-            if (!session.isOpen()) {
-                return false;
-            }
-            session.sendMessage(message);
-            return true;
-        }
-    }
+		fanoutDurationTimer.record(System.nanoTime() - fanoutStartNs, TimeUnit.NANOSECONDS);
+	}
 
-    private boolean isPartialWritingError(Exception ex) {
-        return ex instanceof IllegalStateException
-                && ex.getMessage() != null
-                && ex.getMessage().contains("TEXT_PARTIAL_WRITING");
-    }
+	private record TopicFanoutState(
+			AtomicReference<FanoutEnvelope> latestEnvelope,
+			AtomicBoolean draining
+	) {
+		private TopicFanoutState() {
+			this(new AtomicReference<>(), new AtomicBoolean(false));
+		}
+	}
 
-    private void closeAndRemoveSession(MarketWebSocketConnection connection) {
-        String sessionId = connection.getSession().getId();
-        try {
-            if (connection.getSession().isOpen()) {
-                connection.getSession().close(CloseStatus.SESSION_NOT_RELIABLE);
-            }
-        } catch (Exception ex) {
-            log.warn("Failed to close unreliable websocket session {}.", sessionId, ex);
-        } finally {
-            closedByFailureCounter.increment();
-            registry.remove(sessionId);
-            log.info("Closed websocket session due to repeated send failures - sessionId: {}, threshold: {}",
-                    sessionId, sendFailureThreshold);
-        }
-    }
+	private record FanoutEnvelope(String topic, TextMessage message) {
+	}
 
-    private Map<String, Object> buildEventPayload(CurrentPriceUpdatedEvent event, String topic) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("stockId", event.getStockId());
-        data.put("exchange", EXCHANGE);
-        data.put("price", event.getClose());
-        data.put("open", event.getOpen());
-        data.put("high", event.getHigh());
-        data.put("low", event.getLow());
-        data.put("prevDayChangePct", event.getPrevDayChangePct());
-        data.put("volume", event.getVolume());
-        data.put("value", event.getValue());
+	private record QuoteEventPayload(
+			String type,
+			String topic,
+			long ts,
+			QuoteEventData data
+	) {
+	}
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("type", "event");
-        payload.put("topic", topic);
-        payload.put("ts", Instant.now().toEpochMilli());
-        payload.put("data", data);
-        return payload;
-    }
+	private record QuoteEventData(
+			Long stockId,
+			String exchange,
+			Object price,
+			Object open,
+			Object high,
+			Object low,
+			Object prevDayChangePct,
+			Object volume,
+			Object value
+	) {
+	}
 }

@@ -23,7 +23,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import depth.finvibe.modules.user.infra.security.JwtTokenProvider;
-import io.jsonwebtoken.Claims;
 import java.util.UUID;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.domain.MarketHours;
@@ -34,7 +33,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
-import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Component
@@ -49,6 +47,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final TaskScheduler taskScheduler;
     private final MeterRegistry meterRegistry;
+    private final MarketWebSocketSessionSender sessionSender;
 
     @Value("${market.ws.auth-timeout-ms:5000}")
     private long authTimeoutMs;
@@ -148,7 +147,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         }
         if (!connection.getState().isAuthenticated()) {
             authTimeoutCounter.increment();
-            sendError(session, null, "UNAUTHORIZED", "Authentication timeout.", null);
+            sendImmediateError(session, null, "UNAUTHORIZED", "Authentication timeout.", null);
             closeSession(session, CloseStatus.POLICY_VIOLATION);
         }
     }
@@ -156,7 +155,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     private void handleAuth(WebSocketSession session, MarketWebSocketConnection connection, JsonNode root) {
         String token = getText(root, "token");
         if (token == null || token.isBlank()) {
-            sendError(session, null, "UNAUTHORIZED", "Missing token.", null);
+            sendImmediateError(session, null, "UNAUTHORIZED", "Missing token.", null);
             closeSession(session, CloseStatus.POLICY_VIOLATION);
             return;
         }
@@ -168,7 +167,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             startHeartbeat(connection);
             sendAuthAck(session);
         } catch (Exception ex) {
-            sendError(session, null, "UNAUTHORIZED", "Invalid token.", null);
+            sendImmediateError(session, null, "UNAUTHORIZED", "Invalid token.", null);
             closeSession(session, CloseStatus.POLICY_VIOLATION);
         }
     }
@@ -323,6 +322,18 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         sendMessage(session, payload);
     }
 
+    private void sendImmediateError(WebSocketSession session, String requestId, String code, String message, Map<String, Object> details) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "error");
+        payload.put("request_id", requestId);
+        payload.put("code", code);
+        payload.put("message", message);
+        if (details != null) {
+            payload.put("details", details);
+        }
+        sessionSender.sendImmediate(session, payload);
+    }
+
     private void sendInitialPriceSnapshots(WebSocketSession session, List<String> subscribedTopics) {
         if (subscribedTopics == null || subscribedTopics.isEmpty()) {
             return;
@@ -380,15 +391,14 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     }
 
   private void sendMessage(WebSocketSession session, Map<String, Object> payload) {
-    try {
-      synchronized (session) {
-        if (session.isOpen()) {
-          session.sendMessage(new TextMessage(objectMapper.writeValueAsString(payload)));
-        }
+    MarketWebSocketConnection connection = registry.getConnection(session.getId());
+    if (connection != null) {
+      if (!sessionSender.enqueueControl(connection, payload)) {
+        log.debug("Skipped websocket control message due to backpressure - sessionId: {}", session.getId());
       }
-    } catch (Exception ex) {
-      log.warn("Failed to send websocket message.", ex);
+      return;
     }
+    sessionSender.sendImmediate(session, payload);
   }
 
     private JsonNode parseJson(WebSocketSession session, WebSocketMessage<String> message) {
