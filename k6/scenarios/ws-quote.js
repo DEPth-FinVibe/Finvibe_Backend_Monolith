@@ -27,7 +27,7 @@ export function runWsQuoteFlow(wsUrl) {
 	}
 
 	const subscribeCount = getWsSubscribeCount();
-	const selectedStockIds = pickRandomSubset(sharedRuntimeData.stockIds, subscribeCount);
+	const selectedStockIds = pickRandomSubset(sharedRuntimeData.wsStockPool, subscribeCount);
 	const topics = selectedStockIds.map((id) => `quote:${id}`);
 	let authSentAtMs = 0;
 	let clockOffsetMs = 0;

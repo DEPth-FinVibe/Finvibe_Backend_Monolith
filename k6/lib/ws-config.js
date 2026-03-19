@@ -7,7 +7,7 @@
 //   ws-connect — 5 VU, 30초: 연결·인증·10초 유지 기본 검증
 //   ws-smoke   — 10 VU, 5분: 기능 검증
 //   ws-ramp    — 10→50→100 VU, 15분: 점진 부하, lag 추이 관찰
-//   ws-stress  — 20→300 VU, 20분: 한계점 탐색
+//   ws-stress  — 20→100→300→500→800→1000 VU, 20분: 빠른 한계점 탐색
 //   ws-spike   — 20→200→20 VU, 10분: 급증 대응 및 복구
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -75,10 +75,12 @@ const WS_LOAD_PROFILES = {
 				executor: 'ramping-vus',
 				startVUs: 20,
 				stages: [
-					{ target: 20,  duration: '2m' },
-					{ target: 100, duration: '5m' },
-					{ target: 200, duration: '7m' },
-					{ target: 300, duration: '6m' },
+					{ target: 20, duration: '1m' },
+					{ target: 100, duration: '2m' },
+					{ target: 300, duration: '3m' },
+					{ target: 500, duration: '4m' },
+					{ target: 800, duration: '4m' },
+					{ target: 1000, duration: '6m' },
 				],
 				exec: 'default',
 				tags: { scenario_group: 'ws_quote' },

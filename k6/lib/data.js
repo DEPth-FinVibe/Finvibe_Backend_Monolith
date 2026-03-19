@@ -1,5 +1,7 @@
 import { SharedArray } from 'k6/data';
 
+const WS_STOCK_POOL_LIMIT = 30;
+
 function readRequiredEnv(name) {
 	const value = __ENV[name];
 	if (!value || !value.trim()) {
@@ -50,6 +52,11 @@ function normalizeStringArray(values, fallback) {
 	return values.map((value) => String(value));
 }
 
+function pickRandomSubset(values, count) {
+	const shuffled = values.slice().sort(() => Math.random() - 0.5);
+	return shuffled.slice(0, Math.min(count, values.length));
+}
+
 export const sharedRuntimeData = {
 	baseUrl: readRequiredEnv('BASE_URL'),
 	idsFilePath,
@@ -63,8 +70,11 @@ export const sharedRuntimeData = {
 	tradeIds: normalizeNumberArray(idsPayload.tradeIds, DEFAULT_IDS.tradeIds),
 };
 
+sharedRuntimeData.wsStockPool = pickRandomSubset(sharedRuntimeData.stockIds, WS_STOCK_POOL_LIMIT);
+
 sharedRuntimeData.idStatsSummary = [
 	`stocks=${sharedRuntimeData.stockIds.length}`,
+	`wsStockPool=${sharedRuntimeData.wsStockPool.length}`,
 	`news=${sharedRuntimeData.newsIds.length}`,
 	`categories=${sharedRuntimeData.categoryIds.length}`,
 	`users=${sharedRuntimeData.userIds.length}`,

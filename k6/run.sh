@@ -1,4 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
 
 VENV_DIR="${K6_VENV_DIR:-.venv}"
 VENV_PYTHON="$VENV_DIR/bin/python3"
@@ -159,9 +163,9 @@ case $test_type in
     echo "   연결 수를 단계적으로 늘리며 delivery lag 추이를 관찰합니다."
     echo "   어느 연결 수부터 지연이 커지는지 파악할 때 사용합니다."
     echo ""
-    echo "3) ws-stress │ 20분  │  20 → 300 VU"
-    echo "   연결 수를 300까지 끌어올려 서버의 한계점을 탐색합니다."
-    echo "   연결 실패율(ws_connect_rate)이 떨어지기 시작하는 구간을 확인하세요."
+    echo "3) ws-stress │ 20분  │  20 → 100 → 300 → 500 → 800 → 1000 VU"
+    echo "   연결 수를 빠르게 1000까지 끌어올려 서버의 한계점을 탐색합니다."
+    echo "   연결 실패율과 delivery lag가 무너지기 시작하는 구간을 확인하세요."
     echo ""
     echo "4) ws-spike  │ 10분  │  20 → 200 → 20 VU"
     echo "   연결이 30초 만에 10배로 급증했다가 다시 줄어드는 시나리오입니다."
@@ -185,9 +189,9 @@ case $test_type in
     set -a
     # shellcheck source=/dev/null
     if [ -f ".env" ]; then
-      source ".env"
+      . ".env"
     fi
-    source "k6/.env.ws-connect"
+    . "k6/.env.ws-connect"
     set +a
 
     # .env.ws-connect 의 상대 경로를 repo 루트 기준으로 재정의
@@ -221,9 +225,9 @@ set -a
 # shellcheck source=/dev/null
 # 루트 .env에서 GEMINI_API_KEY 등 공통 설정 로드
 if [ -f ".env" ]; then
-  source ".env"
+  . ".env"
 fi
-source "$ENV_FILE"
+. "$ENV_FILE"
 set +a
 
 # 결과 저장 경로 설정
@@ -265,6 +269,13 @@ if [ -f "$SUMMARY_FILE" ]; then
 
     echo "📊 Gemini API로 보고서 생성 중... (python: $VENV_PYTHON)"
     "$VENV_PYTHON" k6/report.py "$SUMMARY_FILE" "$PROFILE_NAME"
+    REPORT_EXIT=$?
+    if [ $REPORT_EXIT -ne 0 ]; then
+      echo ""
+      echo "⚠️  AI 보고서 생성에 실패했습니다. (exit code: $REPORT_EXIT)"
+      echo "   직접 재실행:"
+      echo "   $VENV_PYTHON k6/report.py \"$SUMMARY_FILE\" \"$PROFILE_NAME\""
+    fi
   fi
 else
   echo ""
