@@ -19,6 +19,7 @@ public class AiStudyRecommend extends TimeStampedBaseEntity {
     @Id
     private UUID userId;
 
+    @Lob
     private String content;
 
     public void updateContent(String content) {
