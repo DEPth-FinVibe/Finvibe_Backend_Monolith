@@ -88,11 +88,14 @@ market:
   ws:
     fanout:
       chunk-size: ${MARKET_WS_FANOUT_CHUNK_SIZE:200}
-      max-pending-messages-per-session: ${MARKET_WS_MAX_PENDING_MESSAGES_PER_SESSION:32}
+      max-chunk-parallelism: ${MARKET_WS_FANOUT_MAX_CHUNK_PARALLELISM:4}
       executor:
         core-size: ${MARKET_WS_FANOUT_EXECUTOR_CORE_SIZE:2}
         max-size: ${MARKET_WS_FANOUT_EXECUTOR_MAX_SIZE:4}
         queue-capacity: ${MARKET_WS_FANOUT_EXECUTOR_QUEUE_CAPACITY:256}
+    session:
+      send-time-limit-ms: ${MARKET_WS_SESSION_SEND_TIME_LIMIT_MS:1000}
+      buffer-size-limit-bytes: ${MARKET_WS_SESSION_BUFFER_SIZE_LIMIT_BYTES:262144}
     send:
       failure-threshold: ${MARKET_WS_SEND_FAILURE_THRESHOLD:3}
       slow-threshold-ms: ${MARKET_WS_SEND_SLOW_THRESHOLD_MS:1000}

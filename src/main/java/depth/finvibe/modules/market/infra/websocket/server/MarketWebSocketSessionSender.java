@@ -4,11 +4,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -23,22 +20,6 @@ public class MarketWebSocketSessionSender {
 	private final MarketWebSocketRegistry registry;
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
-	private final Executor sendExecutor;
-
-	public MarketWebSocketSessionSender(
-			MarketWebSocketRegistry registry,
-			ObjectMapper objectMapper,
-			MeterRegistry meterRegistry,
-			@Qualifier("marketWsSendExecutor") Executor sendExecutor
-	) {
-		this.registry = registry;
-		this.objectMapper = objectMapper;
-		this.meterRegistry = meterRegistry;
-		this.sendExecutor = sendExecutor;
-	}
-
-	@Value("${market.ws.fanout.max-pending-messages-per-session:32}")
-	private int maxPendingMessagesPerSession;
 
 	@Value("${market.ws.send-failure-threshold:3}")
 	private int sendFailureThreshold;
@@ -52,9 +33,17 @@ public class MarketWebSocketSessionSender {
 	private Counter sendFailureCounter;
 	private Counter closedByFailureCounter;
 	private Counter slowConsumerEvictionCounter;
-	private Counter fanoutRejectedCounter;
-	private Counter droppedMessageCounter;
-	private Counter coalescedMessageCounter;
+	private Counter directSendCounter;
+
+	public MarketWebSocketSessionSender(
+			MarketWebSocketRegistry registry,
+			ObjectMapper objectMapper,
+			MeterRegistry meterRegistry
+	) {
+		this.registry = registry;
+		this.objectMapper = objectMapper;
+		this.meterRegistry = meterRegistry;
+	}
 
 	@PostConstruct
 	public void initMetrics() {
@@ -67,27 +56,21 @@ public class MarketWebSocketSessionSender {
 		slowConsumerEvictionCounter = Counter.builder("ws.connection.closed.slow-consumer")
 				.description("느린 소비자로 강제 종료된 연결 수")
 				.register(meterRegistry);
-		fanoutRejectedCounter = Counter.builder("ws.fanout.rejected")
-				.description("fanout/send worker 제출 거부 수")
-				.register(meterRegistry);
-		droppedMessageCounter = Counter.builder("ws.message.dropped")
-				.description("세션 pending queue 상한으로 드롭된 메시지 수")
-				.register(meterRegistry);
-		coalescedMessageCounter = Counter.builder("ws.message.coalesced")
-				.description("토픽 최신값으로 덮어쓴 메시지 수")
+		directSendCounter = Counter.builder("ws.message.sent.direct")
+				.description("직접 전송된 WebSocket 메시지 수")
 				.register(meterRegistry);
 	}
 
-	public boolean enqueueQuote(MarketWebSocketConnection connection, TextMessage message, String topic) {
-		return enqueue(connection, message, topic, true);
+	public boolean sendQuote(MarketWebSocketConnection connection, TextMessage message) {
+		return sendMessageSafely(connection, message, true);
 	}
 
-	public boolean enqueueControl(MarketWebSocketConnection connection, Map<String, Object> payload) {
+	public boolean sendControl(MarketWebSocketConnection connection, Map<String, Object> payload) {
 		TextMessage message = toTextMessage(payload);
 		if (message == null) {
 			return false;
 		}
-		return enqueue(connection, message, null, false);
+		return sendMessageSafely(connection, message, false);
 	}
 
 	public boolean sendImmediate(WebSocketSession session, Map<String, Object> payload) {
@@ -101,6 +84,7 @@ public class MarketWebSocketSessionSender {
 					return false;
 				}
 				session.sendMessage(message);
+				directSendCounter.increment();
 				return true;
 			}
 		} catch (Exception ex) {
@@ -118,63 +102,7 @@ public class MarketWebSocketSessionSender {
 		}
 	}
 
-	private boolean enqueue(
-			MarketWebSocketConnection connection,
-			TextMessage message,
-			String coalescingKey,
-			boolean evictOnDrop
-	) {
-		MarketWebSocketConnection.EnqueueResult result =
-				connection.enqueueMessage(message, coalescingKey, maxPendingMessagesPerSession);
-		switch (result) {
-			case ENQUEUED -> {
-				tryScheduleSendDrain(connection);
-				return true;
-			}
-			case COALESCED -> {
-				coalescedMessageCounter.increment();
-				return true;
-			}
-			case DROPPED -> {
-				droppedMessageCounter.increment();
-				if (evictOnDrop) {
-					evictSlowConsumer(connection, "pending_queue_overflow");
-				}
-				return false;
-			}
-		}
-		return false;
-	}
-
-	private void tryScheduleSendDrain(MarketWebSocketConnection connection) {
-		try {
-			connection.scheduleDrainIfNeeded(sendExecutor, () -> drainConnection(connection));
-		} catch (RejectedExecutionException ex) {
-			fanoutRejectedCounter.increment();
-			evictSlowConsumer(connection, "send_executor_rejected");
-		}
-	}
-
-	private void drainConnection(MarketWebSocketConnection connection) {
-		try {
-			while (true) {
-				MarketWebSocketConnection.PendingMessage pendingMessage = connection.pollPendingMessage();
-				if (pendingMessage == null) {
-					return;
-				}
-				if (!sendMessageSafely(connection, pendingMessage.currentMessage())) {
-					return;
-				}
-			}
-		} finally {
-			connection.markDrainComplete();
-			if (connection.hasPendingMessages()) {
-				tryScheduleSendDrain(connection);
-			}
-		}
-	}
-
-	private boolean sendMessageSafely(MarketWebSocketConnection connection, TextMessage message) {
+	private boolean sendMessageSafely(MarketWebSocketConnection connection, TextMessage message, boolean evictOnSlow) {
 		WebSocketSession session = connection.getSession();
 		long startNs = System.nanoTime();
 		try {
@@ -185,10 +113,11 @@ public class MarketWebSocketSessionSender {
 				}
 				session.sendMessage(message);
 			}
+			directSendCounter.increment();
 			long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
 			if (elapsedMs >= slowSendThresholdMs) {
 				int slowStrike = connection.incrementSlowSend();
-				if (slowStrike >= slowSendStrikesThreshold) {
+				if (evictOnSlow && slowStrike >= slowSendStrikesThreshold) {
 					evictSlowConsumer(connection, "send_timeout");
 					return false;
 				}
@@ -200,7 +129,7 @@ public class MarketWebSocketSessionSender {
 			sendFailureCounter.increment();
 			int failureCount = connection.incrementSendFailure();
 			registry.updateConnectionGauges();
-			if (isPartialWritingError(ex) || failureCount >= sendFailureThreshold) {
+			if (isUnrecoverableSendError(ex) || failureCount >= sendFailureThreshold) {
 				closeAndRemoveSession(connection, "send_failure");
 				return false;
 			}
@@ -210,10 +139,13 @@ public class MarketWebSocketSessionSender {
 		}
 	}
 
-	private boolean isPartialWritingError(Exception ex) {
-		return ex instanceof IllegalStateException
-				&& ex.getMessage() != null
-				&& ex.getMessage().contains("TEXT_PARTIAL_WRITING");
+	private boolean isUnrecoverableSendError(Exception ex) {
+		if (ex instanceof IllegalStateException && ex.getMessage() != null) {
+			return ex.getMessage().contains("TEXT_PARTIAL_WRITING")
+					|| ex.getMessage().contains("buffer")
+					|| ex.getMessage().contains("send time limit");
+		}
+		return false;
 	}
 
 	private void evictSlowConsumer(MarketWebSocketConnection connection, String reason) {
@@ -233,8 +165,8 @@ public class MarketWebSocketSessionSender {
 		} finally {
 			closedByFailureCounter.increment();
 			registry.remove(sessionId);
-			log.info("Closed websocket session - sessionId: {}, reason: {}, sendFailures: {}, pending: {}",
-					sessionId, reason, connection.getTotalSendFailures(), connection.getPendingMessages());
+			log.info("Closed websocket session - sessionId: {}, reason: {}, sendFailures: {}",
+					sessionId, reason, connection.getTotalSendFailures());
 		}
 	}
 }

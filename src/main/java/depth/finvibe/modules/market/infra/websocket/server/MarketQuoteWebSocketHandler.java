@@ -393,7 +393,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
   private void sendMessage(WebSocketSession session, Map<String, Object> payload) {
     MarketWebSocketConnection connection = registry.getConnection(session.getId());
     if (connection != null) {
-      if (!sessionSender.enqueueControl(connection, payload)) {
+      if (!sessionSender.sendControl(connection, payload)) {
         log.debug("Skipped websocket control message due to backpressure - sessionId: {}", session.getId());
       }
       return;

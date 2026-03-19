@@ -27,7 +27,10 @@ market:
   ws:
     fanout:
       chunk-size: 200
-      max-pending-messages-per-session: 8
+      max-chunk-parallelism: 2
+    session:
+      send-time-limit-ms: 50
+      buffer-size-limit-bytes: 65536
     send:
       failure-threshold: 2
       slow-threshold-ms: 50

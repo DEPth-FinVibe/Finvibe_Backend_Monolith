@@ -18,9 +18,11 @@ import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 
 import java.util.concurrent.ScheduledFuture;
 import java.time.Duration;
@@ -35,6 +37,12 @@ public class MarketWebSocketRegistry {
   private final Map<String, MarketWebSocketConnection> connections = new ConcurrentHashMap<>();
   private final Map<String, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
   private final Map<UUID, Map<String, Integer>> userSubscriptions = new ConcurrentHashMap<>();
+
+  @Value("${market.ws.session.send-time-limit-ms:1000}")
+  private int sessionSendTimeLimitMs;
+
+  @Value("${market.ws.session.buffer-size-limit-bytes:262144}")
+  private int sessionBufferSizeLimitBytes;
 
   private ScheduledFuture<?> ttlRefreshTask;
   private Counter subscriptionsRejectedCounter;
@@ -76,15 +84,6 @@ public class MarketWebSocketRegistry {
     Gauge.builder("ws.topics.active", topicSubscribers, Map::size)
         .description("구독 중인 토픽(종목) 수")
         .register(meterRegistry);
-    Gauge.builder("ws.pending.queue.size", connections,
-            map -> map.values().stream().mapToInt(MarketWebSocketConnection::getPendingMessages).sum())
-        .description("전체 WebSocket 세션 pending queue 크기 합")
-        .register(meterRegistry);
-    Gauge.builder("ws.pending.queue.max", connections,
-            map -> map.values().stream().mapToInt(MarketWebSocketConnection::getPendingMessages).max().orElse(0))
-        .description("세션별 pending queue 최대 크기")
-        .register(meterRegistry);
-
     subscriptionsRejectedCounter = Counter.builder("ws.subscriptions.rejected")
         .description("구독 거부 횟수 (한도 초과)")
         .register(meterRegistry);
@@ -134,8 +133,13 @@ public class MarketWebSocketRegistry {
   }
 
     public MarketWebSocketConnection register(WebSocketSession session) {
-        MarketWebSocketConnection connection = new MarketWebSocketConnection(session);
-        connections.put(session.getId(), connection);
+        WebSocketSession decoratedSession = new ConcurrentWebSocketSessionDecorator(
+            session,
+            sessionSendTimeLimitMs,
+            sessionBufferSizeLimitBytes
+        );
+        MarketWebSocketConnection connection = new MarketWebSocketConnection(decoratedSession);
+        connections.put(decoratedSession.getId(), connection);
         updateConnectionGauges();
         return connection;
     }

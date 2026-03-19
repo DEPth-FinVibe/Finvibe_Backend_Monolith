@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,24 +32,29 @@ public class MarketWebSocketPublisher {
 	private final MeterRegistry meterRegistry;
 	private final MarketWebSocketSessionSender sessionSender;
 	private final Executor fanoutExecutor;
+	private final ExecutorService chunkExecutor;
 
 	public MarketWebSocketPublisher(
 			MarketWebSocketRegistry registry,
 			ObjectMapper objectMapper,
 			MeterRegistry meterRegistry,
 			MarketWebSocketSessionSender sessionSender,
-			@Qualifier("marketWsFanoutExecutor") Executor fanoutExecutor
+			@Qualifier("marketWsFanoutExecutor") Executor fanoutExecutor,
+			@Qualifier("marketWsSendExecutor") ExecutorService chunkExecutor
 	) {
 		this.registry = registry;
 		this.objectMapper = objectMapper;
 		this.meterRegistry = meterRegistry;
 		this.sessionSender = sessionSender;
 		this.fanoutExecutor = fanoutExecutor;
+		this.chunkExecutor = chunkExecutor;
 	}
 
 	private final Map<String, TopicFanoutState> topicFanoutStates = new ConcurrentHashMap<>();
 	@Value("${market.ws.fanout.chunk-size:200}")
 	private int fanoutChunkSize = 200;
+	@Value("${market.ws.fanout.max-chunk-parallelism:4}")
+	private int maxChunkParallelism;
 	private io.micrometer.core.instrument.Counter serializationErrorCounter;
 	private io.micrometer.core.instrument.Counter eventsDispatchedCounter;
 	private io.micrometer.core.instrument.Counter fanoutRejectedCounter;
@@ -167,23 +174,56 @@ public class MarketWebSocketPublisher {
 		String[] subscriberIds = registry.snapshotSubscriberIds(envelope.topic());
 		fanoutRecipientsHistogram.record(subscriberIds.length);
 		long fanoutStartNs = System.nanoTime();
-
-		for (int start = 0; start < subscriberIds.length; start += fanoutChunkSize) {
-			long chunkStartNs = System.nanoTime();
-			int endExclusive = Math.min(start + fanoutChunkSize, subscriberIds.length);
-			for (int index = start; index < endExclusive; index++) {
-				MarketWebSocketConnection connection = registry.getConnection(subscriberIds[index]);
-				if (connection == null) {
-					continue;
-				}
-				if (sessionSender.enqueueQuote(connection, envelope.message(), envelope.topic())) {
-					eventsDispatchedCounter.increment();
+		int totalChunks = (subscriberIds.length + fanoutChunkSize - 1) / fanoutChunkSize;
+		if (totalChunks <= 1 || maxChunkParallelism <= 1) {
+			processChunk(envelope, subscriberIds, 0, subscriberIds.length);
+		} else {
+			int parallelChunks = Math.min(totalChunks, maxChunkParallelism);
+			Future<?>[] futures = new Future<?>[parallelChunks - 1];
+			int chunkIndex = 0;
+			for (; chunkIndex < parallelChunks - 1; chunkIndex++) {
+				int start = chunkIndex * fanoutChunkSize;
+				int endExclusive = Math.min(start + fanoutChunkSize, subscriberIds.length);
+				final int chunkStart = start;
+				final int chunkEnd = endExclusive;
+				try {
+					futures[chunkIndex] = chunkExecutor.submit(() -> processChunk(envelope, subscriberIds, chunkStart, chunkEnd));
+				} catch (RejectedExecutionException ex) {
+					fanoutRejectedCounter.increment();
+					processChunk(envelope, subscriberIds, chunkStart, chunkEnd);
 				}
 			}
-			fanoutChunkDurationTimer.record(System.nanoTime() - chunkStartNs, TimeUnit.NANOSECONDS);
+			for (int start = chunkIndex * fanoutChunkSize; start < subscriberIds.length; start += fanoutChunkSize) {
+				int endExclusive = Math.min(start + fanoutChunkSize, subscriberIds.length);
+				processChunk(envelope, subscriberIds, start, endExclusive);
+			}
+			for (Future<?> future : futures) {
+				if (future == null) {
+					continue;
+				}
+				try {
+					future.get();
+				} catch (Exception ex) {
+					log.debug("Fanout chunk execution failed - topic: {}", envelope.topic(), ex);
+				}
+			}
 		}
 
 		fanoutDurationTimer.record(System.nanoTime() - fanoutStartNs, TimeUnit.NANOSECONDS);
+	}
+
+	private void processChunk(FanoutEnvelope envelope, String[] subscriberIds, int startInclusive, int endExclusive) {
+		long chunkStartNs = System.nanoTime();
+		for (int index = startInclusive; index < endExclusive; index++) {
+			MarketWebSocketConnection connection = registry.getConnection(subscriberIds[index]);
+			if (connection == null) {
+				continue;
+			}
+			if (sessionSender.sendQuote(connection, envelope.message())) {
+				eventsDispatchedCounter.increment();
+			}
+		}
+		fanoutChunkDurationTimer.record(System.nanoTime() - chunkStartNs, TimeUnit.NANOSECONDS);
 	}
 
 	private record TopicFanoutState(
