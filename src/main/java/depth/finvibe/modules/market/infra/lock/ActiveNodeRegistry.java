@@ -1,41 +1,40 @@
 package depth.finvibe.modules.market.infra.lock;
 
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import lombok.Getter;
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * 분산 환경에서 활성 노드를 추적하고 관리하는 컴포넌트입니다.
  * Heartbeat 방식으로 각 노드의 활성 상태를 Redis에 기록하고,
  * 현재 활성화된 노드의 수를 조회할 수 있습니다.
  */
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class ActiveNodeRegistry {
+	private static final Logger log = LoggerFactory.getLogger(ActiveNodeRegistry.class);
 
   private static final String NODE_KEY_PREFIX = "market:subscription-node:";
   private static final long HEARTBEAT_TTL_SECONDS = 15L;
 
   private final RedissonClient redissonClient;
-    /**
-     * -- GETTER --
-     *  현재 노드의 ID를 반환합니다.
-     *
-     * @return 노드 ID
-     */
-    @Getter
-    private String nodeId;
+  private String nodeId;
+
+  public ActiveNodeRegistry(RedissonClient redissonClient) {
+    this.redissonClient = redissonClient;
+  }
+
+  public String getNodeId() {
+    return nodeId;
+  }
 
   @PostConstruct
   public void initialize() {
@@ -71,6 +70,7 @@ public class ActiveNodeRegistry {
    * 현재 노드의 Heartbeat를 갱신합니다.
    * 스케줄러에서 주기적으로 호출하여 이 노드가 활성 상태임을 알립니다.
    */
+  @Scheduled(fixedDelayString = "${market.active-node.heartbeat-interval-ms:5000}")
   public void recordHeartbeat() {
     String key = NODE_KEY_PREFIX + nodeId;
     try {
