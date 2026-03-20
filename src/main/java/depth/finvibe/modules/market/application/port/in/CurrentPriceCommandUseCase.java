@@ -8,6 +8,9 @@ public interface CurrentPriceCommandUseCase {
     //유저가 보고있는 종목 등록 (실시간 종목 카운트 증가)
     void registerWatchingStock(Long stockId, UUID userId);
 
+    // 활성 구독의 watcher TTL 연장
+    void renewWatchingStock(Long stockId, UUID userId);
+
     //유저가 보고있는 종목 해제 (실시간 종목 카운트 감소)ø
     void unregisterWatchingStock(Long stockId, UUID userId);
 

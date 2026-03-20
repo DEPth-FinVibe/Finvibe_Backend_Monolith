@@ -2,9 +2,11 @@ package depth.finvibe.modules.market.application;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Service;
 
@@ -29,6 +31,7 @@ public class StaleCurrentPriceRecoveryService {
   private final StockRepository stockRepository;
   private final RealMarketClient realMarketClient;
   private final CurrentPriceCommandUseCase currentPriceCommandUseCase;
+  private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
 
   public void recoverStaleCurrentPrices(Duration staleThreshold) {
     List<Long> activeStockIds = currentStockWatcherRepository.findActiveStockIds();
@@ -46,8 +49,7 @@ public class StaleCurrentPriceRecoveryService {
       return;
     }
 
-    Map<Long, String> symbolByStockId = stockRepository.findAllById(staleStockIds).stream()
-            .collect(Collectors.toMap(Stock::getId, Stock::getSymbol, (left, right) -> left));
+    Map<Long, String> symbolByStockId = resolveSymbolsByStockIds(staleStockIds);
 
     List<String> symbols = staleStockIds.stream()
             .map(symbolByStockId::get)
@@ -90,5 +92,32 @@ public class StaleCurrentPriceRecoveryService {
             .volume(candle.getVolume())
             .value(candle.getValue())
             .build();
+  }
+
+  private Map<Long, String> resolveSymbolsByStockIds(List<Long> stockIds) {
+    if (stockIds.isEmpty()) {
+      return Map.of();
+    }
+
+    LinkedHashSet<Long> uniqueStockIds = new LinkedHashSet<>(stockIds);
+    List<Long> missingStockIds = uniqueStockIds.stream()
+            .filter(stockId -> !stockSymbolCache.containsKey(stockId))
+            .toList();
+
+    if (!missingStockIds.isEmpty()) {
+      List<Stock> stocks = stockRepository.findAllById(missingStockIds);
+      for (Stock stock : stocks) {
+        stockSymbolCache.put(stock.getId(), stock.getSymbol());
+      }
+    }
+
+    Map<Long, String> symbolByStockId = new HashMap<>(uniqueStockIds.size());
+    for (Long stockId : uniqueStockIds) {
+      String symbol = stockSymbolCache.get(stockId);
+      if (symbol != null && !symbol.isBlank()) {
+        symbolByStockId.put(stockId, symbol);
+      }
+    }
+    return symbolByStockId;
   }
 }

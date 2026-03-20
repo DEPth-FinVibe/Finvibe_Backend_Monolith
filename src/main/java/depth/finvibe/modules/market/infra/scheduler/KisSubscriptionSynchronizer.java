@@ -1,12 +1,13 @@
 package depth.finvibe.modules.market.infra.scheduler;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
@@ -64,6 +65,7 @@ public class KisSubscriptionSynchronizer {
 
     // FIFO 방식으로 구독 순서를 추적 (LinkedHashSet)
     private final LinkedHashSet<Long> subscriptionOrder = new LinkedHashSet<>();
+    private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
 
     private MarketStatus lastMarketStatus;
     private boolean sessionsUnavailable;
@@ -250,8 +252,32 @@ public class KisSubscriptionSynchronizer {
     }
 
     private Map<Long, String> buildStockIdToSymbolMap(List<Long> stockIds) {
-        List<Stock> stocks = stockRepository.findAllById(stockIds);
-        return stocks.stream().collect(Collectors.toMap(Stock::getId, Stock::getSymbol));
+        if (stockIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Set<Long> uniqueStockIds = new LinkedHashSet<>(stockIds);
+        Map<Long, String> result = new HashMap<>(uniqueStockIds.size());
+
+        List<Long> missingStockIds = uniqueStockIds.stream()
+                .filter(stockId -> !stockSymbolCache.containsKey(stockId))
+                .toList();
+
+        if (!missingStockIds.isEmpty()) {
+            List<Stock> stocks = stockRepository.findAllById(missingStockIds);
+            for (Stock stock : stocks) {
+                stockSymbolCache.put(stock.getId(), stock.getSymbol());
+            }
+        }
+
+        for (Long stockId : uniqueStockIds) {
+            String symbol = stockSymbolCache.get(stockId);
+            if (symbol != null) {
+                result.put(stockId, symbol);
+            }
+        }
+
+        return result;
     }
 
     private SubscriptionResult processActiveStocks(
@@ -328,10 +354,7 @@ public class KisSubscriptionSynchronizer {
             String symbol = stockIdToSymbol.get(oldestStockId);
 
             if (symbol == null) {
-                // 심볼을 찾을 수 없으면 DB에서 조회
-                symbol = stockRepository.findById(oldestStockId)
-                        .map(Stock::getSymbol)
-                        .orElse(null);
+                symbol = resolveSymbol(oldestStockId, stockIdToSymbol);
             }
 
             if (symbol != null) {
@@ -385,9 +408,7 @@ public class KisSubscriptionSynchronizer {
     ) {
         String symbol = stockIdToSymbol.get(stockId);
         if (symbol == null) {
-            symbol = stockRepository.findById(stockId)
-                    .map(Stock::getSymbol)
-                    .orElse(null);
+            symbol = resolveSymbol(stockId, stockIdToSymbol);
         }
 
         try {
@@ -632,6 +653,26 @@ public class KisSubscriptionSynchronizer {
         } catch (Exception ex) {
             log.error("닫힌 세션 정리 중 오류 발생", ex);
         }
+    }
+
+    private String resolveSymbol(Long stockId, Map<Long, String> stockIdToSymbol) {
+        String cachedSymbol = stockIdToSymbol.get(stockId);
+        if (cachedSymbol != null) {
+            return cachedSymbol;
+        }
+
+        cachedSymbol = stockSymbolCache.get(stockId);
+        if (cachedSymbol != null) {
+            return cachedSymbol;
+        }
+
+        String symbol = stockRepository.findById(stockId)
+                .map(Stock::getSymbol)
+                .orElse(null);
+        if (symbol != null) {
+            stockSymbolCache.put(stockId, symbol);
+        }
+        return symbol;
     }
 
     ZonedDateTime now() {

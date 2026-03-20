@@ -36,6 +36,11 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
     }
 
     @Override
+    public void renewWatchingStock(Long stockId, UUID userId) {
+        currentStockWatcherRepository.renew(CurrentStockWatcher.create(stockId, userId));
+    }
+
+    @Override
     public void unregisterWatchingStock(Long stockId, UUID userId) {
         checkStockIsExist(stockId);
 

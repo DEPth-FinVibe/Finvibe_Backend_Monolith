@@ -266,6 +266,8 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
         Long lookedUpStockId = marketServiceClient.findStockIdBySymbol(symbol)
                 .orElse(null);
+        log.warn("심볼-종목 매핑 정보 누락 - symbol: {}, 시도된 매핑 조회 결과: {}, 외부 서비스 조회 결과: {}",
+                symbol, mappedStockId, lookedUpStockId);
         if (lookedUpStockId == null) {
             return null;
         }

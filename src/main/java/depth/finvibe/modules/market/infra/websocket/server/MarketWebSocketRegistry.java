@@ -119,7 +119,7 @@ public class MarketWebSocketRegistry {
         Long stockId = extractStockId(topic);
         if (stockId != null) {
           try {
-            currentPriceCommandUseCase.registerWatchingStock(stockId, userId);
+            currentPriceCommandUseCase.renewWatchingStock(stockId, userId);
             totalRefreshed++;
           } catch (Exception ex) {
             log.error("TTL 갱신 실패 - stockId: {}, userId: {}", stockId, userId, ex);

@@ -12,12 +12,8 @@ import depth.finvibe.modules.market.application.port.in.CurrentPriceCommandUseCa
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
-import java.util.ArrayDeque;
 import java.util.List;
-import java.util.Queue;
 import java.util.UUID;
-import java.util.concurrent.AbstractExecutorService;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
@@ -29,7 +25,7 @@ import tools.jackson.databind.ObjectMapper;
 class MarketWebSocketPublisherTest {
 
 	@Test
-	void publishCoalescesHotTopicBeforeFanoutRuns() throws Exception {
+	void publishFansOutEventsToTopicSubscribers() throws Exception {
 		SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 		MarketWebSocketRegistry registry = new MarketWebSocketRegistry(
 				mock(CurrentPriceCommandUseCase.class),
@@ -38,8 +34,6 @@ class MarketWebSocketPublisherTest {
 		);
 		registry.startTtlRefreshScheduler();
 
-		ManualExecutorService fanoutExecutor = new ManualExecutorService();
-		ManualExecutorService chunkExecutor = new ManualExecutorService();
 		MarketWebSocketSessionSender sessionSender = new MarketWebSocketSessionSender(
 				registry,
 				new ObjectMapper(),
@@ -53,13 +47,9 @@ class MarketWebSocketPublisherTest {
 				registry,
 				new ObjectMapper(),
 				meterRegistry,
-				sessionSender,
-				fanoutExecutor,
-				chunkExecutor
+				sessionSender
 		);
 		publisher.initMetrics();
-		ReflectionTestUtils.setField(publisher, "fanoutChunkSize", 100);
-		ReflectionTestUtils.setField(publisher, "maxChunkParallelism", 2);
 
 		WebSocketSession session = mock(WebSocketSession.class);
 		when(session.getId()).thenReturn("s1");
@@ -73,75 +63,25 @@ class MarketWebSocketPublisherTest {
 		publisher.publish(priceEvent(1L, 1000));
 		publisher.publish(priceEvent(1L, 1001));
 
-		assertThat(fanoutExecutor.size()).isEqualTo(1);
-		fanoutExecutor.runAll();
-		chunkExecutor.runAll();
-
 		ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
-		verify(session, times(1)).sendMessage(messageCaptor.capture());
-		assertThat(messageCaptor.getValue().getPayload()).contains("\"price\":1001");
-		assertThat(meterRegistry.find("ws.fanout.duration").timer().count()).isEqualTo(1);
-		assertThat(meterRegistry.find("ws.fanout.chunk.duration").timer().count()).isEqualTo(1);
-		assertThat(meterRegistry.find("ws.message.coalesced").counter().count()).isEqualTo(1.0d);
+		verify(session, times(2)).sendMessage(messageCaptor.capture());
+		assertThat(messageCaptor.getAllValues().get(0).getPayload()).contains("\"price\":1000");
+		assertThat(messageCaptor.getAllValues().get(1).getPayload()).contains("\"price\":1001");
+		assertThat(meterRegistry.find("ws.events.dispatched").counter().count()).isEqualTo(2.0d);
 		registry.stopTtlRefreshScheduler();
 	}
 
 	private CurrentPriceUpdatedEvent priceEvent(Long stockId, long close) {
 		CurrentPriceUpdatedEvent event = new CurrentPriceUpdatedEvent();
-		event.setStockId(stockId);
-		event.setClose(BigDecimal.valueOf(close));
-		event.setOpen(BigDecimal.valueOf(close - 10));
-		event.setHigh(BigDecimal.valueOf(close + 10));
-		event.setLow(BigDecimal.valueOf(close - 20));
-		event.setPrevDayChangePct(BigDecimal.valueOf(1.23));
-		event.setVolume(BigDecimal.valueOf(1000));
-		event.setValue(BigDecimal.valueOf(5000));
+		ReflectionTestUtils.setField(event, "stockId", stockId);
+		ReflectionTestUtils.setField(event, "close", BigDecimal.valueOf(close));
+		ReflectionTestUtils.setField(event, "open", BigDecimal.valueOf(close - 10));
+		ReflectionTestUtils.setField(event, "high", BigDecimal.valueOf(close + 10));
+		ReflectionTestUtils.setField(event, "low", BigDecimal.valueOf(close - 20));
+		ReflectionTestUtils.setField(event, "prevDayChangePct", BigDecimal.valueOf(1.23));
+		ReflectionTestUtils.setField(event, "volume", BigDecimal.valueOf(1000));
+		ReflectionTestUtils.setField(event, "value", BigDecimal.valueOf(5000));
 		return event;
 	}
 
-	private static final class ManualExecutorService extends AbstractExecutorService {
-		private final Queue<Runnable> tasks = new ArrayDeque<>();
-		private boolean shutdown;
-
-		@Override
-		public void shutdown() {
-			shutdown = true;
-		}
-
-		@Override
-		public List<Runnable> shutdownNow() {
-			shutdown = true;
-			return List.copyOf(tasks);
-		}
-
-		@Override
-		public boolean isShutdown() {
-			return shutdown;
-		}
-
-		@Override
-		public boolean isTerminated() {
-			return shutdown && tasks.isEmpty();
-		}
-
-		@Override
-		public boolean awaitTermination(long timeout, TimeUnit unit) {
-			return true;
-		}
-
-		@Override
-		public void execute(Runnable command) {
-			tasks.offer(command);
-		}
-
-		int size() {
-			return tasks.size();
-		}
-
-		void runAll() {
-			while (!tasks.isEmpty()) {
-				tasks.poll().run();
-			}
-		}
-	}
 }
