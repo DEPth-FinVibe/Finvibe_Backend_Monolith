@@ -4,8 +4,6 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 
 import lombok.RequiredArgsConstructor;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.asset.application.UserProfitSnapshotService;
@@ -17,12 +15,6 @@ public class UserProfitSnapshotScheduler {
 
   private final UserProfitSnapshotService userProfitSnapshotService;
 
-  @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Seoul")
-  @SchedulerLock(
-    name = "userProfitSnapshotDaily",
-    lockAtMostFor = "PT10M",
-    lockAtLeastFor = "PT10S"
-  )
   public void saveDailySnapshot() {
     LocalDate snapshotDate = LocalDate.now(KST).minusDays(1);
     userProfitSnapshotService.saveDailySnapshot(snapshotDate);

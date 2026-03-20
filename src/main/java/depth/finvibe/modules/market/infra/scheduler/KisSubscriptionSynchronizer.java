@@ -16,7 +16,6 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
@@ -119,7 +118,6 @@ public class KisSubscriptionSynchronizer {
     ) {
     }
 
-    @Scheduled(fixedDelayString = "${market.kis.websocket.sync-interval-ms:1000}")
     public void syncRealtimeSubscriptions() {
         syncTimer.record(this::doSyncRealtimeSubscriptions);
     }

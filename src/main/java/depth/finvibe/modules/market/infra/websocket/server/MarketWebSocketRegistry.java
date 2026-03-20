@@ -48,7 +48,6 @@ public class MarketWebSocketRegistry {
   private Counter subscriptionsRejectedCounter;
   private Counter subscriptionsLimitExceededCounter;
   private MultiGauge topicSubscriberGauge;
-  private MultiGauge sessionSendFailureGauge;
   
   // TTL 갱신 주기: 5분 (TTL 10분의 절반)
   private static final long TTL_REFRESH_INTERVAL_MS = 5 * 60 * 1000L;
@@ -93,8 +92,13 @@ public class MarketWebSocketRegistry {
     topicSubscriberGauge = MultiGauge.builder("ws.topic.subscriber.count")
         .description("종목별 WebSocket 구독자 수")
         .register(meterRegistry);
-    sessionSendFailureGauge = MultiGauge.builder("ws.session.send.failures")
-        .description("세션별 WebSocket 전송 실패 수")
+    Gauge.builder("ws.session.send.failures.total", connections,
+            map -> map.values().stream().mapToDouble(MarketWebSocketConnection::getTotalSendFailures).sum())
+        .description("활성 세션 전체의 WebSocket 전송 실패 누적 수")
+        .register(meterRegistry);
+    Gauge.builder("ws.session.send.failures.max", connections,
+            map -> map.values().stream().mapToDouble(MarketWebSocketConnection::getTotalSendFailures).max().orElse(0))
+        .description("활성 세션 중 최대 WebSocket 전송 실패 수")
         .register(meterRegistry);
   }
   
@@ -362,13 +366,7 @@ public class MarketWebSocketRegistry {
   }
 
   public void updateConnectionGauges() {
-    sessionSendFailureGauge.register(
-        connections.entrySet().stream()
-            .map(e -> MultiGauge.Row.of(Tags.of("sessionId", e.getKey()), e.getValue(),
-                connection -> (double) connection.getTotalSendFailures()))
-            .collect(Collectors.toList()),
-        true
-    );
+    // connection-related gauges read directly from the backing map; no per-session meter updates needed.
   }
 
   /**

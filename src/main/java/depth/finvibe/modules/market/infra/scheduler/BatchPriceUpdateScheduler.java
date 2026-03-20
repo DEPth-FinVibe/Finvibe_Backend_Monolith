@@ -2,8 +2,6 @@ package depth.finvibe.modules.market.infra.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.application.BatchPriceUpdateService;
@@ -18,12 +16,6 @@ public class BatchPriceUpdateScheduler {
   private final BatchPriceUpdateService batchPriceUpdateService;
   private MarketStatus lastMarketStatus;
 
-  @Scheduled(cron = "0 0 * * * *")
-  @SchedulerLock(
-          name = "batchPriceUpdate",
-          lockAtMostFor = "PT10M",
-          lockAtLeastFor = "PT1M"
-  )
   public void executeBatchPriceUpdate() {
     MarketStatus marketStatus = MarketHours.getCurrentStatus();
     logMarketStatusTransition(marketStatus);
@@ -38,6 +30,7 @@ public class BatchPriceUpdateScheduler {
       log.debug("Completed scheduled batch price update");
     } catch (Exception e) {
       log.error("Failed to execute batch price update", e);
+      throw e;
     }
   }
 

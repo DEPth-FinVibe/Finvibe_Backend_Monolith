@@ -5,8 +5,6 @@ import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -17,12 +15,6 @@ public class IndexMinuteCandleCacheScheduler {
     private final IndexMinuteCandleCacheService indexMinuteCandleCacheService;
     private MarketStatus lastMarketStatus;
 
-    @Scheduled(cron = "${market.index-cache.cron:0 * * * * *}")
-    @SchedulerLock(
-            name = "indexMinuteCandleCache",
-            lockAtMostFor = "PT1M",
-            lockAtLeastFor = "PT5S"
-    )
     public void cacheIndexMinuteCandles() {
         MarketStatus marketStatus = MarketHours.getCurrentStatus();
         logMarketStatusTransition(marketStatus);
@@ -35,6 +27,7 @@ public class IndexMinuteCandleCacheScheduler {
             indexMinuteCandleCacheService.cacheLatestMinuteCandles();
         } catch (Exception e) {
             log.error("Failed to cache index minute candles", e);
+            throw e;
         }
     }
 
