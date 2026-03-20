@@ -12,7 +12,7 @@
 - 고비용 조회 시나리오 분리 테스트
 
 ### 제외 범위
-- 로그인/회원가입/토큰 갱신
+- 회원가입/토큰 갱신
 - 쓰기 API(생성/수정/삭제/좋아요 토글)
 - `/dev/**`, WebSocket, 배치/관리 API
 
@@ -48,11 +48,11 @@ k6 version
 
 ### 3.2 테스트 데이터 준비
 `k6/lib/data.js` 기준으로 아래 파일을 준비한다.
-- `TOKENS_FILE` (인증 시나리오용)
+- `TOKENS_FILE` (로그인 credential 파일)
 - `IDS_FILE` (stock/news/category/user/portfolio/trade ID 풀)
 
 기본 경로는 다음과 같지만, 현재 레포에는 `k6/data/` 디렉터리가 없을 수 있으므로 직접 생성/지정하는 것을 권장한다.
-- 기본 토큰 경로: `./k6/data/tokens.sample.json`
+- 기본 credential 경로: `./k6/data/tokens.sample.json`
 - 기본 ID 경로: `./k6/data/ids.sample.json`
 
 예시:
@@ -65,9 +65,9 @@ mkdir -p k6/data
 
 ```json
 {
-  "tokens": [
-    "access-token-1",
-    "access-token-2"
+  "credentials": [
+    { "loginId": "load-user-1", "password": "password-1" },
+    { "loginId": "load-user-2", "password": "password-2" }
   ]
 }
 ```
@@ -92,7 +92,7 @@ mkdir -p k6/data
 
 ### 선택
 - `LOAD_PROFILE`: `quick | smoke | ramp10 | baseline | stepup` (기본값 `smoke`)
-- `TOKENS_FILE`: 토큰 JSON 경로 (기본값 `./k6/data/tokens.sample.json`)
+- `TOKENS_FILE`: credential JSON 경로 (기본값 `./k6/data/tokens.sample.json`)
 - `IDS_FILE`: ID JSON 경로 (기본값 `./k6/data/ids.sample.json`)
 - `HTTP_TIMEOUT`: 기본 요청 타임아웃 (기본값 `10s`)
 
@@ -192,8 +192,8 @@ k6 run k6/main.js
 
 ## 8. 인증 토큰 동작 주의사항
 
-- 인증 시나리오(`auth_*`)는 토큰이 없으면 즉시 에러로 실패한다.
-  - 에러 메시지: `Auth scenario requires at least one token in TOKENS_FILE`
+- `setup()`에서 `TOKENS_FILE`의 `credentials[]`를 순회하며 `/auth/login`으로 토큰을 선발급한다.
+- credential 중 하나라도 로그인 실패 시 테스트는 즉시 중단된다.
 - `heavy_read_isolated`는 토큰이 없어도 동작하도록 구현되어 있다(있으면 `Authorization` 헤더 사용).
 
 ## 9. 기본 임계치(Threshold)
@@ -218,7 +218,7 @@ k6 run k6/main.js
 
 ## 11. 운영 실행 체크리스트
 
-1. 운영과 분리된 테스트 전용 계정/토큰 준비
+1. 운영과 분리된 테스트 전용 계정(credentials) 준비
 2. `IDS_FILE` 내 ID가 실제 존재하는지 사전 검증
 3. `smoke`로 연결/권한/데이터 품질 먼저 검증
 4. `ramp10`으로 단기 중간부하 확인
@@ -230,7 +230,8 @@ k6 run k6/main.js
 
 - `BASE_URL` 미설정
 - `LOAD_PROFILE` 오타 (`quick`, `smoke`, `ramp10`, `baseline`, `stepup`만 허용)
-- `TOKENS_FILE` 경로 오류 또는 빈 토큰 배열
+- `TOKENS_FILE` 경로 오류 또는 빈 `credentials` 배열
+- 로그인 실패(자격증명 오류, auth API 장애, rate limit)
 - `IDS_FILE` 누락/오타로 인한 404 급증
 - 대상 서버 CORS/WAF/Rate Limit 정책 미반영
 

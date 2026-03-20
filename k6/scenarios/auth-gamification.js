@@ -6,8 +6,8 @@ function currentYearMonth() {
 	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
 }
 
-export function runAuthGamificationFlow() {
-	const headers = requireAuthHeaders();
+export function runAuthGamificationFlow(tokens) {
+	const headers = requireAuthHeaders(tokens);
 	const { year, month } = currentYearMonth();
 
 	// XP 정보 + 스쿼드 랭킹 + 기여도

@@ -7,8 +7,8 @@ function currentYearMonth() {
 	return { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1 };
 }
 
-export function runAuthTradeFlow() {
-	const headers = requireAuthHeaders();
+export function runAuthTradeFlow(tokens) {
+	const headers = requireAuthHeaders(tokens);
 	const { year, month } = currentYearMonth();
 	const userId = pickFrom(sharedRuntimeData.userIds);
 	const tradeId = pickFrom(sharedRuntimeData.tradeIds);

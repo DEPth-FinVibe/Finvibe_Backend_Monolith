@@ -13,8 +13,8 @@ import {
 
 const SESSION_DURATION_MS = 10_000;
 
-export function runWsConnectFlow(wsUrl) {
-	const token = pickToken();
+export function runWsConnectFlow(wsUrl, tokens) {
+	const token = pickToken(tokens);
 	if (!token) {
 		wsConnectFail.add(1);
 		wsConnectRate.add(false);

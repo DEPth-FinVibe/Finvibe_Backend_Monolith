@@ -10,8 +10,10 @@ import { runAuthTradeFlow } from './scenarios/auth-trade.js';
 import { runAuthGamificationFlow } from './scenarios/auth-gamification.js';
 import { runHeavyReadFlow } from './scenarios/heavy-read.js';
 import { ensureRuntimeConfig, printRuntimeSummary, sharedRuntimeData } from './lib/data.js';
+import { issueTokensFromCredentials } from './lib/auth.js';
 
 const profileName = loadProfileName();
+let issuedTokenCount = 0;
 
 export const options = {
 	scenarios: getScenarioExecutors(profileName),
@@ -21,15 +23,22 @@ export const options = {
 
 export function setup() {
 	ensureRuntimeConfig();
-	printRuntimeSummary(profileName);
+	const authTokens = issueTokensFromCredentials(
+		sharedRuntimeData.baseUrl,
+		sharedRuntimeData.credentials
+	);
+	issuedTokenCount = authTokens.length;
+	printRuntimeSummary(profileName, { tokensLoaded: authTokens.length });
 	return {
 		profileName,
 		timestamp: new Date().toISOString(),
+		authTokens,
 	};
 }
 
-export default function () {
+export default function (data) {
 	const scenarioName = exec.scenario.name;
+	const authTokens = data?.authTokens || [];
 
 	switch (scenarioName) {
 		case 'public_market_read':
@@ -42,16 +51,16 @@ export default function () {
 			runPublicLeaderboardFlow();
 			return;
 		case 'auth_profile_read':
-			runAuthProfileFlow();
+			runAuthProfileFlow(authTokens);
 			return;
 		case 'auth_trade_read':
-			runAuthTradeFlow();
+			runAuthTradeFlow(authTokens);
 			return;
 		case 'auth_gamification_read':
-			runAuthGamificationFlow();
+			runAuthGamificationFlow(authTokens);
 			return;
 		case 'heavy_read_isolated':
-			runHeavyReadFlow();
+			runHeavyReadFlow(authTokens);
 			return;
 		default:
 			fail(`Unsupported scenario: ${scenarioName}`);
@@ -65,7 +74,7 @@ export function handleSummary(data) {
 			'k6 load test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,
-			`tokensLoaded: ${sharedRuntimeData.tokens.length}`,
+			`tokensLoaded: ${issuedTokenCount}`,
 			`idsLoaded: ${sharedRuntimeData.idStatsSummary}`,
 			JSON.stringify(data.metrics, null, 2),
 			'',
@@ -78,7 +87,7 @@ export function handleSummary(data) {
 			{
 				profile: profileName,
 				baseUrl: sharedRuntimeData.baseUrl,
-				tokensLoaded: sharedRuntimeData.tokens.length,
+				tokensLoaded: issuedTokenCount,
 				idStatsSummary: sharedRuntimeData.idStatsSummary,
 				metrics: data.metrics,
 				thresholds: data.thresholds,

@@ -1,6 +1,6 @@
 # k6 Load Test
 
-운영 서버용 1차 조회 중심 부하테스트 스크립트다. 기본 설계는 `read-only`, `pre-issued token`, `scenario split`이다.
+운영 서버용 1차 조회 중심 부하테스트 스크립트다. 기본 설계는 `read-only`, `login bootstrap`, `scenario split`이다.
 
 ## Scope
 
@@ -12,7 +12,7 @@
 - 분리된 고비용 조회
 
 제외:
-- 로그인/회원가입/토큰 갱신
+- 회원가입/토큰 갱신
 - 생성/수정/삭제/좋아요 토글
 - `/dev/**`
 - WebSocket
@@ -32,19 +32,19 @@
 ## Optional Environment Variables
 
 - `LOAD_PROFILE`: `quick`, `smoke`, `ramp10`, `baseline`, `stepup` 중 하나. 기본값 `smoke`
-- `TOKENS_FILE`: 토큰 JSON 파일 경로. 기본값 `./k6/data/tokens.sample.json`
+- `TOKENS_FILE`: 로그인 credential JSON 파일 경로. 기본값 `./k6/data/tokens.sample.json`
 - `IDS_FILE`: ID JSON 파일 경로. 기본값 `./k6/data/ids.sample.json`
 - `HTTP_TIMEOUT`: 요청 timeout. 기본값 `10s`
 
 ## Data File Format
 
-`tokens.json`
+`tokens.json` (`credentials` 포맷)
 
 ```json
 {
-  "tokens": [
-    "access-token-1",
-    "access-token-2"
+  "credentials": [
+    { "loginId": "load-user-1", "password": "password-1" },
+    { "loginId": "load-user-2", "password": "password-2" }
   ]
 }
 ```
@@ -109,7 +109,7 @@ k6 run k6/main.js
 
 ## Operational Notes
 
-- 본 스크립트는 토큰 발급과 데이터 생성을 하지 않는다.
-- 운영에서는 반드시 테스트 전용 사용자와 사전 준비된 데이터 풀을 사용한다.
+- 본 스크립트는 `setup()`에서 `POST /auth/login`으로 토큰을 선발급한다.
+- 운영에서는 반드시 테스트 전용 사용자(credential 파일)와 사전 준비된 데이터 풀을 사용한다.
 - 401/404는 별도 메트릭으로 집계되므로, 데이터 품질 문제와 서버 오류를 분리해서 볼 수 있다.
 - 쓰기 API를 포함하려면 별도 시나리오를 추가하고, 운영 영향도를 다시 산정해야 한다.

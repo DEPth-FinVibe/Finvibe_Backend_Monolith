@@ -6,6 +6,8 @@ import json
 import os
 import ssl
 import sys
+import urllib.error
+import urllib.request
 from datetime import datetime
 
 import websockets
@@ -19,21 +21,53 @@ def load_env():
 	return base_url, tokens_file, ids_file, subscribe_count
 
 
-def load_token(tokens_file):
+def load_credentials(tokens_file):
 	try:
 		with open(tokens_file) as f:
 			data = json.load(f)
-		tokens = data.get("tokens", [])
-		if not tokens:
-			print("토큰 파일이 비어 있습니다. 먼저 k6 테스트를 실행하여 토큰을 생성하세요.", file=sys.stderr)
+		credentials = data.get("credentials", [])
+		if not credentials:
+			print("credentials 파일이 비어 있습니다. loginId/password를 추가하세요.", file=sys.stderr)
 			sys.exit(1)
-		return tokens[0]
+		first = credentials[0]
+		login_id = str(first.get("loginId", "")).strip()
+		password = str(first.get("password", "")).strip()
+		if not login_id or not password:
+			print("credentials[0]의 loginId/password가 비어 있습니다.", file=sys.stderr)
+			sys.exit(1)
+		return {"loginId": login_id, "password": password}
 	except FileNotFoundError:
-		print(f"토큰 파일을 찾을 수 없습니다: {tokens_file}", file=sys.stderr)
-		print("k6 테스트를 먼저 실행하여 토큰을 생성하세요.", file=sys.stderr)
+		print(f"credentials 파일을 찾을 수 없습니다: {tokens_file}", file=sys.stderr)
 		sys.exit(1)
 	except (KeyError, IndexError, ValueError) as e:
-		print(f"토큰 파일 형식 오류: {e}", file=sys.stderr)
+		print(f"credentials 파일 형식 오류: {e}", file=sys.stderr)
+		sys.exit(1)
+
+
+def issue_token(base_url, credential):
+	login_url = base_url.rstrip("/") + "/auth/login"
+	payload = json.dumps(credential).encode("utf-8")
+	request = urllib.request.Request(
+		login_url,
+		data=payload,
+		headers={"Content-Type": "application/json"},
+		method="POST",
+	)
+	try:
+		with urllib.request.urlopen(request, timeout=10) as response:
+			body = response.read().decode("utf-8")
+			data = json.loads(body)
+			token = data.get("accessToken")
+			if not token:
+				print("로그인 응답에 accessToken이 없습니다.", file=sys.stderr)
+				sys.exit(1)
+			return token
+	except urllib.error.HTTPError as e:
+		body = e.read().decode("utf-8", errors="replace")
+		print(f"로그인 실패: HTTP {e.code} {body}", file=sys.stderr)
+		sys.exit(1)
+	except urllib.error.URLError as e:
+		print(f"로그인 요청 실패: {e}", file=sys.stderr)
 		sys.exit(1)
 
 
@@ -130,7 +164,8 @@ async def watch(ws_url, token, topics):
 
 def main():
 	base_url, tokens_file, ids_file, subscribe_count = load_env()
-	token = load_token(tokens_file)
+	credential = load_credentials(tokens_file)
+	token = issue_token(base_url, credential)
 	topics = load_topics(ids_file, subscribe_count)
 	ws_url = base_url.replace("https://", "wss://").replace("http://", "ws://") + "/market/ws"
 

@@ -2,8 +2,10 @@ import { wsLoadProfileName, getWsScenarios, getWsThresholds } from './lib/ws-con
 import { ensureRuntimeConfig, pickWsStockPool, printRuntimeSummary, sharedRuntimeData } from './lib/data.js';
 import { runWsQuoteFlow } from './scenarios/ws-quote.js';
 import { runWsConnectFlow } from './scenarios/ws-connect.js';
+import { issueTokensFromCredentials } from './lib/auth.js';
 
 const profileName = wsLoadProfileName();
+let issuedTokenCount = 0;
 
 export const options = {
 	scenarios: getWsScenarios(profileName),
@@ -13,12 +15,21 @@ export const options = {
 
 export function setup() {
 	ensureRuntimeConfig();
+	const authTokens = issueTokensFromCredentials(
+		sharedRuntimeData.baseUrl,
+		sharedRuntimeData.credentials
+	);
+	issuedTokenCount = authTokens.length;
 	const wsStockPool = pickWsStockPool();
-	printRuntimeSummary(profileName, wsStockPool);
+	printRuntimeSummary(profileName, {
+		wsStockPool,
+		tokensLoaded: authTokens.length,
+	});
 	return {
 		profileName,
 		timestamp: new Date().toISOString(),
 		wsStockPool,
+		authTokens,
 	};
 }
 
@@ -27,11 +38,11 @@ function getWsUrl() {
 }
 
 export default function (data) {
-	runWsQuoteFlow(getWsUrl(), data?.wsStockPool || []);
+	runWsQuoteFlow(getWsUrl(), data?.wsStockPool || [], data?.authTokens || []);
 }
 
-export function wsConnectFlow() {
-	runWsConnectFlow(getWsUrl());
+export function wsConnectFlow(data) {
+	runWsConnectFlow(getWsUrl(), data?.authTokens || []);
 }
 
 export function handleSummary(data) {
@@ -41,7 +52,7 @@ export function handleSummary(data) {
 			'k6 WebSocket throughput test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,
-			`tokensLoaded: ${sharedRuntimeData.tokens.length}`,
+			`tokensLoaded: ${issuedTokenCount}`,
 			`idsLoaded: ${sharedRuntimeData.idStatsSummary}`,
 			JSON.stringify(data.metrics, null, 2),
 			'',
@@ -54,7 +65,7 @@ export function handleSummary(data) {
 			{
 				profile: profileName,
 				baseUrl: sharedRuntimeData.baseUrl,
-				tokensLoaded: sharedRuntimeData.tokens.length,
+				tokensLoaded: issuedTokenCount,
 				idStatsSummary: sharedRuntimeData.idStatsSummary,
 				metrics: data.metrics,
 				thresholds: data.thresholds,

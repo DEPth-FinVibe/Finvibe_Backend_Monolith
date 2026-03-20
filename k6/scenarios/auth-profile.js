@@ -2,8 +2,8 @@ import { requireAuthHeaders } from '../lib/auth.js';
 import { getJson, randomThinkTime } from '../lib/http.js';
 import { pickFrom, sharedRuntimeData } from '../lib/data.js';
 
-export function runAuthProfileFlow() {
-	const headers = requireAuthHeaders();
+export function runAuthProfileFlow(tokens) {
+	const headers = requireAuthHeaders(tokens);
 	const portfolioId = pickFrom(sharedRuntimeData.portfolioIds);
 
 	// 프로필 개요

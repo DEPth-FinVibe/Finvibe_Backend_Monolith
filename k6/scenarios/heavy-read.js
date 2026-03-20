@@ -2,10 +2,10 @@ import { buildAuthHeaders } from '../lib/auth.js';
 import { getJson, isoAtKstOffset, randomThinkTime } from '../lib/http.js';
 import { pickFrom, sharedRuntimeData } from '../lib/data.js';
 
-export function runHeavyReadFlow() {
+export function runHeavyReadFlow(tokens) {
 	const stockId = pickFrom(sharedRuntimeData.stockIds);
 	const newsId = pickFrom(sharedRuntimeData.newsIds);
-	const headers = buildAuthHeaders(); // 토큰이 있으면 사용, 없어도 동작
+	const headers = buildAuthHeaders(tokens); // 토큰이 있으면 사용, 없어도 동작
 
 	// 장기 캔들 데이터(90일)
 	getJson(`/market/stocks/${stockId}/candles`, {

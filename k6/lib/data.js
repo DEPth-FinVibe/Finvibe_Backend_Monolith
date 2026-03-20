@@ -31,12 +31,12 @@ const DEFAULT_IDS = {
 };
 
 const idsFilePath = __ENV.IDS_FILE || './k6/data/ids.sample.json';
-const tokensFilePath = __ENV.TOKENS_FILE || './k6/data/tokens.sample.json';
+const credentialsFilePath = __ENV.TOKENS_FILE || './k6/data/tokens.sample.json';
 
 const idsPayload = new SharedArray('ids-payload', () => [readJsonFile(idsFilePath, () => DEFAULT_IDS)])[0];
-const tokenPayload = new SharedArray('tokens-payload', () =>
-		readJsonFile(tokensFilePath, () => ({ tokens: [] })).tokens || []
-	);
+const credentialPayload = new SharedArray('credentials-payload', () =>
+	[readJsonFile(credentialsFilePath, () => ({ credentials: [] })).credentials || []]
+)[0];
 
 function normalizeNumberArray(values, fallback) {
 	if (!Array.isArray(values) || values.length === 0) {
@@ -52,6 +52,18 @@ function normalizeStringArray(values, fallback) {
 	return values.map((value) => String(value));
 }
 
+function normalizeCredentials(values) {
+	if (!Array.isArray(values) || values.length === 0) {
+		return [];
+	}
+	return values
+		.map((item) => ({
+			loginId: String(item?.loginId || '').trim(),
+			password: String(item?.password || '').trim(),
+		}))
+		.filter((item) => item.loginId && item.password);
+}
+
 function pickRandomSubset(values, count) {
 	const shuffled = values.slice().sort(() => Math.random() - 0.5);
 	return shuffled.slice(0, Math.min(count, values.length));
@@ -60,8 +72,8 @@ function pickRandomSubset(values, count) {
 export const sharedRuntimeData = {
 	baseUrl: readRequiredEnv('BASE_URL'),
 	idsFilePath,
-	tokensFilePath,
-	tokens: normalizeStringArray(tokenPayload, []),
+	credentialsFilePath,
+	credentials: normalizeCredentials(credentialPayload),
 	stockIds: normalizeNumberArray(idsPayload.stockIds, DEFAULT_IDS.stockIds),
 	newsIds: normalizeNumberArray(idsPayload.newsIds, DEFAULT_IDS.newsIds),
 	categoryIds: normalizeNumberArray(idsPayload.categoryIds, DEFAULT_IDS.categoryIds),
@@ -85,14 +97,15 @@ export function ensureRuntimeConfig() {
 	}
 }
 
-export function printRuntimeSummary(profileName, wsStockPool = []) {
+export function printRuntimeSummary(profileName, { wsStockPool = [], tokensLoaded = 0 } = {}) {
 	console.log(
 		[
 			`[k6] profile=${profileName}`,
 			`[k6] baseUrl=${sharedRuntimeData.baseUrl}`,
 			`[k6] idsFile=${sharedRuntimeData.idsFilePath}`,
-			`[k6] tokensFile=${sharedRuntimeData.tokensFilePath}`,
-			`[k6] tokensLoaded=${sharedRuntimeData.tokens.length}`,
+			`[k6] credentialsFile=${sharedRuntimeData.credentialsFilePath}`,
+			`[k6] credentialsLoaded=${sharedRuntimeData.credentials.length}`,
+			`[k6] tokensLoaded=${tokensLoaded}`,
 			`[k6] idsLoaded=${sharedRuntimeData.idStatsSummary}`,
 			`[k6] wsStockPool=${wsStockPool.length}`,
 		].join('\n')
@@ -103,11 +116,11 @@ export function pickFrom(values) {
 	return values[Math.floor(Math.random() * values.length)];
 }
 
-export function pickToken() {
-	if (sharedRuntimeData.tokens.length === 0) {
+export function pickToken(tokens) {
+	if (!Array.isArray(tokens) || tokens.length === 0) {
 		return null;
 	}
-	return pickFrom(sharedRuntimeData.tokens);
+	return pickFrom(tokens);
 }
 
 export function pickWsStockPool() {

@@ -1,7 +1,7 @@
 import { check } from 'k6';
 import ws from 'k6/ws';
 
-import { pickToken, sharedRuntimeData } from '../lib/data.js';
+import { sharedRuntimeData, pickToken } from '../lib/data.js';
 import { getWsSubscribeCount } from '../lib/ws-config.js';
 import {
 	wsDeliveryLag,
@@ -18,8 +18,8 @@ function pickRandomSubset(arr, count) {
 	return shuffled.slice(0, Math.min(count, arr.length));
 }
 
-export function runWsQuoteFlow(wsUrl, wsStockPool) {
-	const token = pickToken();
+export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
+	const token = pickToken(tokens);
 	if (!token) {
 		wsConnectFail.add(1);
 		wsConnectRate.add(false);
