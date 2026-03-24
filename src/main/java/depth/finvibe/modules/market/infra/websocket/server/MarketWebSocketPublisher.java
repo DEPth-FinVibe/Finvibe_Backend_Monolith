@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -94,20 +93,19 @@ public class MarketWebSocketPublisher {
 		if (event == null) {
 			return;
 		}
-		Map<String, Object> eventData = objectMapper.convertValue(event, Map.class);
-		Long stockId = toLong(eventData.get("stockId"));
+		Long stockId = event.getStockId();
 		if (stockId == null) {
 			return;
 		}
 		String topic = "quote:" + stockId;
-		TextMessage payload = serializeEvent(topic, stockId, eventData);
+		TextMessage payload = serializeEvent(topic, event);
 		if (payload == null) {
 			return;
 		}
 		fanout(topic, payload);
 	}
 
-	private TextMessage serializeEvent(String topic, Long stockId, Map<String, Object> eventData) {
+	private TextMessage serializeEvent(String topic, CurrentPriceUpdatedEvent event) {
 		try {
 			return new TextMessage(objectMapper.writeValueAsString(
 					new QuoteEventPayload(
@@ -115,15 +113,15 @@ public class MarketWebSocketPublisher {
 							topic,
 							Instant.now().toEpochMilli(),
 							new QuoteEventData(
-									stockId,
+									event.getStockId(),
 									EXCHANGE,
-									eventData.get("close"),
-									eventData.get("open"),
-									eventData.get("high"),
-									eventData.get("low"),
-									eventData.get("prevDayChangePct"),
-									eventData.get("volume"),
-									eventData.get("value")
+									event.getClose(),
+									event.getOpen(),
+									event.getHigh(),
+									event.getLow(),
+									event.getPrevDayChangePct(),
+									event.getVolume(),
+									event.getValue()
 							)
 					)
 			));
@@ -132,13 +130,6 @@ public class MarketWebSocketPublisher {
 			log.warn("Failed to serialize websocket event.", ex);
 			return null;
 		}
-	}
-
-	private Long toLong(Object value) {
-		if (value instanceof Number number) {
-			return number.longValue();
-		}
-		return null;
 	}
 
 	private void fanout(String topic, TextMessage message) {
