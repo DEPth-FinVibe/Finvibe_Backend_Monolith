@@ -1,7 +1,7 @@
 spring:
   kafka:
     consumer:
-      auto-offset-reset: earliest
+      auto-offset-reset: latest
       key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
