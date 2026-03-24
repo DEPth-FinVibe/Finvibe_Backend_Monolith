@@ -133,11 +133,13 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
         registry.remove(session.getId());
+        sessionSender.clearSession(session.getId());
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         registry.remove(session.getId());
+        sessionSender.clearSession(session.getId());
     }
 
     private void handleAuth(WebSocketSession session, MarketWebSocketConnection connection, JsonNode root) {

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,7 +40,8 @@ class MarketWebSocketPublisherTest {
 		MarketWebSocketSessionSender sessionSender = new MarketWebSocketSessionSender(
 				registry,
 				new ObjectMapper(),
-				meterRegistry
+				meterRegistry,
+				Executors.newSingleThreadExecutor()
 		);
 		sessionSender.initMetrics();
 		ReflectionTestUtils.setField(sessionSender, "sendFailureThreshold", 3);
@@ -68,7 +70,7 @@ class MarketWebSocketPublisherTest {
 		publisher.publish(priceEvent(1L, 1001));
 
 		ArgumentCaptor<TextMessage> messageCaptor = ArgumentCaptor.forClass(TextMessage.class);
-		verify(session, times(2)).sendMessage(messageCaptor.capture());
+		verify(session, timeout(1000).times(2)).sendMessage(messageCaptor.capture());
 		assertThat(messageCaptor.getAllValues().get(0).getPayload()).contains("\"price\":1000");
 		assertThat(messageCaptor.getAllValues().get(1).getPayload()).contains("\"price\":1001");
 		assertThat(meterRegistry.find("ws.events.dispatched").counter().count()).isEqualTo(2.0d);

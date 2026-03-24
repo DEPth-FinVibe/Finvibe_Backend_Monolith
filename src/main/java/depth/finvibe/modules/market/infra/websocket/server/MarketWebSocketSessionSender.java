@@ -4,8 +4,10 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -20,6 +22,7 @@ public class MarketWebSocketSessionSender {
 	private final MarketWebSocketRegistry registry;
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
+	private final SerialPerSessionExecutorGroup outboundExecutors;
 
 	@Value("${market.ws.send.failure-threshold:3}")
 	private int sendFailureThreshold;
@@ -38,11 +41,13 @@ public class MarketWebSocketSessionSender {
 	public MarketWebSocketSessionSender(
 			MarketWebSocketRegistry registry,
 			ObjectMapper objectMapper,
-			MeterRegistry meterRegistry
+			MeterRegistry meterRegistry,
+			@Qualifier("marketWsSendExecutor") ExecutorService sendExecutor
 	) {
 		this.registry = registry;
 		this.objectMapper = objectMapper;
 		this.meterRegistry = meterRegistry;
+		this.outboundExecutors = new SerialPerSessionExecutorGroup(sendExecutor);
 	}
 
 	@PostConstruct
@@ -62,7 +67,7 @@ public class MarketWebSocketSessionSender {
 	}
 
 	public boolean sendQuote(MarketWebSocketConnection connection, TextMessage message) {
-		return sendMessageSafely(connection, message, true);
+		return enqueueSend(connection, message, true);
 	}
 
 	public boolean sendControl(MarketWebSocketConnection connection, Map<String, Object> payload) {
@@ -70,7 +75,7 @@ public class MarketWebSocketSessionSender {
 		if (message == null) {
 			return false;
 		}
-		return sendMessageSafely(connection, message, false);
+		return enqueueSend(connection, message, false);
 	}
 
 	public boolean sendImmediate(WebSocketSession session, Map<String, Object> payload) {
@@ -102,14 +107,35 @@ public class MarketWebSocketSessionSender {
 		}
 	}
 
-	private boolean sendMessageSafely(MarketWebSocketConnection connection, TextMessage message, boolean evictOnSlow) {
+	public void clearSession(String sessionId) {
+		outboundExecutors.clear(sessionId);
+	}
+
+	private boolean enqueueSend(MarketWebSocketConnection connection, TextMessage message, boolean evictOnSlow) {
+		WebSocketSession session = connection.getSession();
+		if (!session.isOpen()) {
+			registry.remove(session.getId());
+			clearSession(session.getId());
+			return false;
+		}
+		try {
+			outboundExecutors.execute(session.getId(), () -> sendMessageSafely(connection, message, evictOnSlow));
+			return true;
+		} catch (RuntimeException ex) {
+			log.warn("Failed to enqueue websocket message - sessionId: {}", session.getId(), ex);
+			return false;
+		}
+	}
+
+	private void sendMessageSafely(MarketWebSocketConnection connection, TextMessage message, boolean evictOnSlow) {
 		WebSocketSession session = connection.getSession();
 		long startNs = System.nanoTime();
 		try {
 			synchronized (session) {
 				if (!session.isOpen()) {
 					registry.remove(session.getId());
-					return false;
+					clearSession(session.getId());
+					return;
 				}
 				session.sendMessage(message);
 			}
@@ -119,23 +145,21 @@ public class MarketWebSocketSessionSender {
 				int slowStrike = connection.incrementSlowSend();
 				if (evictOnSlow && slowStrike >= slowSendStrikesThreshold) {
 					evictSlowConsumer(connection, "send_timeout");
-					return false;
+					return;
 				}
 			} else {
 				connection.recordSendSuccess();
 			}
-			return true;
 		} catch (Exception ex) {
 			sendFailureCounter.increment();
 			int failureCount = connection.incrementSendFailure();
 			registry.updateConnectionGauges();
 			if (isUnrecoverableSendError(ex) || failureCount >= sendFailureThreshold) {
 				closeAndRemoveSession(connection, "send_failure");
-				return false;
+				return;
 			}
 			log.debug("Failed to send websocket event - sessionId: {}, failureCount: {}, cause: {}",
 					session.getId(), failureCount, ex.toString());
-			return true;
 		}
 	}
 
@@ -165,6 +189,7 @@ public class MarketWebSocketSessionSender {
 		} finally {
 			closedByFailureCounter.increment();
 			registry.remove(sessionId);
+			clearSession(sessionId);
 			log.info("Closed websocket session - sessionId: {}, reason: {}, sendFailures: {}",
 					sessionId, reason, connection.getTotalSendFailures());
 		}
