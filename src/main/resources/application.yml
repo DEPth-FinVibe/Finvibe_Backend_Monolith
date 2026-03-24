@@ -95,7 +95,7 @@ market:
         queue-capacity: ${MARKET_WS_FANOUT_EXECUTOR_QUEUE_CAPACITY:128}
     session:
       send-time-limit-ms: ${MARKET_WS_SESSION_SEND_TIME_LIMIT_MS:500}
-      buffer-size-limit-bytes: ${MARKET_WS_SESSION_BUFFER_SIZE_LIMIT_BYTES:65536}
+      buffer-size-limit-bytes: ${MARKET_WS_SESSION_BUFFER_SIZE_LIMIT_BYTES:32768}
     send:
       failure-threshold: ${MARKET_WS_SEND_FAILURE_THRESHOLD:2}
       slow-threshold-ms: ${MARKET_WS_SEND_SLOW_THRESHOLD_MS:250}

@@ -1,6 +1,6 @@
 package depth.finvibe.boot.config.investment;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -14,10 +14,14 @@ public class MarketWebSocketExecutorConfig {
 
 	@Bean(name = "marketWsFanoutExecutor", destroyMethod = "shutdown")
 	public ExecutorService marketWsFanoutExecutor(
+			@Value("${market.ws.virtual-threads.enabled:false}") boolean virtualThreadsEnabled,
 			@Value("${market.ws.fanout.executor.core-size:2}") int coreSize,
 			@Value("${market.ws.fanout.executor.max-size:4}") int maxSize,
 			@Value("${market.ws.fanout.executor.queue-capacity:256}") int queueCapacity
 	) {
+		if (virtualThreadsEnabled) {
+			return Executors.newVirtualThreadPerTaskExecutor();
+		}
 		return new ThreadPoolExecutor(
 				coreSize,
 				maxSize,
@@ -36,10 +40,14 @@ public class MarketWebSocketExecutorConfig {
 
 	@Bean(name = "marketWsSendExecutor", destroyMethod = "shutdown")
 	public ExecutorService marketWsSendExecutor(
+			@Value("${market.ws.virtual-threads.enabled:false}") boolean virtualThreadsEnabled,
 			@Value("${market.ws.send.executor.core-size:8}") int coreSize,
 			@Value("${market.ws.send.executor.max-size:16}") int maxSize,
 			@Value("${market.ws.send.executor.queue-capacity:512}") int queueCapacity
 	) {
+		if (virtualThreadsEnabled) {
+			return Executors.newVirtualThreadPerTaskExecutor();
+		}
 		return new ThreadPoolExecutor(
 				coreSize,
 				maxSize,

@@ -4,17 +4,23 @@ import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@RequiredArgsConstructor
 public class MarketWebSocketPublisher {
 	private static final String EXCHANGE = "KRX";
 	private static final Logger log = LoggerFactory.getLogger(MarketWebSocketPublisher.class);
@@ -23,6 +29,27 @@ public class MarketWebSocketPublisher {
 	private final ObjectMapper objectMapper;
 	private final MeterRegistry meterRegistry;
 	private final MarketWebSocketSessionSender sessionSender;
+	private final ExecutorService fanoutExecutor;
+
+	@Value("${market.ws.fanout.chunk-size:100}")
+	private int fanoutChunkSize;
+
+	@Value("${market.ws.fanout.max-chunk-parallelism:8}")
+	private int maxChunkParallelism;
+
+	public MarketWebSocketPublisher(
+			MarketWebSocketRegistry registry,
+			ObjectMapper objectMapper,
+			MeterRegistry meterRegistry,
+			MarketWebSocketSessionSender sessionSender,
+			@Qualifier("marketWsFanoutExecutor") ExecutorService fanoutExecutor
+	) {
+		this.registry = registry;
+		this.objectMapper = objectMapper;
+		this.meterRegistry = meterRegistry;
+		this.sessionSender = sessionSender;
+		this.fanoutExecutor = fanoutExecutor;
+	}
 
 	private io.micrometer.core.instrument.Counter serializationErrorCounter;
 	private io.micrometer.core.instrument.Counter eventsDispatchedCounter;
@@ -90,15 +117,73 @@ public class MarketWebSocketPublisher {
 
 	private void fanout(String topic, TextMessage message) {
 		String[] subscriberIds = registry.snapshotSubscriberIds(topic);
-      for (String subscriberId : subscriberIds) {
-          MarketWebSocketConnection connection = registry.getConnection(subscriberId);
-          if (connection == null) {
-              continue;
-          }
-          if (sessionSender.sendQuote(connection, message)) {
-              eventsDispatchedCounter.increment();
-          }
-      }
+		if (subscriberIds.length == 0) {
+			return;
+		}
+
+		int chunkSize = Math.max(1, fanoutChunkSize);
+		int chunkCount = (int) Math.ceil((double) subscriberIds.length / chunkSize);
+		int parallelChunks = Math.max(1, Math.min(maxChunkParallelism, chunkCount));
+
+		if (chunkCount == 1 || parallelChunks == 1) {
+			eventsDispatchedCounter.increment(sendChunk(subscriberIds, 0, subscriberIds.length, message));
+			return;
+		}
+
+		List<Future<Integer>> activeFutures = new ArrayList<>(parallelChunks);
+		int dispatchedCount = 0;
+
+		for (int start = 0; start < subscriberIds.length; start += chunkSize) {
+			int end = Math.min(start + chunkSize, subscriberIds.length);
+			activeFutures.add(fanoutExecutor.submit(chunkTask(subscriberIds, start, end, message)));
+
+			if (activeFutures.size() >= parallelChunks) {
+				dispatchedCount += drainFirstFuture(activeFutures);
+			}
+		}
+
+		for (Future<Integer> future : activeFutures) {
+			dispatchedCount += awaitChunk(future);
+		}
+
+		if (dispatchedCount > 0) {
+			eventsDispatchedCounter.increment(dispatchedCount);
+		}
+	}
+
+	private Callable<Integer> chunkTask(String[] subscriberIds, int startInclusive, int endExclusive, TextMessage message) {
+		return () -> sendChunk(subscriberIds, startInclusive, endExclusive, message);
+	}
+
+	private int sendChunk(String[] subscriberIds, int startInclusive, int endExclusive, TextMessage message) {
+		int dispatchedCount = 0;
+		for (int i = startInclusive; i < endExclusive; i++) {
+			MarketWebSocketConnection connection = registry.getConnection(subscriberIds[i]);
+			if (connection == null) {
+				continue;
+			}
+			if (sessionSender.sendQuote(connection, message)) {
+				dispatchedCount++;
+			}
+		}
+		return dispatchedCount;
+	}
+
+	private int drainFirstFuture(List<Future<Integer>> activeFutures) {
+		return awaitChunk(activeFutures.removeFirst());
+	}
+
+	private int awaitChunk(Future<Integer> future) {
+		try {
+			return future.get();
+		} catch (InterruptedException ex) {
+			Thread.currentThread().interrupt();
+			log.warn("WebSocket fanout interrupted.");
+			return 0;
+		} catch (ExecutionException ex) {
+			log.warn("WebSocket fanout chunk failed.", ex.getCause());
+			return 0;
+		}
 	}
 
 	private record QuoteEventPayload(

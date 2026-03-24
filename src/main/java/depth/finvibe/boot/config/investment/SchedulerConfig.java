@@ -18,6 +18,7 @@ public class SchedulerConfig {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(4);
         scheduler.setThreadNamePrefix("market-scheduler-");
+        scheduler.setRemoveOnCancelPolicy(true);
         scheduler.initialize();
         return scheduler;
     }
