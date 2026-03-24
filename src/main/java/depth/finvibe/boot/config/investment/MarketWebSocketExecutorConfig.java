@@ -6,11 +6,18 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class MarketWebSocketExecutorConfig {
+
+	@Bean(name = "marketWsConnectionExecutor", destroyMethod = "shutdown")
+	@ConditionalOnProperty(prefix = "market.ws.connection.virtual-threads", name = "enabled", havingValue = "true")
+	public ExecutorService marketWsConnectionExecutor() {
+		return Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("market-ws-conn-", 0).factory());
+	}
 
 	@Bean(name = "marketWsFanoutExecutor", destroyMethod = "shutdown")
 	public ExecutorService marketWsFanoutExecutor(
