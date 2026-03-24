@@ -2,6 +2,7 @@ package depth.finvibe.modules.market.infra.websocket.server;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,9 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 @Slf4j
 @Component
@@ -64,6 +67,7 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
     private Counter authTimeoutCounter;
     private Counter rateLimitViolationCounter;
     private Timer subscribeDurationTimer;
+    private ScheduledFuture<?> heartbeatSweepTask;
 
     @PostConstruct
     public void initMetrics() {
@@ -77,15 +81,21 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
                 .description("subscribe 요청 처리 시간 (registry 등록 + Redis 호출 포함)")
                 .publishPercentileHistogram()
                 .register(meterRegistry);
+
+        long sweepIntervalMs = Math.max(1000L, pingIntervalMs);
+        heartbeatSweepTask = taskScheduler.scheduleAtFixedRate(this::sweepConnections, sweepIntervalMs);
+    }
+
+    @PreDestroy
+    public void stopHeartbeatSweep() {
+        if (heartbeatSweepTask != null) {
+            heartbeatSweepTask.cancel(false);
+        }
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        MarketWebSocketConnection connection = registry.register(session);
-        connection.setAuthTimeoutTask(taskScheduler.schedule(
-                () -> handleAuthTimeout(connection),
-                Instant.now().plusMillis(authTimeoutMs)
-        ));
+        registry.register(session);
     }
 
     @Override
@@ -122,34 +132,12 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        MarketWebSocketConnection connection = registry.getConnection(session.getId());
-        if (connection != null) {
-            cancelTask(connection.getAuthTimeoutTask());
-            cancelTask(connection.getHeartbeatTask());
-        }
         registry.remove(session.getId());
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        MarketWebSocketConnection connection = registry.getConnection(session.getId());
-        if (connection != null) {
-            cancelTask(connection.getAuthTimeoutTask());
-            cancelTask(connection.getHeartbeatTask());
-        }
         registry.remove(session.getId());
-    }
-
-    private void handleAuthTimeout(MarketWebSocketConnection connection) {
-        WebSocketSession session = connection.getSession();
-        if (!session.isOpen()) {
-            return;
-        }
-        if (!connection.getState().isAuthenticated()) {
-            authTimeoutCounter.increment();
-            sendImmediateError(session, null, "UNAUTHORIZED", "Authentication timeout.", null);
-            closeSession(session, CloseStatus.POLICY_VIOLATION);
-        }
     }
 
     private void handleAuth(WebSocketSession session, MarketWebSocketConnection connection, JsonNode root) {
@@ -163,8 +151,6 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             UUID userId = jwtTokenProvider.getUserId(token);
             registry.authenticate(connection, userId);
             connection.getState().resetPongCount();
-            cancelTask(connection.getAuthTimeoutTask());
-            startHeartbeat(connection);
             sendAuthAck(session);
         } catch (Exception ex) {
             sendImmediateError(session, null, "UNAUTHORIZED", "Invalid token.", null);
@@ -192,12 +178,9 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
             return;
         }
 
-        List<String> invalidTopics = topics.stream()
-                .filter(topic -> !isValidTopic(topic))
-                .toList();
-        List<String> validTopics = topics.stream()
-                .filter(this::isValidTopic)
-                .collect(Collectors.toList());
+        TopicValidationResult topicValidation = validateTopics(topics);
+        List<String> invalidTopics = topicValidation.invalidTopics();
+        List<String> validTopics = topicValidation.validTopics();
 
         long subscribeStartNs = System.nanoTime();
         MarketWebSocketRegistry.SubscribeResult result = registry.subscribe(connection, validTopics, MAX_SUBSCRIPTIONS);
@@ -232,23 +215,6 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         }
         MarketWebSocketRegistry.UnsubscribeResult result = registry.unsubscribe(connection, topics);
         sendUnsubscribeAck(session, requestId, result);
-    }
-
-    private void startHeartbeat(MarketWebSocketConnection connection) {
-        cancelTask(connection.getHeartbeatTask());
-        connection.setHeartbeatTask(taskScheduler.scheduleAtFixedRate(() -> {
-            WebSocketSession session = connection.getSession();
-            CustomWebSocketSession state = connection.getState();
-            if (!session.isOpen()) {
-                return;
-            }
-            if (state.shouldDisconnect()) {
-                closeSession(session, CloseStatus.SESSION_NOT_RELIABLE);
-                return;
-            }
-            sendPing(session);
-            state.incrementMissedPong();
-        }, pingIntervalMs));
     }
 
     private void sendPing(WebSocketSession session) {
@@ -424,6 +390,23 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         return topics;
     }
 
+    private TopicValidationResult validateTopics(List<String> topics) {
+        List<String> validTopics = new ArrayList<>(topics.size());
+        List<String> invalidTopics = new ArrayList<>();
+        LinkedHashSet<String> deduplicated = new LinkedHashSet<>();
+
+        for (String topic : topics) {
+            if (!isValidTopic(topic)) {
+                invalidTopics.add(topic);
+                continue;
+            }
+            if (deduplicated.add(topic)) {
+                validTopics.add(topic);
+            }
+        }
+        return new TopicValidationResult(validTopics, invalidTopics);
+    }
+
     private boolean isValidTopic(String topic) {
         return topic != null && TOPIC_PATTERN.matcher(topic).matches();
     }
@@ -456,9 +439,38 @@ public class MarketQuoteWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    private void cancelTask(java.util.concurrent.ScheduledFuture<?> task) {
-        if (task != null) {
-            task.cancel(false);
-        }
+    private void sweepConnections() {
+        registry.forEachConnection(connection -> {
+            WebSocketSession session = connection.getSession();
+            CustomWebSocketSession state = connection.getState();
+
+            if (!session.isOpen()) {
+                registry.remove(session.getId());
+                return;
+            }
+
+            if (!state.isAuthenticated()) {
+                if (state.isAuthenticationExpired(authTimeoutMs)) {
+                    authTimeoutCounter.increment();
+                    sendImmediateError(session, null, "UNAUTHORIZED", "Authentication timeout.", null);
+                    closeSession(session, CloseStatus.POLICY_VIOLATION);
+                }
+                return;
+            }
+
+            if (state.shouldDisconnect()) {
+                closeSession(session, CloseStatus.SESSION_NOT_RELIABLE);
+                return;
+            }
+
+            sendPing(session);
+            state.incrementMissedPong();
+        });
+    }
+
+    private record TopicValidationResult(
+            List<String> validTopics,
+            List<String> invalidTopics
+    ) {
     }
 }

@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.function.Consumer;
 
 import depth.finvibe.modules.market.application.port.in.CurrentPriceCommandUseCase;
 import io.micrometer.core.instrument.Counter;
@@ -21,7 +23,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 
-import java.util.concurrent.ScheduledFuture;
 import java.time.Duration;
 
 @Slf4j
@@ -32,8 +33,8 @@ public class MarketWebSocketRegistry {
   private final MeterRegistry meterRegistry;
 
   private final Map<String, MarketWebSocketConnection> connections = new ConcurrentHashMap<>();
-  private final Map<String, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
-  private final Map<UUID, Map<String, Integer>> userSubscriptions = new ConcurrentHashMap<>();
+  private final Map<Long, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
+  private final Map<UUID, Map<Long, Integer>> userSubscriptions = new ConcurrentHashMap<>();
 
   @Value("${market.ws.session.send-time-limit-ms:1000}")
   private int sessionSendTimeLimitMs;
@@ -108,19 +109,16 @@ public class MarketWebSocketRegistry {
    */
   private void refreshSubscriptionTtl() {
     int totalRefreshed = 0;
-    for (Map.Entry<UUID, Map<String, Integer>> entry : userSubscriptions.entrySet()) {
+    for (Map.Entry<UUID, Map<Long, Integer>> entry : userSubscriptions.entrySet()) {
       UUID userId = entry.getKey();
-      Map<String, Integer> topics = entry.getValue();
+      Map<Long, Integer> topics = entry.getValue();
       
-      for (String topic : topics.keySet()) {
-        Long stockId = extractStockId(topic);
-        if (stockId != null) {
-          try {
-            currentPriceCommandUseCase.renewWatchingStock(stockId, userId);
-            totalRefreshed++;
-          } catch (Exception ex) {
-            log.error("TTL 갱신 실패 - stockId: {}, userId: {}", stockId, userId, ex);
-          }
+      for (Long stockId : topics.keySet()) {
+        try {
+          currentPriceCommandUseCase.renewWatchingStock(stockId, userId);
+          totalRefreshed++;
+        } catch (Exception ex) {
+          log.error("TTL 갱신 실패 - stockId: {}, userId: {}", stockId, userId, ex);
         }
       }
     }
@@ -155,10 +153,10 @@ public class MarketWebSocketRegistry {
 
     // 1. 사용자 기반 구독 인덱스 정리
     if (userId != null) {
-      Map<String, Integer> userTopics = userSubscriptions.get(userId);
+      Map<Long, Integer> userTopics = userSubscriptions.get(userId);
       if (userTopics != null) {
-        for (String topic : state.getSubscribedTopics()) {
-          decrementUserTopic(userTopics, topic);
+        for (Long stockId : state.getSubscribedStockIds()) {
+          decrementUserTopic(userTopics, stockId);
         }
         if (userTopics.isEmpty()) {
           userSubscriptions.remove(userId);
@@ -167,25 +165,25 @@ public class MarketWebSocketRegistry {
     }
 
     // 2. 토픽 기반 구독자 인덱스 정리 (가장 중요한 부분: Fanout 대상에서 즉시 제외)
-    for (String topic : state.getSubscribedTopics()) {
-      Set<String> subscribers = topicSubscribers.get(topic);
+    for (Long stockId : state.getSubscribedStockIds()) {
+      Set<String> subscribers = topicSubscribers.get(stockId);
       if (subscribers != null) {
         subscribers.remove(sessionId);
         if (subscribers.isEmpty()) {
-          topicSubscribers.remove(topic);
+          topicSubscribers.remove(stockId);
         }
       }
     }
 
     // 3. 내부 상태 참조 해제 (명시적 null 처리로 GC 지원)
-    state.getSubscribedTopics().clear();
+    state.getSubscribedStockIds().clear();
     log.debug("WebSocket 세션 등록 해제 완료 - sessionId: {}", sessionId);
 
     updateConnectionGauges();
   }
 
     public void authenticate(MarketWebSocketConnection connection, UUID userId) {
-        connection.getState().authenticate(userId.toString());
+        connection.getState().authenticate(userId);
         userSubscriptions.computeIfAbsent(userId, key -> new ConcurrentHashMap<>());
     }
 
@@ -196,7 +194,7 @@ public class MarketWebSocketRegistry {
       return SubscribeResult.unauthorized();
     }
 
-    Map<String, Integer> userTopics = userSubscriptions.computeIfAbsent(userId, key -> new ConcurrentHashMap<>());
+    Map<Long, Integer> userTopics = userSubscriptions.computeIfAbsent(userId, key -> new ConcurrentHashMap<>());
     int uniqueTopicCount = userTopics.size();
     List<String> subscribed = new ArrayList<>();
     List<String> alreadySubscribed = new ArrayList<>();
@@ -204,33 +202,35 @@ public class MarketWebSocketRegistry {
     boolean limitExceeded = false;
 
     for (String topic : topics) {
-      if (state.getSubscribedTopics().contains(topic)) {
+      Long stockId = extractStockId(topic);
+      if (stockId == null) {
+        continue;
+      }
+
+      if (state.getSubscribedStockIds().contains(stockId)) {
         alreadySubscribed.add(topic);
         continue;
       }
-      if (!userTopics.containsKey(topic) && uniqueTopicCount >= limit) {
+      if (!userTopics.containsKey(stockId) && uniqueTopicCount >= limit) {
         rejected.add(topic);
         limitExceeded = true;
         subscriptionsRejectedCounter.increment();
         continue;
       }
-      state.getSubscribedTopics().add(topic);
-      boolean isNewTopic = !userTopics.containsKey(topic);
-      userTopics.merge(topic, 1, Integer::sum);
+      state.getSubscribedStockIds().add(stockId);
+      boolean isNewTopic = !userTopics.containsKey(stockId);
+      userTopics.merge(stockId, 1, Integer::sum);
       if (isNewTopic) {
         uniqueTopicCount++;
         // 새로운 종목 구독 시 registerWatchingStock 호출
-        Long stockId = extractStockId(topic);
-        if (stockId != null) {
-          try {
-            currentPriceCommandUseCase.registerWatchingStock(stockId, userId);
-            log.debug("종목 실시간 감시 등록 - stockId: {}, userId: {}", stockId, userId);
-          } catch (Exception ex) {
-            log.error("종목 실시간 감시 등록 실패 - stockId: {}, userId: {}", stockId, userId, ex);
-          }
+        try {
+          currentPriceCommandUseCase.registerWatchingStock(stockId, userId);
+          log.debug("종목 실시간 감시 등록 - stockId: {}, userId: {}", stockId, userId);
+        } catch (Exception ex) {
+          log.error("종목 실시간 감시 등록 실패 - stockId: {}, userId: {}", stockId, userId, ex);
         }
       }
-      topicSubscribers.computeIfAbsent(topic, key -> ConcurrentHashMap.newKeySet()).add(connection.getSession().getId());
+      topicSubscribers.computeIfAbsent(stockId, key -> ConcurrentHashMap.newKeySet()).add(connection.getSession().getId());
       subscribed.add(topic);
     }
 
@@ -247,34 +247,32 @@ public class MarketWebSocketRegistry {
     List<String> notSubscribed = new ArrayList<>();
 
     for (String topic : topics) {
-      if (!state.getSubscribedTopics().contains(topic)) {
+      Long stockId = extractStockId(topic);
+      if (stockId == null || !state.getSubscribedStockIds().contains(stockId)) {
         notSubscribed.add(topic);
         continue;
       }
-      state.getSubscribedTopics().remove(topic);
+      state.getSubscribedStockIds().remove(stockId);
       unsubscribed.add(topic);
 
-      Set<String> subscribers = topicSubscribers.get(topic);
+      Set<String> subscribers = topicSubscribers.get(stockId);
       if (subscribers != null) {
         subscribers.remove(connection.getSession().getId());
         if (subscribers.isEmpty()) {
-          topicSubscribers.remove(topic);
+          topicSubscribers.remove(stockId);
         }
       }
       if (userId != null) {
-        Map<String, Integer> userTopics = userSubscriptions.get(userId);
+        Map<Long, Integer> userTopics = userSubscriptions.get(userId);
         if (userTopics != null) {
-          boolean wasLastSubscription = decrementUserTopic(userTopics, topic);
+          boolean wasLastSubscription = decrementUserTopic(userTopics, stockId);
           // 해당 유저의 해당 종목 구독이 모두 해제된 경우
           if (wasLastSubscription) {
-            Long stockId = extractStockId(topic);
-            if (stockId != null) {
-              try {
-                currentPriceCommandUseCase.unregisterWatchingStock(stockId, userId);
-                log.debug("종목 실시간 감시 해제 - stockId: {}, userId: {}", stockId, userId);
-              } catch (Exception ex) {
-                log.error("종목 실시간 감시 해제 실패 - stockId: {}, userId: {}", stockId, userId, ex);
-              }
+            try {
+              currentPriceCommandUseCase.unregisterWatchingStock(stockId, userId);
+              log.debug("종목 실시간 감시 해제 - stockId: {}, userId: {}", stockId, userId);
+            } catch (Exception ex) {
+              log.error("종목 실시간 감시 해제 실패 - stockId: {}, userId: {}", stockId, userId, ex);
             }
           }
           if (userTopics.isEmpty()) {
@@ -288,7 +286,11 @@ public class MarketWebSocketRegistry {
   }
 
     public List<MarketWebSocketConnection> getSubscribers(String topic) {
-        Set<String> subscriberIds = topicSubscribers.get(topic);
+        Long stockId = extractStockId(topic);
+        if (stockId == null) {
+            return List.of();
+        }
+        Set<String> subscriberIds = topicSubscribers.get(stockId);
         if (subscriberIds == null || subscriberIds.isEmpty()) {
             return List.of();
         }
@@ -305,7 +307,11 @@ public class MarketWebSocketRegistry {
     }
 
     public String[] snapshotSubscriberIds(String topic) {
-        Set<String> subscriberIds = topicSubscribers.get(topic);
+        Long stockId = extractStockId(topic);
+        if (stockId == null) {
+            return new String[0];
+        }
+        Set<String> subscriberIds = topicSubscribers.get(stockId);
         if (subscriberIds == null || subscriberIds.isEmpty()) {
             return new String[0];
         }
@@ -328,22 +334,26 @@ public class MarketWebSocketRegistry {
             List<String> notSubscribed
     ) {}
 
-  private boolean decrementUserTopic(Map<String, Integer> userTopics, String topic) {
-    Integer count = userTopics.get(topic);
+  private boolean decrementUserTopic(Map<Long, Integer> userTopics, Long stockId) {
+    Integer count = userTopics.get(stockId);
     if (count == null) {
       return false;
     }
     if (count <= 1) {
-      userTopics.remove(topic);
+      userTopics.remove(stockId);
       return true; // 마지막 구독이 해제됨
     } else {
-      userTopics.put(topic, count - 1);
+      userTopics.put(stockId, count - 1);
       return false; // 아직 다른 세션에서 구독 중
     }
   }
 
   public void updateConnectionGauges() {
     // connection-related gauges read directly from the backing map; no per-session meter updates needed.
+  }
+
+  public void forEachConnection(Consumer<MarketWebSocketConnection> consumer) {
+    connections.values().forEach(consumer);
   }
 
   /**

@@ -3,37 +3,41 @@ package depth.finvibe.modules.market.infra.websocket.server;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 @Setter
 public class CustomWebSocketSession {
     private final String sessionId;
+    private final long connectedAtEpochMs;
     private boolean authenticated;
-    private String userId;
-    private LocalDateTime lastAuthTime;
-    private LocalDateTime lastPingTime;
+    private UUID userId;
+    private long lastAuthEpochMs;
+    private long lastPingEpochMs;
     private int missedPongCount;
-    private final Set<String> subscribedTopics;
+    private final Set<Long> subscribedStockIds;
 
     public CustomWebSocketSession(String sessionId) {
         this.sessionId = sessionId;
+        this.connectedAtEpochMs = System.currentTimeMillis();
         this.authenticated = false;
+        this.lastAuthEpochMs = -1L;
+        this.lastPingEpochMs = -1L;
         this.missedPongCount = 0;
-        this.subscribedTopics = ConcurrentHashMap.newKeySet();
+        this.subscribedStockIds = ConcurrentHashMap.newKeySet();
     }
 
-    public void authenticate(String userId) {
+    public void authenticate(UUID userId) {
         this.authenticated = true;
         this.userId = userId;
-        this.lastAuthTime = LocalDateTime.now();
+        this.lastAuthEpochMs = System.currentTimeMillis();
     }
 
     public void resetPongCount() {
         this.missedPongCount = 0;
-        this.lastPingTime = LocalDateTime.now();
+        this.lastPingEpochMs = System.currentTimeMillis();
     }
 
     public void incrementMissedPong() {
@@ -44,10 +48,10 @@ public class CustomWebSocketSession {
         return missedPongCount >= 3;
     }
 
-    public boolean isAuthenticationExpired(int timeoutMinutes) {
-        if (!authenticated || lastAuthTime == null) {
-            return true;
+    public boolean isAuthenticationExpired(long timeoutMs) {
+        if (authenticated) {
+            return false;
         }
-        return lastAuthTime.plusMinutes(timeoutMinutes).isBefore(LocalDateTime.now());
+        return System.currentTimeMillis() - connectedAtEpochMs > timeoutMs;
     }
 }

@@ -12,10 +12,10 @@ public class WebSocketConfig {
     @Bean
     public ServletServerContainerFactoryBean createWebSocketContainer() {
         ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
-        // 텍스트 메시지 버퍼 크기 제한 (512KB) - 메모리 폭주 방지
-        container.setMaxTextMessageBufferSize(512 * 1024);
-        // 바이너리 메시지 버퍼 크기 제한 (512KB)
-        container.setMaxBinaryMessageBufferSize(512 * 1024);
+        // 텍스트 메시지 버퍼 크기 제한 (64KB) - 메모리 폭주 방지
+        container.setMaxTextMessageBufferSize(64 * 1024);
+        // 바이너리 메시지 버퍼 크기 제한 (64KB)
+        container.setMaxBinaryMessageBufferSize(64 * 1024);
         // 비동기 전송 타임아웃 (5초) - 응답 없는 클라이언트 차단
         container.setAsyncSendTimeout(5000L);
         // 세션 유휴 타임아웃 (10분)
