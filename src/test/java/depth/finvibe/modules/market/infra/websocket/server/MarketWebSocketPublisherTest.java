@@ -14,6 +14,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
@@ -43,11 +45,13 @@ class MarketWebSocketPublisherTest {
 		ReflectionTestUtils.setField(sessionSender, "sendFailureThreshold", 3);
 		ReflectionTestUtils.setField(sessionSender, "slowSendThresholdMs", 1000L);
 		ReflectionTestUtils.setField(sessionSender, "slowSendStrikesThreshold", 2);
+		ExecutorService fanoutExecutor = Executors.newSingleThreadExecutor();
 		MarketWebSocketPublisher publisher = new MarketWebSocketPublisher(
 				registry,
 				new ObjectMapper(),
 				meterRegistry,
-				sessionSender
+				sessionSender,
+				fanoutExecutor
 		);
 		publisher.initMetrics();
 
@@ -68,6 +72,7 @@ class MarketWebSocketPublisherTest {
 		assertThat(messageCaptor.getAllValues().get(0).getPayload()).contains("\"price\":1000");
 		assertThat(messageCaptor.getAllValues().get(1).getPayload()).contains("\"price\":1001");
 		assertThat(meterRegistry.find("ws.events.dispatched").counter().count()).isEqualTo(2.0d);
+		fanoutExecutor.shutdown();
 		registry.stopTtlRefreshScheduler();
 	}
 
