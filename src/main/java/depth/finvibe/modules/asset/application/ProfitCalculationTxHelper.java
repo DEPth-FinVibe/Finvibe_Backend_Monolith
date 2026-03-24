@@ -3,11 +3,13 @@ package depth.finvibe.modules.asset.application;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import depth.finvibe.modules.asset.application.UserProfitSummaryRow;
 import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
@@ -38,7 +40,12 @@ class ProfitCalculationTxHelper {
 	}
 
 	@Transactional(readOnly = true)
-	public List<PortfolioGroup> readAllPortfolios() {
-		return portfolioGroupRepository.findAllWithAssets();
+	public List<UserProfitSummaryRow> readAllUserProfitSummaries() {
+		return portfolioGroupRepository.findAllUserProfitSummaries();
+	}
+
+	@Transactional(readOnly = true)
+	public List<UUID> readUserIdsWithAssets() {
+		return portfolioGroupRepository.findUserIdsWithAssets();
 	}
 }

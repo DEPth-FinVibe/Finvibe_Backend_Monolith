@@ -8,6 +8,9 @@ import depth.finvibe.modules.user.domain.vo.OAuthInfo;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +38,21 @@ public class UserRepositoryImpl implements UserRepository {
     @Override
     public Optional<User> findByOauthInfo(OAuthInfo oauthInfo) {
         return jpaUserRepository.findByOauthInfo(oauthInfo);
+    }
+
+    @Override
+    public Map<UUID, String> findNicknamesByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, String> nicknames = new LinkedHashMap<>();
+        for (User user : jpaUserRepository.findAllByIdIn(ids)) {
+            if (user.getId() != null && user.getPersonalDetails() != null) {
+                nicknames.put(user.getId(), user.getPersonalDetails().getNickname());
+            }
+        }
+        return nicknames;
     }
 
     @Override

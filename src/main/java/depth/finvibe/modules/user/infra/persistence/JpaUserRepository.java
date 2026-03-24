@@ -6,12 +6,15 @@ import depth.finvibe.modules.user.domain.vo.LoginId;
 import depth.finvibe.modules.user.domain.vo.OAuthInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface JpaUserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByLoginId(LoginId loginId);
     Optional<User> findByOauthInfo(OAuthInfo oauthInfo);
+    List<User> findAllByIdIn(Collection<UUID> ids);
     boolean existsByPersonalDetails_Email(Email email);
     boolean existsByLoginId(LoginId loginId);
     boolean existsByPersonalDetails_Nickname(String nickname);

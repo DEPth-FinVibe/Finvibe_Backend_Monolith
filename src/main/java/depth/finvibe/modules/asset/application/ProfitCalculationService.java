@@ -8,10 +8,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -69,8 +71,6 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       .record(updatedStockIds.size());
     if (portfolios.isEmpty()) {
       log.info("No portfolios found with updated stock IDs for profit recalculation.");
-      List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
-      publishUserProfitRatesUpdatedEvent(allPortfolios);
       sample.stop(profitRecalculationTimer());
       return;
     }
@@ -105,9 +105,15 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     // ③ 짧은 write 트랜잭션 — valuation 업데이트 후 커넥션 반환
     txHelper.updateValuations(portfolios, priceByStockId);
 
-    // ④ 짧은 read 트랜잭션 — 랭킹 집계용 전체 조회
-    List<PortfolioGroup> allPortfolios = txHelper.readAllPortfolios();
-    publishUserProfitRatesUpdatedEvent(allPortfolios);
+    Set<UUID> impactedUserIds = portfolios.stream()
+      .map(PortfolioGroup::getUserId)
+      .filter(Objects::nonNull)
+      .collect(Collectors.toCollection(HashSet::new));
+
+    // ④ 짧은 read 트랜잭션 — 랭킹 집계용 사용자 요약 조회
+    List<UserProfitSummaryRow> allSummaries = txHelper.readAllUserProfitSummaries();
+    Set<UUID> usersWithAssets = new HashSet<>(txHelper.readUserIdsWithAssets());
+    publishUserProfitRatesUpdatedEvent(allSummaries, usersWithAssets, impactedUserIds);
     sample.stop(profitRecalculationTimer());
   }
 
@@ -117,17 +123,18 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       .register(meterRegistry);
   }
 
-  private void publishUserProfitRatesUpdatedEvent(List<PortfolioGroup> portfolios) {
-    if (portfolios == null || portfolios.isEmpty()) {
+  private void publishUserProfitRatesUpdatedEvent(
+    List<UserProfitSummaryRow> summaries,
+    Set<UUID> usersWithAssets,
+    Set<UUID> impactedUserIds
+  ) {
+    if (summaries == null || summaries.isEmpty() || usersWithAssets == null || usersWithAssets.isEmpty()) {
       return;
     }
 
-    Map<UUID, List<PortfolioGroup>> portfoliosByUser = portfolios.stream()
-      .collect(Collectors.groupingBy(PortfolioGroup::getUserId));
-
-    Map<UUID, UserProfitSummary> summaries = buildUserSummaries(portfoliosByUser);
-    Map<UUID, String> userNamesByIds = getUserNamesByIds(summaries.keySet());
-    Map<UUID, CurrentUserProfitData> currentProfitDataByUser = buildCurrentProfitData(summaries, userNamesByIds);
+    Map<UUID, String> userNamesByIds = getUserNamesByIds(usersWithAssets);
+    Map<UUID, CurrentUserProfitData> currentProfitDataByUser =
+      buildCurrentProfitData(summaries, usersWithAssets, userNamesByIds);
     List<UserProfitRankingData> rankings = buildDailyRankings(currentProfitDataByUser);
     AllUserProfitRatesUpdatedEvent event = AllUserProfitRatesUpdatedEvent.builder()
       .rankings(rankings)
@@ -137,15 +144,7 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     eventPublisher.publishEvent(event);
     userProfitRankingAggregationService.aggregateRollingRankings(LocalDate.now(KST), currentProfitDataByUser);
 
-    publishCurrentReturnRateMetrics(summaries);
-  }
-
-  private Map<UUID, UserProfitSummary> buildUserSummaries(Map<UUID, List<PortfolioGroup>> portfoliosByUser) {
-    Map<UUID, UserProfitSummary> summaries = new HashMap<>();
-    for (Map.Entry<UUID, List<PortfolioGroup>> entry : portfoliosByUser.entrySet()) {
-      summaries.put(entry.getKey(), calculateUserProfitSummary(entry.getValue()));
-    }
-    return summaries;
+    publishCurrentReturnRateMetrics(currentProfitDataByUser, impactedUserIds);
   }
 
   private Map<UUID, String> getUserNamesByIds(Collection<UUID> userIds) {
@@ -157,22 +156,22 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   }
 
   private Map<UUID, CurrentUserProfitData> buildCurrentProfitData(
-    Map<UUID, UserProfitSummary> summaries,
+    List<UserProfitSummaryRow> summaries,
+    Set<UUID> usersWithAssets,
     Map<UUID, String> userNamesByIds
   ) {
     Map<UUID, CurrentUserProfitData> result = new HashMap<>();
-    for (Map.Entry<UUID, UserProfitSummary> entry : summaries.entrySet()) {
-      UserProfitSummary summary = entry.getValue();
-      if (!summary.hasAssets()) {
+    for (UserProfitSummaryRow summary : summaries) {
+      UUID userId = summary.userId();
+      if (userId == null || !usersWithAssets.contains(userId)) {
         continue;
       }
-      UUID userId = entry.getKey();
       result.put(userId, new CurrentUserProfitData(
         userId,
         userNamesByIds.get(userId),
-        summary.totalCurrentValue(),
-        summary.totalProfitLoss(),
-        summary.totalReturnRate()
+        defaultValue(summary.totalCurrentValue()),
+        defaultValue(summary.totalProfitLoss()),
+        calculateReturnRate(defaultValue(summary.totalProfitLoss()), purchaseAmountOf(summary))
       ));
     }
     return result;
@@ -191,51 +190,27 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
     return rankings;
   }
 
-  private void publishCurrentReturnRateMetrics(Map<UUID, UserProfitSummary> summaries) {
-    if (summaries == null || summaries.isEmpty()) {
+  private void publishCurrentReturnRateMetrics(
+    Map<UUID, CurrentUserProfitData> currentProfitDataByUser,
+    Set<UUID> impactedUserIds
+  ) {
+    if (currentProfitDataByUser == null || currentProfitDataByUser.isEmpty()
+      || impactedUserIds == null || impactedUserIds.isEmpty()) {
       return;
     }
     Instant occurredAt = Instant.now();
-    for (Map.Entry<UUID, UserProfitSummary> entry : summaries.entrySet()) {
-      UserProfitSummary summary = entry.getValue();
-      if (!summary.hasAssets()) {
+    for (UUID userId : impactedUserIds) {
+      CurrentUserProfitData currentUserProfitData = currentProfitDataByUser.get(userId);
+      if (currentUserProfitData == null) {
         continue;
       }
       gamificationEventProducer.publishUserMetricUpdatedEvent(UserMetricUpdatedEvent.builder()
-        .userId(entry.getKey().toString())
+        .userId(userId.toString())
         .eventType(MetricEventType.CURRENT_RETURN_RATE_UPDATED)
-        .delta(summary.totalReturnRate().doubleValue())
+        .delta(currentUserProfitData.totalReturnRate().doubleValue())
         .occurredAt(occurredAt)
         .build());
     }
-  }
-
-  private UserProfitSummary calculateUserProfitSummary(List<PortfolioGroup> portfolios) {
-    boolean hasAssets = portfolios.stream()
-      .flatMap(portfolio -> portfolio.getAssets().stream())
-      .findAny()
-      .isPresent();
-
-    if (!hasAssets) {
-      return new UserProfitSummary(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, false);
-    }
-
-    BigDecimal totalCurrentValue = portfolios.stream()
-      .map(PortfolioGroup::getValuation)
-      .filter(Objects::nonNull)
-      .map(valuation -> Objects.requireNonNullElse(valuation.getTotalCurrentValue(), BigDecimal.ZERO))
-      .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-    BigDecimal totalProfitLoss = portfolios.stream()
-      .map(PortfolioGroup::getValuation)
-      .filter(Objects::nonNull)
-      .map(valuation -> Objects.requireNonNullElse(valuation.getTotalProfitLoss(), BigDecimal.ZERO))
-      .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-    BigDecimal purchaseAmount = totalCurrentValue.subtract(totalProfitLoss);
-    BigDecimal totalReturnRate = calculateReturnRate(totalProfitLoss, purchaseAmount);
-
-    return new UserProfitSummary(totalCurrentValue, totalProfitLoss, totalReturnRate, true);
   }
 
   private BigDecimal calculateReturnRate(BigDecimal profitLoss, BigDecimal purchaseAmount) {
@@ -248,11 +223,11 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       .multiply(BigDecimal.valueOf(100));
   }
 
-  private record UserProfitSummary(
-    BigDecimal totalCurrentValue,
-    BigDecimal totalProfitLoss,
-    BigDecimal totalReturnRate,
-    boolean hasAssets
-  ) {
+  private BigDecimal purchaseAmountOf(UserProfitSummaryRow summary) {
+    return defaultValue(summary.totalCurrentValue()).subtract(defaultValue(summary.totalProfitLoss()));
+  }
+
+  private BigDecimal defaultValue(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 }

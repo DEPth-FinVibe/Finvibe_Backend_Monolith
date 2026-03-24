@@ -119,9 +119,10 @@ public class BatchPriceUpdateService {
   }
 
   private List<Long> filterSubscribedStockIds(List<Long> holdingStockIds) {
+    Set<Long> activeStockIds = Set.copyOf(currentStockWatcherRepository.findActiveStockIds());
     List<Long> subscribedStockIds = new ArrayList<>();
     for (Long stockId : holdingStockIds) {
-      if (currentStockWatcherRepository.existsByStockId(stockId)) {
+      if (activeStockIds.contains(stockId)) {
         subscribedStockIds.add(stockId);
       }
     }

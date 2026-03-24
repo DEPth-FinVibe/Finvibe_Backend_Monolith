@@ -1,7 +1,9 @@
 package depth.finvibe.modules.user.application.service;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -179,6 +181,11 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
         return user.getPersonalDetails().getNickname();
+    }
+
+    @Override
+    public Map<UUID, String> getNicknames(Collection<UUID> userIds) {
+        return userRepository.findNicknamesByIds(userIds);
     }
 
     @Override
