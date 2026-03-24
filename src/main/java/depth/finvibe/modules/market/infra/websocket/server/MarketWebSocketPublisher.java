@@ -2,8 +2,10 @@ package depth.finvibe.modules.market.infra.websocket.server;
 
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,8 @@ public class MarketWebSocketPublisher {
 
 	private io.micrometer.core.instrument.Counter serializationErrorCounter;
 	private io.micrometer.core.instrument.Counter eventsDispatchedCounter;
+	private io.micrometer.core.instrument.DistributionSummary fanoutRecipientsSummary;
+	private Timer fanoutDurationTimer;
 
 	@PostConstruct
 	public void initMetrics() {
@@ -61,6 +65,28 @@ public class MarketWebSocketPublisher {
 				.register(meterRegistry);
 		eventsDispatchedCounter = io.micrometer.core.instrument.Counter.builder("ws.events.dispatched")
 				.description("클라이언트에게 enqueue된 이벤트 총 건수")
+				.register(meterRegistry);
+		fanoutRecipientsSummary = io.micrometer.core.instrument.DistributionSummary.builder("ws.fanout.recipients")
+				.description("이벤트 1건당 fanout 수신자 수")
+				.baseUnit("recipients")
+				.publishPercentileHistogram()
+				.serviceLevelObjectives(1, 5, 10, 25, 50, 100, 250, 500, 1_000, 2_000, 5_000)
+				.register(meterRegistry);
+		fanoutDurationTimer = Timer.builder("ws.fanout.duration")
+				.description("이벤트 1건의 fanout 완료 시간")
+				.publishPercentileHistogram()
+				.serviceLevelObjectives(
+						Duration.ofMillis(1),
+						Duration.ofMillis(5),
+						Duration.ofMillis(10),
+						Duration.ofMillis(25),
+						Duration.ofMillis(50),
+						Duration.ofMillis(100),
+						Duration.ofMillis(250),
+						Duration.ofMillis(500),
+						Duration.ofSeconds(1),
+						Duration.ofSeconds(2)
+				)
 				.register(meterRegistry);
 	}
 
@@ -121,33 +147,40 @@ public class MarketWebSocketPublisher {
 			return;
 		}
 
+		fanoutRecipientsSummary.record(subscriberIds.length);
+		Timer.Sample sample = Timer.start(meterRegistry);
+
 		int chunkSize = Math.max(1, fanoutChunkSize);
 		int chunkCount = (int) Math.ceil((double) subscriberIds.length / chunkSize);
 		int parallelChunks = Math.max(1, Math.min(maxChunkParallelism, chunkCount));
 
-		if (chunkCount == 1 || parallelChunks == 1) {
-			eventsDispatchedCounter.increment(sendChunk(subscriberIds, 0, subscriberIds.length, message));
-			return;
-		}
-
-		List<Future<Integer>> activeFutures = new ArrayList<>(parallelChunks);
-		int dispatchedCount = 0;
-
-		for (int start = 0; start < subscriberIds.length; start += chunkSize) {
-			int end = Math.min(start + chunkSize, subscriberIds.length);
-			activeFutures.add(fanoutExecutor.submit(chunkTask(subscriberIds, start, end, message)));
-
-			if (activeFutures.size() >= parallelChunks) {
-				dispatchedCount += drainFirstFuture(activeFutures);
+		try {
+			if (chunkCount == 1 || parallelChunks == 1) {
+				eventsDispatchedCounter.increment(sendChunk(subscriberIds, 0, subscriberIds.length, message));
+				return;
 			}
-		}
 
-		for (Future<Integer> future : activeFutures) {
-			dispatchedCount += awaitChunk(future);
-		}
+			List<Future<Integer>> activeFutures = new ArrayList<>(parallelChunks);
+			int dispatchedCount = 0;
 
-		if (dispatchedCount > 0) {
-			eventsDispatchedCounter.increment(dispatchedCount);
+			for (int start = 0; start < subscriberIds.length; start += chunkSize) {
+				int end = Math.min(start + chunkSize, subscriberIds.length);
+				activeFutures.add(fanoutExecutor.submit(chunkTask(subscriberIds, start, end, message)));
+
+				if (activeFutures.size() >= parallelChunks) {
+					dispatchedCount += drainFirstFuture(activeFutures);
+				}
+			}
+
+			for (Future<Integer> future : activeFutures) {
+				dispatchedCount += awaitChunk(future);
+			}
+
+			if (dispatchedCount > 0) {
+				eventsDispatchedCounter.increment(dispatchedCount);
+			}
+		} finally {
+			sample.stop(fanoutDurationTimer);
 		}
 	}
 
