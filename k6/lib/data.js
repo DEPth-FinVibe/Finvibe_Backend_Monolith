@@ -30,13 +30,17 @@ const DEFAULT_IDS = {
 	tradeIds: [1],
 };
 
+const hasCustomIdsFile = Boolean(__ENV.IDS_FILE);
+const hasCustomCredentialsFile = Boolean(__ENV.TOKENS_FILE);
 const idsFilePath = __ENV.IDS_FILE || './k6/data/ids.sample.json';
 const credentialsFilePath = __ENV.TOKENS_FILE || './k6/data/tokens.sample.json';
 
-const idsPayload = new SharedArray('ids-payload', () => [readJsonFile(idsFilePath, () => DEFAULT_IDS)])[0];
-const credentialPayload = new SharedArray('credentials-payload', () =>
-	[readJsonFile(credentialsFilePath, () => ({ credentials: [] })).credentials || []]
-)[0];
+const idsPayload = new SharedArray('ids-payload', () => [
+	readJsonFile(idsFilePath, hasCustomIdsFile ? null : () => DEFAULT_IDS),
+])[0];
+const credentialPayload = new SharedArray('credentials-payload', () => [
+	(readJsonFile(credentialsFilePath, hasCustomCredentialsFile ? null : () => ({ credentials: [] })) || {}).credentials || [],
+])[0];
 
 function normalizeNumberArray(values, fallback) {
 	if (!Array.isArray(values) || values.length === 0) {
