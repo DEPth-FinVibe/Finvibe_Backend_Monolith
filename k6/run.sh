@@ -267,15 +267,18 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 if [ -n "$HOTKEY_LOAD_PROFILE" ]; then
   PROFILE_NAME="$HOTKEY_LOAD_PROFILE"
   K6_ENTRYPOINT="k6/hotkey/main.js"
+  REPORTS_DIR="k6/hotkey/reports"
 elif [ -n "$WS_LOAD_PROFILE" ]; then
   PROFILE_NAME="$WS_LOAD_PROFILE"
   K6_ENTRYPOINT="k6/ws-main.js"
+  REPORTS_DIR="k6/reports"
 else
   PROFILE_NAME="${LOAD_PROFILE:-smoke}"
   K6_ENTRYPOINT="k6/main.js"
+  REPORTS_DIR="k6/reports"
 fi
-mkdir -p k6/reports
-SUMMARY_FILE="k6/reports/${PROFILE_NAME}_${TIMESTAMP}.json"
+mkdir -p "$REPORTS_DIR"
+SUMMARY_FILE="$REPORTS_DIR/${PROFILE_NAME}_${TIMESTAMP}.json"
 export SUMMARY_OUTPUT_FILE="$SUMMARY_FILE"
 
 # k6 실행

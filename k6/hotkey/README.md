@@ -28,8 +28,8 @@
 - `HOTKEY_CHURN_ROUNDS`: churn 모드 subscribe/unsubscribe 반복 횟수 (기본 3)
 - `HOTKEY_HOLD_MS`: subscribe 이후 유지 시간(ms, 기본 2000)
 - `HOTKEY_WAIT_TIMEOUT_MS`: snapshot 대기 timeout(ms, 기본 8000)
-- `TOKENS_FILE`: credential JSON 파일 경로 (권장 `k6/data/tokens.json`, 기본 `./k6/data/tokens.sample.json`)
-- `IDS_FILE`: ID JSON 파일 경로 (권장 `k6/data/ids.json`, 기본 `./k6/data/ids.sample.json`)
+- `TOKENS_FILE`: credential JSON 파일 경로 (기존 `.env.ws-*`와 동일하게 `../data/tokens.json` 사용, loader는 `k6/data/tokens.json` 형식도 허용)
+- `IDS_FILE`: ID JSON 파일 경로 (기존 `.env.ws-*`와 동일하게 `../data/ids.json` 사용, loader는 `k6/data/ids.json` 형식도 허용)
 
 ## Hotkey Metrics
 
@@ -94,7 +94,9 @@ k6 run k6/hotkey/main.js
 
 ## Reporting
 
-hotkey 실행 요약 파일은 기존 흐름과 동일하게 `k6/reports/`를 재사용한다.
+hotkey 실행 결과는 `k6/hotkey/reports/` 아래로 따로 저장된다.
 
-- 이유: 기존 `run.sh`/`report.py` 와 충돌 없이 최소 변경으로 통합 가능
+- summary JSON: `k6/hotkey/reports/`
+- AI 보고서 markdown: summary JSON과 같은 디렉터리
+- 일반 REST / 기존 WebSocket 테스트는 계속 `k6/reports/`를 사용한다.
 - `SUMMARY_OUTPUT_FILE`을 직접 지정하면 원하는 경로로 override 가능

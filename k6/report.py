@@ -445,8 +445,8 @@ def main():
     header = build_report_header(profile, json_path)
     full_report = header + report_body
 
-    script_dir = Path(__file__).parent
-    reports_dir = script_dir / "reports"
+    summary_path = Path(json_path)
+    reports_dir = summary_path.parent
     output_path = save_report(full_report, profile, reports_dir)
 
     print(f"[4/4] 보고서 저장 완료!")

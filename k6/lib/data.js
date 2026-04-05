@@ -10,15 +10,46 @@ function readRequiredEnv(name) {
 	return value.trim();
 }
 
-function readJsonFile(path, fallbackFactory) {
-	try {
-		return JSON.parse(open(path));
-	} catch (error) {
-		if (fallbackFactory) {
-			return fallbackFactory();
-		}
-		throw new Error(`Unable to load JSON file "${path}": ${String(error)}`);
+function buildCandidatePaths(path) {
+	const normalized = String(path || '').trim();
+	if (!normalized) {
+		return [];
 	}
+
+	const candidates = [normalized];
+	if (normalized.startsWith('k6/')) {
+		candidates.push(normalized.replace(/^k6\//, '../'));
+	}
+	if (normalized.startsWith('./k6/')) {
+		candidates.push(normalized.replace(/^\.\/k6\//, '../'));
+	}
+	if (normalized.startsWith('../data/')) {
+		candidates.push(normalized.replace(/^\.\.\/data\//, 'k6/data/'));
+		candidates.push(normalized.replace(/^\.\.\/data\//, './k6/data/'));
+	}
+
+	return [...new Set(candidates)];
+}
+
+function readJsonFile(path, fallbackFactory) {
+	const candidates = buildCandidatePaths(path);
+	const errors = [];
+
+	for (const candidate of candidates) {
+		try {
+			return JSON.parse(open(candidate));
+		} catch (error) {
+			errors.push(`${candidate}: ${String(error)}`);
+		}
+	}
+
+	if (fallbackFactory) {
+		return fallbackFactory();
+	}
+
+	throw new Error(
+		`Unable to load JSON file "${path}". Tried: ${candidates.join(', ')}. Errors: ${errors.join(' | ')}`
+	);
 }
 
 const DEFAULT_IDS = {
