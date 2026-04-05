@@ -94,8 +94,9 @@ echo "============================================================"
 echo "1) REST API 테스트"
 echo "2) WebSocket 테스트  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "3) WebSocket 실시간 모니터링  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
+echo "4) Hotkey WebSocket 테스트  (subscribe 시점 집중 부하)"
 echo "============================================================"
-read -p "테스트 종류 선택 (1~3): " test_type
+read -p "테스트 종류 선택 (1~4): " test_type
 
 case $test_type in
   1)
@@ -216,8 +217,33 @@ case $test_type in
     "$VENV_PYTHON" k6/ws-watch.py
     exit $?
     ;;
+  4)
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  Hotkey WebSocket 프로파일  (subscribe 시점 집중 부하)"
+    echo "------------------------------------------------------------"
+    echo "0) hotkey-smoke  │  5분  │ 10 VU (고정)"
+    echo "   동일 topic 집중 subscribe의 기본 재현/연결/인증 검증"
+    echo ""
+    echo "1) hotkey-ramp   │ 15분  │ 10 → 50 → 120 VU"
+    echo "   subscribe ack/initial snapshot 지연 추이를 단계적으로 관찰"
+    echo ""
+    echo "2) hotkey-stress │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
+    echo "   subscribe 시점 병목과 실패율 증가 구간을 탐색"
+    echo "------------------------------------------------------------"
+    read -p "프로파일 선택 (0~2): " choice
+    case $choice in
+      0) ENV_FILE="k6/hotkey/.env.hotkey-smoke" ;;
+      1) ENV_FILE="k6/hotkey/.env.hotkey-ramp" ;;
+      2) ENV_FILE="k6/hotkey/.env.hotkey-stress" ;;
+      *)
+        echo "잘못된 선택입니다. 0~2 중 하나를 입력하세요."
+        exit 1
+        ;;
+    esac
+    ;;
   *)
-    echo "잘못된 선택입니다. 1~3 중 하나를 입력하세요."
+    echo "잘못된 선택입니다. 1~4 중 하나를 입력하세요."
     exit 1
     ;;
 esac
@@ -238,7 +264,10 @@ set +a
 # 결과 저장 경로 설정
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 # WS 프로파일은 WS_LOAD_PROFILE, HTTP 프로파일은 LOAD_PROFILE 사용
-if [ -n "$WS_LOAD_PROFILE" ]; then
+if [ -n "$HOTKEY_LOAD_PROFILE" ]; then
+  PROFILE_NAME="$HOTKEY_LOAD_PROFILE"
+  K6_ENTRYPOINT="k6/hotkey/main.js"
+elif [ -n "$WS_LOAD_PROFILE" ]; then
   PROFILE_NAME="$WS_LOAD_PROFILE"
   K6_ENTRYPOINT="k6/ws-main.js"
 else
