@@ -62,6 +62,10 @@ def is_ws_profile(profile: str) -> bool:
     return profile.startswith("ws-")
 
 
+def is_hotkey_profile(profile: str) -> bool:
+    return profile.startswith("hotkey-")
+
+
 def build_http_metrics_summary(data: dict) -> str:
     metrics = data.get("metrics", {})
     profile = data.get("profile", "unknown")
@@ -294,7 +298,152 @@ def build_ws_metrics_summary(data: dict) -> str:
     return "\n".join(lines)
 
 
+def build_hotkey_metrics_summary(data: dict) -> str:
+    metrics = data.get("metrics", {})
+    profile = data.get("profile", "unknown")
+    base_url = data.get("baseUrl", "unknown")
+    tokens_loaded = data.get("tokensLoaded", 0)
+    ids_summary = data.get("idStatsSummary", "unknown")
+
+    connect_rate = extract_metric(metrics, "ws_hotkey_connect_rate")
+    auth_rate = extract_metric(metrics, "ws_hotkey_auth_rate")
+    connect_fail = extract_metric(metrics, "ws_hotkey_connect_fail_count")
+    auth_fail = extract_metric(metrics, "ws_hotkey_auth_fail_count")
+    subscribe_fail = extract_metric(metrics, "ws_hotkey_subscribe_fail_count")
+    rejected_topics = extract_metric(metrics, "ws_hotkey_rejected_topic_count")
+    snapshot_miss = extract_metric(metrics, "ws_hotkey_snapshot_miss_count")
+    subscribe_ack = extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}") or extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms")
+    snapshot_latency = extract_metric(metrics, "ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_hotkey_subscribe}") or extract_metric(metrics, "ws_hotkey_initial_snapshot_latency_ms")
+    sessions = extract_metric(metrics, "ws_sessions")
+    disconnects = extract_metric(metrics, "ws_hotkey_disconnect_count")
+    ws_connecting = extract_metric(metrics, "ws_connecting")
+
+    lines = []
+    lines.append("## 테스트 기본 정보")
+    lines.append(f"- 프로파일: {profile}")
+    lines.append(f"- 대상 서버: {base_url}")
+    lines.append(f"- 로드된 토큰 수: {tokens_loaded}")
+    lines.append(f"- 로드된 ID 통계: {ids_summary}")
+    lines.append("")
+
+    lines.append("## Hotkey 핵심 지표")
+    if sessions:
+        v = sessions.get("values", {})
+        lines.append(f"- 총 세션 수: {int(v.get('count', 0)):,}")
+    if connect_rate:
+        v = connect_rate.get("values", {})
+        lines.append(f"- 연결 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if auth_rate:
+        v = auth_rate.get("values", {})
+        lines.append(f"- 인증 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if connect_fail:
+        v = connect_fail.get("values", {})
+        lines.append(f"- 연결 실패 수: {int(v.get('count', 0)):,}")
+    if auth_fail:
+        v = auth_fail.get("values", {})
+        lines.append(f"- 인증 실패 수: {int(v.get('count', 0)):,}")
+    if subscribe_fail:
+        v = subscribe_fail.get("values", {})
+        lines.append(f"- subscribe 실패 수: {int(v.get('count', 0)):,}")
+    if rejected_topics:
+        v = rejected_topics.get("values", {})
+        lines.append(f"- 거절된 topic 수: {int(v.get('count', 0)):,}")
+    if snapshot_miss:
+        v = snapshot_miss.get("values", {})
+        lines.append(f"- snapshot miss 수: {int(v.get('count', 0)):,}")
+    if disconnects:
+        v = disconnects.get("values", {})
+        lines.append(f"- disconnect 수: {int(v.get('count', 0)):,}")
+    lines.append("")
+
+    lines.append("## Subscribe Ack 지연")
+    if subscribe_ack:
+        v = subscribe_ack.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- p(95): {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p(99): {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## Initial Snapshot 지연")
+    if snapshot_latency:
+        v = snapshot_latency.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p(95): {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p(99): {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## 연결 수립 시간 (ws_connecting)")
+    if ws_connecting:
+        v = ws_connecting.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- p(95): {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p(99): {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## Threshold 통과/실패 현황")
+    threshold_lines = []
+    for metric_name, metric in metrics.items():
+        thresholds = metric.get("thresholds", {})
+        for threshold_name, threshold_result in thresholds.items():
+            ok = threshold_result.get("ok", False)
+            status = "✅ PASS" if ok else "❌ FAIL"
+            threshold_lines.append(f"- `{metric_name}` / `{threshold_name}`: {status}")
+    if threshold_lines:
+        lines.extend(threshold_lines)
+    else:
+        lines.append("- threshold 데이터 없음")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def build_prompt(metrics_summary: str, profile: str) -> str:
+    if is_hotkey_profile(profile):
+        return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Hotkey WebSocket 부하테스트 결과 데이터입니다.
+테스트 프로파일은 \"{profile}\"입니다.
+
+---
+{metrics_summary}
+---
+
+위 데이터를 바탕으로 한국어로 상세한 Hotkey WebSocket 부하테스트 분석 보고서를 마크다운 형식으로 작성해주세요.
+
+중요:
+- 이 보고서는 HTTP REST API 보고서가 아닙니다.
+- 공개/인증/헤비 REST API, 401/404 HTTP 에러, http_req_duration 같은 HTTP 중심 해석은 쓰지 마세요.
+- `tokensLoaded` 값만 보고 인증 실패라고 단정하지 마세요. 반드시 `ws_hotkey_auth_rate`, `ws_hotkey_auth_fail_count`, `ws_hotkey_connect_rate`, `ws_hotkey_subscribe_fail_count`를 함께 보고 판단하세요.
+- `ws_hotkey_auth_rate.rate`가 1에 가깝고 `ws_hotkey_auth_fail_count`가 0이면 인증 실패로 해석하지 마세요.
+- 분석 대상은 `/market/ws`를 통한 hotkey subscribe / initial snapshot 흐름입니다.
+
+보고서에 반드시 포함해야 할 항목:
+1. **테스트 요약** - 프로파일, 목적, 전체 결과(합격/불합격)
+2. **핵심 지표 분석**
+   - 연결 성공률, 인증 성공률
+   - subscribe ack latency 해석
+   - initial snapshot latency 해석
+   - snapshot miss / subscribe fail / rejected topic 유무 해석
+3. **Threshold 판정 결과** - 각 임계치 통과/실패 이유 설명
+4. **에러 및 이상 징후 분석**
+   - 연결 실패와 인증 실패를 구분
+   - tail latency가 긴 경우 snapshot 경로 관점에서 설명
+5. **병목 및 위험 구간**
+   - subscribe 직후 snapshot 경로에서 의심할 수 있는 병목 설명
+6. **개선 권고사항** - 구체적이고 실행 가능한 3~5가지
+7. **종합 평가** - hotkey subscribe 경로 관점의 한 줄 판정
+
+마크다운 헤더(#, ##, ###), 표를 적절히 활용해 가독성 높게 작성하세요.
+"""
+
     if is_ws_profile(profile):
         return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 WebSocket 부하테스트 결과 데이터입니다.
 테스트 프로파일은 "{profile}"입니다.
@@ -431,7 +580,9 @@ def main():
     profile = sys.argv[2] if len(sys.argv) > 2 else data.get("profile", "unknown")
 
     print("[2/4] 지표 데이터 가공 중...")
-    if is_ws_profile(profile):
+    if is_hotkey_profile(profile):
+        metrics_summary = build_hotkey_metrics_summary(data)
+    elif is_ws_profile(profile):
         metrics_summary = build_ws_metrics_summary(data)
     else:
         metrics_summary = build_http_metrics_summary(data)

@@ -4,7 +4,6 @@ import { issueTokensFromCredentials } from '../lib/auth.js';
 import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
 
 const profileName = hotkeyLoadProfileName();
-let issuedTokenCount = 0;
 
 export const options = {
 	scenarios: getHotkeyScenarios(profileName),
@@ -18,7 +17,6 @@ export function setup() {
 		sharedRuntimeData.baseUrl,
 		sharedRuntimeData.credentials
 	);
-	issuedTokenCount = authTokens.length;
 	const wsStockPool = pickWsStockPool();
 	const hotkeyOptions = resolveHotkeyRuntimeOptions(wsStockPool);
 
@@ -58,13 +56,14 @@ export default function (data) {
 }
 
 export function handleSummary(data) {
+	const tokensLoaded = sharedRuntimeData.credentials.length;
 	const result = {
 		stdout: [
 			'',
 			'k6 WebSocket hotkey subscribe test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,
-			`tokensLoaded: ${issuedTokenCount}`,
+			`tokensLoaded: ${tokensLoaded}`,
 			`idsLoaded: ${sharedRuntimeData.idStatsSummary}`,
 			JSON.stringify(data.metrics, null, 2),
 			'',
@@ -77,7 +76,7 @@ export function handleSummary(data) {
 			{
 				profile: profileName,
 				baseUrl: sharedRuntimeData.baseUrl,
-				tokensLoaded: issuedTokenCount,
+				tokensLoaded: tokensLoaded,
 				idStatsSummary: sharedRuntimeData.idStatsSummary,
 				metrics: data.metrics,
 				thresholds: data.thresholds,
