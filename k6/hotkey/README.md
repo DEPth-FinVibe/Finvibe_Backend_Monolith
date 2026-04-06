@@ -30,6 +30,8 @@
 
 - `BASE_URL`: 테스트 대상 서버 주소
 
+장 마감 시간에도 current-price 관련 테스트를 유지하려면 서버를 `mock-market` 프로파일로 실행해 테스트용 `RealMarketClient`를 사용하면 된다. 이 경우 k6 명령은 그대로 유지된다.
+
 ## Optional Environment Variables
 
 - `HOTKEY_LOAD_PROFILE`: `hotkey-smoke`, `hotkey-ramp`, `hotkey-stress`, `hotkey-cache-smoke`, `hotkey-cache-ramp`, `hotkey-cache-stress` (기본 `hotkey-smoke`)

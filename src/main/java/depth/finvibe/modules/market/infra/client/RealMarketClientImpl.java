@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.application.port.out.RealMarketClient;
@@ -36,6 +37,7 @@ import depth.finvibe.common.error.DomainException;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "market.provider", havingValue = "kis", matchIfMissing = true)
 public class RealMarketClientImpl implements RealMarketClient {
 
     private static final int DAILY_CHART_BATCH_LIMIT = 100;

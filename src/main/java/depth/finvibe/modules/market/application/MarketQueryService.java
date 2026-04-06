@@ -29,6 +29,7 @@ import depth.finvibe.common.error.DomainException;
 import depth.finvibe.common.investment.lock.DistributedLockManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +59,8 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final DistributedLockManager distributedLockManager;
     private final HolidayCalendarService holidayCalendarService;
     private final MeterRegistry meterRegistry;
+    @Value("${market.provider:kis}")
+    private String marketProvider;
 
     @Override
     @Transactional
@@ -278,7 +281,7 @@ public class MarketQueryService implements MarketQueryUseCase {
         String result = "unknown";
 
         try {
-            if (MarketHours.getCurrentStatus() == MarketStatus.CLOSED) {
+            if (MarketHours.getCurrentStatus() == MarketStatus.CLOSED && !isMockProvider()) {
                 List<ClosingPriceDto.Response> closingPrices = getClosingPrices(List.of(stockId));
                 if (!closingPrices.isEmpty()) {
                     result = "market_closed";
@@ -313,6 +316,10 @@ public class MarketQueryService implements MarketQueryUseCase {
                             .register(meterRegistry)
             );
         }
+    }
+
+    private boolean isMockProvider() {
+        return "mock".equalsIgnoreCase(marketProvider);
     }
 
     @Override
