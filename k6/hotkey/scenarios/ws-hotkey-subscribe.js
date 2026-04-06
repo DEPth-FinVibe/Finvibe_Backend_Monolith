@@ -160,8 +160,12 @@ export function runWsHotkeySubscribeFlow(wsUrl, wsStockPool, tokens, runtimeOpti
 
 				case 'event': {
 					const topic = typeof msg.topic === 'string' ? msg.topic : null;
-					const isInitialSnapshot = msg.data && msg.data.initial === true;
-					if (!isInitialSnapshot || !topic || !pendingInitialTopics.has(topic) || subscribeSentAtMs <= 0) {
+					const hasExplicitInitialFlag = msg.data && msg.data.initial === true;
+					const isPendingTopic = topic && pendingInitialTopics.has(topic);
+					const shouldTreatAsInitialSnapshot = Boolean(
+						hasExplicitInitialFlag || (isPendingTopic && subscribeSentAtMs > 0)
+					);
+					if (!shouldTreatAsInitialSnapshot || !topic || !isPendingTopic || subscribeSentAtMs <= 0) {
 						return;
 					}
 

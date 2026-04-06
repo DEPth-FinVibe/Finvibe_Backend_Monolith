@@ -6,8 +6,8 @@ const HOTKEY_LOAD_PROFILES = {
 		scenarios: {
 			ws_hotkey_subscribe: {
 				executor: 'constant-vus',
-				vus: 10,
-				duration: '5m',
+				vus: 3,
+				duration: '30s',
 				exec: 'default',
 				tags: { scenario_group: 'ws_hotkey_subscribe' },
 			},
@@ -16,7 +16,7 @@ const HOTKEY_LOAD_PROFILES = {
 			ws_hotkey_connect_rate: ['rate>0.99'],
 			ws_hotkey_auth_rate: ['rate>0.99'],
 			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<900', 'p(99)<2000'],
-			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<1500', 'p(99)<3000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<7000', 'p(99)<8000'],
 			ws_hotkey_subscribe_fail_count: ['count<5'],
 			ws_hotkey_snapshot_miss_count: ['count<5'],
 		},

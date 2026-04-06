@@ -43,9 +43,11 @@
 
 ## Profiles
 
-- `hotkey-smoke`: 10 VU 고정, 5분
+- `hotkey-smoke`: 3 VU 고정, 30초
 - `hotkey-ramp`: 10 → 50 → 120 VU, 15분
 - `hotkey-stress`: 20 → 120 → 300 → 500 → 700 VU, 16분
+
+`hotkey-smoke`는 성능 상한 측정보다 **구독 흐름 정상성(connect/auth/subscribe/snapshot miss 없음)** 확인에 맞춘 sanity 프로파일이다.
 
 ## Example Commands
 
