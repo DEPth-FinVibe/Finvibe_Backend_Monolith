@@ -1,5 +1,7 @@
 package depth.finvibe.modules.market.application;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
@@ -55,6 +57,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final StockRepository stockRepository;
     private final DistributedLockManager distributedLockManager;
     private final HolidayCalendarService holidayCalendarService;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional
@@ -271,28 +274,45 @@ public class MarketQueryService implements MarketQueryUseCase {
     @Override
     @Transactional
     public Long getStockPriceInternal(Long stockId) {
-        if (MarketHours.getCurrentStatus() == MarketStatus.CLOSED) {
-            List<ClosingPriceDto.Response> closingPrices = getClosingPrices(List.of(stockId));
-            if (!closingPrices.isEmpty()) {
-                return closingPrices.getFirst().getClose().longValue();
+        Timer.Sample sample = Timer.start(meterRegistry);
+        String result = "unknown";
+
+        try {
+            if (MarketHours.getCurrentStatus() == MarketStatus.CLOSED) {
+                List<ClosingPriceDto.Response> closingPrices = getClosingPrices(List.of(stockId));
+                if (!closingPrices.isEmpty()) {
+                    result = "market_closed";
+                    return closingPrices.getFirst().getClose().longValue();
+                }
+                result = "market_closed_empty";
+                throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
             }
+
+            List<CurrentPrice> currentPrices = currentPriceRepository.findByStockIds(List.of(stockId));
+            if (!currentPrices.isEmpty()) {
+                result = "hit";
+                return currentPrices.getFirst().getClose().longValue();
+            }
+
+            Stock stock = stockRepository.findById(stockId)
+                    .orElseThrow(() -> new DomainException(MarketErrorCode.STOCK_NOT_FOUND));
+
+            List<PriceCandleDto.Response> snapshots = realMarketClient.bulkFetchCurrentPrices(List.of(stock.getSymbol()));
+            if (!snapshots.isEmpty()) {
+                result = "miss";
+                return snapshots.getFirst().getClose().longValue();
+            }
+
+            result = "miss_empty";
             throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
+        } finally {
+            meterRegistry.counter("market.current_price.cache.requests", "result", result).increment();
+            sample.stop(
+                    Timer.builder("market.current_price.cache.read.duration")
+                            .tag("result", result)
+                            .register(meterRegistry)
+            );
         }
-
-        List<CurrentPrice> currentPrices = currentPriceRepository.findByStockIds(List.of(stockId));
-        if (!currentPrices.isEmpty()) {
-            return currentPrices.getFirst().getClose().longValue();
-        }
-
-        Stock stock = stockRepository.findById(stockId)
-                .orElseThrow(() -> new DomainException(MarketErrorCode.STOCK_NOT_FOUND));
-
-        List<PriceCandleDto.Response> snapshots = realMarketClient.bulkFetchCurrentPrices(List.of(stock.getSymbol()));
-        if (!snapshots.isEmpty()) {
-            return snapshots.getFirst().getClose().longValue();
-        }
-
-        throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
     }
 
     @Override
