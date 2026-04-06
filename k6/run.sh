@@ -239,8 +239,17 @@ case $test_type in
     echo ""
     echo "5) hotkey-cache-stress  │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
     echo "   cache-read stress: Redis current-price hot key 한계 구간 탐색"
+    echo ""
+    echo "6) redis-spike-smoke    │ 45초  │ read 5 VU + churn 5 VU"
+    echo "   mixed sanity: current-price 반복 조회 + websocket churn 동시 부하"
+    echo ""
+    echo "7) redis-spike-ramp     │  8분  │ read 10→80→200 / churn 5→50→120 VU"
+    echo "   mixed ramp: 단일 Redis 서버 지연/실패 징후 관찰"
+    echo ""
+    echo "8) redis-spike-stress   │  8분  │ read 20→150→350→500 / churn 10→80→200→300 VU"
+    echo "   mixed stress: latency collapse, error surge, OOM 전조 탐색"
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~5): " choice
+    read -p "프로파일 선택 (0~8): " choice
     case $choice in
       0) ENV_FILE="k6/hotkey/.env.hotkey-smoke" ;;
       1) ENV_FILE="k6/hotkey/.env.hotkey-ramp" ;;
@@ -248,8 +257,11 @@ case $test_type in
       3) ENV_FILE="k6/hotkey/.env.hotkey-cache-smoke" ;;
       4) ENV_FILE="k6/hotkey/.env.hotkey-cache-ramp" ;;
       5) ENV_FILE="k6/hotkey/.env.hotkey-cache-stress" ;;
+      6) ENV_FILE="k6/hotkey/.env.redis-spike-smoke" ;;
+      7) ENV_FILE="k6/hotkey/.env.redis-spike-ramp" ;;
+      8) ENV_FILE="k6/hotkey/.env.redis-spike-stress" ;;
       *)
-        echo "잘못된 선택입니다. 0~5 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~8 중 하나를 입력하세요."
         exit 1
         ;;
     esac

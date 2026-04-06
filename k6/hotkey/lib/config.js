@@ -21,6 +21,21 @@ function buildSubscribeScenario(executorConfig) {
 	};
 }
 
+function buildRedisSpikeScenarios(readExecutorConfig, writeExecutorConfig) {
+	return {
+		http_hotkey_cache_read: {
+			...readExecutorConfig,
+			exec: 'cacheRead',
+			tags: { scenario_group: 'hotkey_cache_read', test_kind: 'redis_spike' },
+		},
+		ws_hotkey_subscribe: {
+			...writeExecutorConfig,
+			exec: 'default',
+			tags: { scenario_group: 'ws_hotkey_subscribe', test_kind: 'redis_spike' },
+		},
+	};
+}
+
 const HOTKEY_LOAD_PROFILES = {
 	'hotkey-smoke': {
 		scenarios: buildSubscribeScenario({
@@ -126,6 +141,103 @@ const HOTKEY_LOAD_PROFILES = {
 			hotkey_cache_read_rate: ['rate>0.98'],
 			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1000', 'p(99)<2500'],
 			hotkey_cache_read_fail_count: ['count<100'],
+		},
+	},
+
+	'redis-spike-smoke': {
+		scenarios: buildRedisSpikeScenarios(
+			{
+				executor: 'constant-vus',
+				vus: 5,
+				duration: '45s',
+			},
+			{
+				executor: 'constant-vus',
+				vus: 5,
+				duration: '45s',
+			}
+		),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.99'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<700', 'p(99)<1500'],
+			hotkey_cache_read_fail_count: ['count<10'],
+			ws_hotkey_connect_rate: ['rate>0.99'],
+			ws_hotkey_auth_rate: ['rate>0.99'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<1200', 'p(99)<2500'],
+			ws_hotkey_subscribe_fail_count: ['count<10'],
+			ws_hotkey_snapshot_miss_count: ['count<10'],
+		},
+	},
+
+	'redis-spike-ramp': {
+		scenarios: buildRedisSpikeScenarios(
+			{
+				executor: 'ramping-vus',
+				startVUs: 10,
+				stages: [
+					{ target: 10, duration: '2m' },
+					{ target: 80, duration: '2m' },
+					{ target: 200, duration: '90s' },
+					{ target: 20, duration: '90s' },
+				],
+			},
+			{
+				executor: 'ramping-vus',
+				startVUs: 5,
+				stages: [
+					{ target: 5, duration: '2m' },
+					{ target: 50, duration: '2m' },
+					{ target: 120, duration: '90s' },
+					{ target: 10, duration: '90s' },
+				],
+			}
+		),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.98'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1200', 'p(99)<2500'],
+			hotkey_cache_read_fail_count: ['count<50'],
+			ws_hotkey_connect_rate: ['rate>0.98'],
+			ws_hotkey_auth_rate: ['rate>0.98'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<1800', 'p(99)<3500'],
+			ws_hotkey_subscribe_fail_count: ['count<50'],
+			ws_hotkey_snapshot_miss_count: ['count<50'],
+		},
+	},
+
+	'redis-spike-stress': {
+		scenarios: buildRedisSpikeScenarios(
+			{
+				executor: 'ramping-vus',
+				startVUs: 20,
+				stages: [
+					{ target: 20, duration: '1m' },
+					{ target: 150, duration: '2m' },
+					{ target: 350, duration: '2m' },
+					{ target: 500, duration: '2m' },
+					{ target: 30, duration: '1m' },
+				],
+			},
+			{
+				executor: 'ramping-vus',
+				startVUs: 10,
+				stages: [
+					{ target: 10, duration: '1m' },
+					{ target: 80, duration: '2m' },
+					{ target: 200, duration: '2m' },
+					{ target: 300, duration: '2m' },
+					{ target: 20, duration: '1m' },
+				],
+			}
+		),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<2000', 'p(99)<4000'],
+			hotkey_cache_read_fail_count: ['count<200'],
+			ws_hotkey_connect_rate: ['rate>0.95'],
+			ws_hotkey_auth_rate: ['rate>0.95'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<2500', 'p(99)<5000'],
+			ws_hotkey_subscribe_fail_count: ['count<200'],
+			ws_hotkey_snapshot_miss_count: ['count<200'],
 		},
 	},
 };

@@ -70,6 +70,10 @@ def is_hotkey_cache_profile(profile: str) -> bool:
     return profile.startswith("hotkey-cache-")
 
 
+def is_redis_spike_profile(profile: str) -> bool:
+    return profile.startswith("redis-spike-")
+
+
 def build_http_metrics_summary(data: dict) -> str:
     metrics = data.get("metrics", {})
     profile = data.get("profile", "unknown")
@@ -465,7 +469,110 @@ def build_hotkey_cache_metrics_summary(data: dict) -> str:
     return "\n".join(lines)
 
 
+def build_redis_spike_metrics_summary(data: dict) -> str:
+    metrics = data.get("metrics", {})
+    profile = data.get("profile", "unknown")
+    base_url = data.get("baseUrl", "unknown")
+    tokens_loaded = data.get("tokensLoaded", 0)
+    ids_summary = data.get("idStatsSummary", "unknown")
+
+    cache_rate = extract_metric(metrics, "hotkey_cache_read_rate")
+    cache_fail = extract_metric(metrics, "hotkey_cache_read_fail_count")
+    cache_latency = extract_metric(metrics, "hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}") or extract_metric(metrics, "hotkey_cache_read_latency_ms")
+    connect_rate = extract_metric(metrics, "ws_hotkey_connect_rate")
+    auth_rate = extract_metric(metrics, "ws_hotkey_auth_rate")
+    subscribe_fail = extract_metric(metrics, "ws_hotkey_subscribe_fail_count")
+    snapshot_miss = extract_metric(metrics, "ws_hotkey_snapshot_miss_count")
+    subscribe_ack = extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_hotkey_subscribe}") or extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms")
+
+    lines = []
+    lines.append("## 테스트 기본 정보")
+    lines.append(f"- 프로파일: {profile}")
+    lines.append(f"- 대상 서버: {base_url}")
+    lines.append(f"- 로드된 토큰 수: {tokens_loaded}")
+    lines.append(f"- 로드된 ID 통계: {ids_summary}")
+    lines.append("")
+
+    lines.append("## Read Pressure (current-price cache-read)")
+    if cache_rate:
+        v = cache_rate.get("values", {})
+        lines.append(f"- read 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if cache_fail:
+        v = cache_fail.get("values", {})
+        lines.append(f"- read 실패 수: {int(v.get('count', 0)):,}")
+    if cache_latency:
+        v = cache_latency.get("values", {})
+        lines.append(f"- read latency avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- read latency p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- read latency p99: {fmt_ms(v.get('p(99)'))}")
+    lines.append("")
+
+    lines.append("## Write-ish Pressure (websocket churn)")
+    if connect_rate:
+        v = connect_rate.get("values", {})
+        lines.append(f"- ws connect 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if auth_rate:
+        v = auth_rate.get("values", {})
+        lines.append(f"- ws auth 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if subscribe_fail:
+        v = subscribe_fail.get("values", {})
+        lines.append(f"- subscribe 실패 수: {int(v.get('count', 0)):,}")
+    if snapshot_miss:
+        v = snapshot_miss.get("values", {})
+        lines.append(f"- first-event miss 수: {int(v.get('count', 0)):,}")
+    if subscribe_ack:
+        v = subscribe_ack.get("values", {})
+        lines.append(f"- subscribe ack p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- subscribe ack p99: {fmt_ms(v.get('p(99)'))}")
+    lines.append("")
+
+    lines.append("## Threshold 통과/실패 현황")
+    threshold_lines = []
+    for metric_name, metric in metrics.items():
+        thresholds = metric.get("thresholds", {})
+        for threshold_name, threshold_result in thresholds.items():
+            ok = threshold_result.get("ok", False)
+            status = "✅ PASS" if ok else "❌ FAIL"
+            threshold_lines.append(f"- `{metric_name}` / `{threshold_name}`: {status}")
+    if threshold_lines:
+        lines.extend(threshold_lines)
+    else:
+        lines.append("- threshold 데이터 없음")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def build_prompt(metrics_summary: str, profile: str) -> str:
+    if is_redis_spike_profile(profile):
+        return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Redis mixed spike 테스트 결과 데이터입니다.
+테스트 프로파일은 \"{profile}\"입니다.
+
+---
+{metrics_summary}
+---
+
+위 데이터를 바탕으로 한국어로 상세한 Redis mixed spike 분석 보고서를 마크다운 형식으로 작성해주세요.
+
+중요:
+- 이 보고서는 단일 Redis 서버에 read + write-ish pressure를 동시에 준 테스트입니다.
+- read pressure는 `/market/stocks/{{stockId}}/current-price` 반복 조회입니다.
+- write-ish pressure는 websocket churn(subscribe/unsubscribe 반복)입니다.
+- 분석 시 read latency와 websocket churn 실패/지연을 분리해서 설명하세요.
+- OOM/eviction/Redis server distress는 k6 결과만으로 확정하지 말고, 외부 Redis 관측(used_memory, evicted_keys, latency monitor, connected_clients) 필요성을 분명히 쓰세요.
+
+보고서에 반드시 포함해야 할 항목:
+1. **테스트 요약** - 프로파일, 목적, 전체 결과(합격/불합격)
+2. **Read pressure 분석** - current-price latency / 실패율
+3. **Write-ish pressure 분석** - websocket churn connect/auth/subscribe/first-event
+4. **Threshold 판정 결과** - 각 임계치 통과/실패 이유 설명
+5. **Redis distress 징후 해석** - latency 상승, failure surge, external Redis metrics 필요성
+6. **개선 권고사항** - 구체적이고 실행 가능한 3~5가지
+7. **종합 평가** - 단일 Redis 서버 spike 관점의 한 줄 판정
+
+마크다운 헤더(#, ##, ###), 표를 적절히 활용해 가독성 높게 작성하세요.
+"""
+
     if is_hotkey_cache_profile(profile):
         return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Redis current-price cache hotkey 테스트 결과 데이터입니다.
 테스트 프로파일은 \"{profile}\"입니다.
@@ -670,7 +777,9 @@ def main():
     profile = sys.argv[2] if len(sys.argv) > 2 else data.get("profile", "unknown")
 
     print("[2/4] 지표 데이터 가공 중...")
-    if is_hotkey_cache_profile(profile):
+    if is_redis_spike_profile(profile):
+        metrics_summary = build_redis_spike_metrics_summary(data)
+    elif is_hotkey_cache_profile(profile):
         metrics_summary = build_hotkey_cache_metrics_summary(data)
     elif is_hotkey_profile(profile):
         metrics_summary = build_hotkey_metrics_summary(data)

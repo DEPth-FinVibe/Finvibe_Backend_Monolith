@@ -10,6 +10,10 @@ function isCacheReadProfile() {
 	return profileName.startsWith('hotkey-cache-');
 }
 
+function isRedisSpikeProfile() {
+	return profileName.startsWith('redis-spike-');
+}
+
 export const options = {
 	scenarios: getHotkeyScenarios(profileName),
 	thresholds: getHotkeyThresholds(profileName),
@@ -28,7 +32,7 @@ export function setup() {
 		? wsStockPool.slice(0, Math.min(hotkeyOptions.distributedTopicCount, wsStockPool.length)).map((id) => Number(id))
 		: [Number(hotkeyOptions.hotStockId)];
 
-	if (isCacheReadProfile()) {
+	if (isCacheReadProfile() || isRedisSpikeProfile()) {
 		prewarmCurrentPriceCache(targetStockIds);
 	}
 
@@ -76,14 +80,23 @@ export default function (data) {
 	);
 }
 
+export function cacheRead(data) {
+	runHotkeyCacheReadFlow(
+		data?.targetStockIds || data?.wsStockPool || [],
+		data?.hotkeyOptions
+	);
+}
+
 export function handleSummary(data) {
 	const tokensLoaded = sharedRuntimeData.credentials.length;
 	const result = {
 		stdout: [
 			'',
-			isCacheReadProfile()
-				? 'k6 hotkey cache-read test summary'
-				: 'k6 WebSocket hotkey subscribe test summary',
+			isRedisSpikeProfile()
+				? 'k6 redis spike mixed test summary'
+				: isCacheReadProfile()
+					? 'k6 hotkey cache-read test summary'
+					: 'k6 WebSocket hotkey subscribe test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,
 			`tokensLoaded: ${tokensLoaded}`,
