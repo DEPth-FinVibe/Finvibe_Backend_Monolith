@@ -53,6 +53,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 k6/reports/
+k6/hotkey/reports/
 
 ### Backup / temp files ###
 *.backup
