@@ -76,6 +76,14 @@ public class MarketController {
         return ResponseEntity.ok(marketQueryUseCase.getStockById(stockId));
     }
 
+    @GetMapping("/stocks/{stockId}/current-price")
+    @Operation(summary = "종목 현재가 조회", description = "종목 ID로 현재가를 조회합니다. 현재가 캐시에 값이 있으면 캐시를 사용합니다.")
+    public ResponseEntity<Long> getCurrentPrice(
+            @Parameter(description = "종목 ID", example = "1") @PathVariable Long stockId
+    ) {
+        return ResponseEntity.ok(marketQueryUseCase.getStockPriceInternal(stockId));
+    }
+
     @GetMapping("/indexes/{indexType}/candles")
     @Operation(summary = "지수 캔들 조회", description = "코스피/코스닥 지수 캔들 데이터를 캐시에서 조회합니다.")
     public ResponseEntity<List<PriceCandleDto.Response>> getIndexCandles(

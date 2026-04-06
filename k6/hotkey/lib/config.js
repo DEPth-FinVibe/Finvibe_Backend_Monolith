@@ -1,17 +1,33 @@
 const DEFAULT_SCENARIO_MODE = 'hot-key';
 const ALLOWED_SCENARIO_MODES = ['hot-key', 'baseline', 'churn'];
 
+function buildCacheReadScenario(executorConfig) {
+	return {
+		http_hotkey_cache_read: {
+			...executorConfig,
+			exec: 'default',
+			tags: { scenario_group: 'hotkey_cache_read' },
+		},
+	};
+}
+
+function buildSubscribeScenario(executorConfig) {
+	return {
+		ws_hotkey_subscribe: {
+			...executorConfig,
+			exec: 'default',
+			tags: { scenario_group: 'ws_hotkey_subscribe' },
+		},
+	};
+}
+
 const HOTKEY_LOAD_PROFILES = {
 	'hotkey-smoke': {
-		scenarios: {
-			ws_hotkey_subscribe: {
-				executor: 'constant-vus',
-				vus: 3,
-				duration: '30s',
-				exec: 'default',
-				tags: { scenario_group: 'ws_hotkey_subscribe' },
-			},
-		},
+		scenarios: buildSubscribeScenario({
+			executor: 'constant-vus',
+			vus: 3,
+			duration: '30s',
+		}),
 		thresholds: {
 			ws_hotkey_connect_rate: ['rate>0.99'],
 			ws_hotkey_auth_rate: ['rate>0.99'],
@@ -23,19 +39,15 @@ const HOTKEY_LOAD_PROFILES = {
 	},
 
 	'hotkey-ramp': {
-		scenarios: {
-			ws_hotkey_subscribe: {
-				executor: 'ramping-vus',
-				startVUs: 10,
-				stages: [
-					{ target: 10, duration: '2m' },
-					{ target: 50, duration: '5m' },
-					{ target: 120, duration: '8m' },
-				],
-				exec: 'default',
-				tags: { scenario_group: 'ws_hotkey_subscribe' },
-			},
-		},
+		scenarios: buildSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 10,
+			stages: [
+				{ target: 10, duration: '2m' },
+				{ target: 50, duration: '5m' },
+				{ target: 120, duration: '8m' },
+			],
+		}),
 		thresholds: {
 			ws_hotkey_connect_rate: ['rate>0.98'],
 			ws_hotkey_auth_rate: ['rate>0.98'],
@@ -47,21 +59,17 @@ const HOTKEY_LOAD_PROFILES = {
 	},
 
 	'hotkey-stress': {
-		scenarios: {
-			ws_hotkey_subscribe: {
-				executor: 'ramping-vus',
-				startVUs: 20,
-				stages: [
-					{ target: 20, duration: '1m' },
-					{ target: 120, duration: '3m' },
-					{ target: 300, duration: '4m' },
-					{ target: 500, duration: '4m' },
-					{ target: 700, duration: '4m' },
-				],
-				exec: 'default',
-				tags: { scenario_group: 'ws_hotkey_subscribe' },
-			},
-		},
+		scenarios: buildSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 20,
+			stages: [
+				{ target: 20, duration: '1m' },
+				{ target: 120, duration: '3m' },
+				{ target: 300, duration: '4m' },
+				{ target: 500, duration: '4m' },
+				{ target: 700, duration: '4m' },
+			],
+		}),
 		thresholds: {
 			ws_hotkey_connect_rate: ['rate>0.95'],
 			ws_hotkey_auth_rate: ['rate>0.95'],
@@ -69,6 +77,55 @@ const HOTKEY_LOAD_PROFILES = {
 			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_hotkey_subscribe}': ['p(95)<4000', 'p(99)<8000'],
 			ws_hotkey_subscribe_fail_count: ['count<100'],
 			ws_hotkey_snapshot_miss_count: ['count<100'],
+		},
+	},
+
+	'hotkey-cache-smoke': {
+		scenarios: buildCacheReadScenario({
+			executor: 'constant-vus',
+			vus: 5,
+			duration: '30s',
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.99'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<1000'],
+			hotkey_cache_read_fail_count: ['count<5'],
+		},
+	},
+
+	'hotkey-cache-ramp': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-vus',
+			startVUs: 10,
+			stages: [
+				{ target: 10, duration: '2m' },
+				{ target: 50, duration: '5m' },
+				{ target: 120, duration: '8m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.99'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<700', 'p(99)<1500'],
+			hotkey_cache_read_fail_count: ['count<20'],
+		},
+	},
+
+	'hotkey-cache-stress': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-vus',
+			startVUs: 20,
+			stages: [
+				{ target: 20, duration: '1m' },
+				{ target: 120, duration: '3m' },
+				{ target: 300, duration: '4m' },
+				{ target: 500, duration: '4m' },
+				{ target: 700, duration: '4m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.98'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1000', 'p(99)<2500'],
+			hotkey_cache_read_fail_count: ['count<100'],
 		},
 	},
 };

@@ -94,7 +94,7 @@ echo "============================================================"
 echo "1) REST API 테스트"
 echo "2) WebSocket 테스트  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "3) WebSocket 실시간 모니터링  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
-echo "4) Hotkey WebSocket 테스트  (subscribe 시점 집중 부하)"
+echo "4) Hotkey 테스트  (subscribe-init / cache-read)"
 echo "============================================================"
 read -p "테스트 종류 선택 (1~4): " test_type
 
@@ -220,24 +220,36 @@ case $test_type in
   4)
     echo ""
     echo "------------------------------------------------------------"
-    echo "  Hotkey WebSocket 프로파일  (subscribe 시점 집중 부하)"
+    echo "  Hotkey 프로파일"
     echo "------------------------------------------------------------"
-    echo "0) hotkey-smoke  │  5분  │ 10 VU (고정)"
-    echo "   동일 topic 집중 subscribe의 기본 재현/연결/인증 검증"
+    echo "0) hotkey-smoke         │ 30초  │   3 VU (고정)"
+    echo "   subscribe-init sanity: 동일 topic 집중 subscribe의 기본 재현/연결/인증 검증"
     echo ""
-    echo "1) hotkey-ramp   │ 15분  │ 10 → 50 → 120 VU"
-    echo "   subscribe ack/initial snapshot 지연 추이를 단계적으로 관찰"
+    echo "1) hotkey-ramp          │ 15분  │ 10 → 50 → 120 VU"
+    echo "   subscribe-init ramp: subscribe ack / first-event 지연 추이 관찰"
     echo ""
-    echo "2) hotkey-stress │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
-    echo "   subscribe 시점 병목과 실패율 증가 구간을 탐색"
+    echo "2) hotkey-stress        │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
+    echo "   subscribe-init stress: subscribe 시점 병목과 실패율 증가 구간 탐색"
+    echo ""
+    echo "3) hotkey-cache-smoke   │ 30초  │   5 VU (고정)"
+    echo "   cache-read sanity: 동일 stockId current-price 반복 조회"
+    echo ""
+    echo "4) hotkey-cache-ramp    │ 15분  │ 10 → 50 → 120 VU"
+    echo "   cache-read ramp: current-price cache hit latency 추이 관찰"
+    echo ""
+    echo "5) hotkey-cache-stress  │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
+    echo "   cache-read stress: Redis current-price hot key 한계 구간 탐색"
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~2): " choice
+    read -p "프로파일 선택 (0~5): " choice
     case $choice in
       0) ENV_FILE="k6/hotkey/.env.hotkey-smoke" ;;
       1) ENV_FILE="k6/hotkey/.env.hotkey-ramp" ;;
       2) ENV_FILE="k6/hotkey/.env.hotkey-stress" ;;
+      3) ENV_FILE="k6/hotkey/.env.hotkey-cache-smoke" ;;
+      4) ENV_FILE="k6/hotkey/.env.hotkey-cache-ramp" ;;
+      5) ENV_FILE="k6/hotkey/.env.hotkey-cache-stress" ;;
       *)
-        echo "잘못된 선택입니다. 0~2 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~5 중 하나를 입력하세요."
         exit 1
         ;;
     esac

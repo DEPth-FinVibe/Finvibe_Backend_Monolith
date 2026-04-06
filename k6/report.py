@@ -66,6 +66,10 @@ def is_hotkey_profile(profile: str) -> bool:
     return profile.startswith("hotkey-")
 
 
+def is_hotkey_cache_profile(profile: str) -> bool:
+    return profile.startswith("hotkey-cache-")
+
+
 def build_http_metrics_summary(data: dict) -> str:
     metrics = data.get("metrics", {})
     profile = data.get("profile", "unknown")
@@ -407,7 +411,93 @@ def build_hotkey_metrics_summary(data: dict) -> str:
     return "\n".join(lines)
 
 
+def build_hotkey_cache_metrics_summary(data: dict) -> str:
+    metrics = data.get("metrics", {})
+    profile = data.get("profile", "unknown")
+    base_url = data.get("baseUrl", "unknown")
+    tokens_loaded = data.get("tokensLoaded", 0)
+    ids_summary = data.get("idStatsSummary", "unknown")
+
+    cache_rate = extract_metric(metrics, "hotkey_cache_read_rate")
+    cache_fail = extract_metric(metrics, "hotkey_cache_read_fail_count")
+    cache_latency = extract_metric(metrics, "hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}") or extract_metric(metrics, "hotkey_cache_read_latency_ms")
+
+    lines = []
+    lines.append("## 테스트 기본 정보")
+    lines.append(f"- 프로파일: {profile}")
+    lines.append(f"- 대상 서버: {base_url}")
+    lines.append(f"- 로드된 토큰 수: {tokens_loaded}")
+    lines.append(f"- 로드된 ID 통계: {ids_summary}")
+    lines.append("")
+
+    lines.append("## Cache-Read 핵심 지표")
+    if cache_rate:
+        v = cache_rate.get("values", {})
+        lines.append(f"- cache-read 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if cache_fail:
+        v = cache_fail.get("values", {})
+        lines.append(f"- cache-read 실패 수: {int(v.get('count', 0)):,}")
+    if cache_latency:
+        v = cache_latency.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p(95): {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p(99): {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- cache-read latency 데이터 없음")
+    lines.append("")
+
+    lines.append("## Threshold 통과/실패 현황")
+    threshold_lines = []
+    for metric_name, metric in metrics.items():
+        thresholds = metric.get("thresholds", {})
+        for threshold_name, threshold_result in thresholds.items():
+            ok = threshold_result.get("ok", False)
+            status = "✅ PASS" if ok else "❌ FAIL"
+            threshold_lines.append(f"- `{metric_name}` / `{threshold_name}`: {status}")
+    if threshold_lines:
+        lines.extend(threshold_lines)
+    else:
+        lines.append("- threshold 데이터 없음")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def build_prompt(metrics_summary: str, profile: str) -> str:
+    if is_hotkey_cache_profile(profile):
+        return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Redis current-price cache hotkey 테스트 결과 데이터입니다.
+테스트 프로파일은 \"{profile}\"입니다.
+
+---
+{metrics_summary}
+---
+
+위 데이터를 바탕으로 한국어로 상세한 cache-read hotkey 분석 보고서를 마크다운 형식으로 작성해주세요.
+
+중요:
+- 이 보고서는 WebSocket subscribe-init 보고서가 아닙니다.
+- 분석 대상은 `/market/stocks/{{stockId}}/current-price` 반복 조회에 대한 cache-read latency 입니다.
+- `hotkey_cache_read_rate`, `hotkey_cache_read_fail_count`, `hotkey_cache_read_latency_ms`를 중심으로 해석하세요.
+- `tokensLoaded` 값만으로 인증 실패를 추론하지 마세요. 이 시나리오는 공개 market endpoint를 대상으로 동작할 수 있습니다.
+
+보고서에 반드시 포함해야 할 항목:
+1. **테스트 요약** - 프로파일, 목적, 전체 결과(합격/불합격)
+2. **핵심 지표 분석**
+   - cache-read 성공률
+   - cache-read latency(avg/p95/p99/max)
+3. **Threshold 판정 결과** - 각 임계치 통과/실패 이유 설명
+4. **에러 및 이상 징후 분석**
+   - 실패 수, 지연 tail 상승 원인 추론
+5. **병목 및 위험 구간**
+   - Redis hot key / current-price lookup 관점에서 설명
+6. **개선 권고사항** - 구체적이고 실행 가능한 3~5가지
+7. **종합 평가** - cache-read hotkey 관점의 한 줄 판정
+
+마크다운 헤더(#, ##, ###), 표를 적절히 활용해 가독성 높게 작성하세요.
+"""
+
     if is_hotkey_profile(profile):
         return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Hotkey WebSocket 부하테스트 결과 데이터입니다.
 테스트 프로파일은 \"{profile}\"입니다.
@@ -580,7 +670,9 @@ def main():
     profile = sys.argv[2] if len(sys.argv) > 2 else data.get("profile", "unknown")
 
     print("[2/4] 지표 데이터 가공 중...")
-    if is_hotkey_profile(profile):
+    if is_hotkey_cache_profile(profile):
+        metrics_summary = build_hotkey_cache_metrics_summary(data)
+    elif is_hotkey_profile(profile):
         metrics_summary = build_hotkey_metrics_summary(data)
     elif is_ws_profile(profile):
         metrics_summary = build_ws_metrics_summary(data)

@@ -1,9 +1,14 @@
 import { hotkeyLoadProfileName, getHotkeyScenarios, getHotkeyThresholds, resolveHotkeyRuntimeOptions } from './lib/config.js';
 import { ensureRuntimeConfig, pickWsStockPool, printRuntimeSummary, sharedRuntimeData } from '../lib/data.js';
 import { issueTokensFromCredentials } from '../lib/auth.js';
+import { prewarmCurrentPriceCache, runHotkeyCacheReadFlow } from './scenarios/http-hotkey-cache-read.js';
 import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
 
 const profileName = hotkeyLoadProfileName();
+
+function isCacheReadProfile() {
+	return profileName.startsWith('hotkey-cache-');
+}
 
 export const options = {
 	scenarios: getHotkeyScenarios(profileName),
@@ -19,6 +24,13 @@ export function setup() {
 	);
 	const wsStockPool = pickWsStockPool();
 	const hotkeyOptions = resolveHotkeyRuntimeOptions(wsStockPool);
+	const targetStockIds = hotkeyOptions.scenarioMode === 'baseline'
+		? wsStockPool.slice(0, Math.min(hotkeyOptions.distributedTopicCount, wsStockPool.length)).map((id) => Number(id))
+		: [Number(hotkeyOptions.hotStockId)];
+
+	if (isCacheReadProfile()) {
+		prewarmCurrentPriceCache(targetStockIds);
+	}
 
 	printRuntimeSummary(profileName, {
 		wsStockPool,
@@ -37,6 +49,7 @@ export function setup() {
 		profileName,
 		timestamp: new Date().toISOString(),
 		wsStockPool,
+		targetStockIds,
 		hotkeyOptions,
 		authTokens,
 	};
@@ -47,6 +60,14 @@ function getWsUrl() {
 }
 
 export default function (data) {
+	if (isCacheReadProfile()) {
+		runHotkeyCacheReadFlow(
+			data?.targetStockIds || data?.wsStockPool || [],
+			data?.hotkeyOptions
+		);
+		return;
+	}
+
 	runWsHotkeySubscribeFlow(
 		getWsUrl(),
 		data?.wsStockPool || [],
@@ -60,7 +81,9 @@ export function handleSummary(data) {
 	const result = {
 		stdout: [
 			'',
-			'k6 WebSocket hotkey subscribe test summary',
+			isCacheReadProfile()
+				? 'k6 hotkey cache-read test summary'
+				: 'k6 WebSocket hotkey subscribe test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,
 			`tokensLoaded: ${tokensLoaded}`,
