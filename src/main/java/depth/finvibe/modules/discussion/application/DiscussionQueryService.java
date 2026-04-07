@@ -20,6 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class DiscussionQueryService implements DiscussionQueryUseCase {
+    private static final int MAX_DISCUSSION_QUERY_SIZE = 500;
 
     private final DiscussionRepository discussionRepository;
     private final DiscussionCommentRepository discussionCommentRepository;
@@ -56,22 +57,18 @@ public class DiscussionQueryService implements DiscussionQueryUseCase {
 
     @Override
     public List<DiscussionDto.Response> findAll(DiscussionSortType sortType) {
-        List<Discussion> discussions;
+        List<Discussion> discussions = discussionRepository.findAllOrderByCreatedAtDesc(MAX_DISCUSSION_QUERY_SIZE);
 
         if (sortType == DiscussionSortType.LATEST) {
-            // 최신순
-            discussions = discussionRepository.findAllOrderByCreatedAtDesc();
             return discussions.stream()
                     .map(this::mapToDiscussionResponse)
-                    .toList();
-        } else {
-            // 좋아요순
-            discussions = discussionRepository.findAll();
-            return discussions.stream()
-                    .map(this::mapToDiscussionResponse)
-                    .sorted(Comparator.comparingLong(DiscussionDto.Response::getLikeCount).reversed())
                     .toList();
         }
+
+        return discussions.stream()
+                .map(this::mapToDiscussionResponse)
+                .sorted(Comparator.comparingLong(DiscussionDto.Response::getLikeCount).reversed())
+                .toList();
     }
 
     @Override

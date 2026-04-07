@@ -3,6 +3,7 @@ package depth.finvibe.modules.discussion.infra.persistence;
 import depth.finvibe.modules.discussion.application.port.out.DiscussionRepository;
 import depth.finvibe.modules.discussion.domain.Discussion;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,6 +36,12 @@ public class DiscussionRepositoryImpl implements DiscussionRepository {
     @Override
     public List<Discussion> findAllOrderByCreatedAtDesc() {
         return discussionJpaRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @Override
+    public List<Discussion> findAllOrderByCreatedAtDesc(int limit) {
+        int pageSize = Math.max(limit, 1);
+        return discussionJpaRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, pageSize));
     }
 
     @Override

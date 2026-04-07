@@ -40,6 +40,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class XpService implements XpCommandUseCase, XpQueryUseCase {
+    private static final int RANKING_SNAPSHOT_BATCH_SIZE = 500;
 
     private final UserXpAwardRepository userXpAwardRepository;
     private final UserXpRepository userXpRepository;
@@ -330,8 +331,7 @@ public class XpService implements XpCommandUseCase, XpQueryUseCase {
         LocalDateTime currentEnd = getCurrentEnd(rankingPeriod, currentStart);
         LocalDateTime previousStart = getPreviousStart(rankingPeriod, currentStart);
 
-        List<UserXpAwardRepository.UserPeriodXp> rankedUsers = userXpAwardRepository
-                .findUserPeriodXpRankingBetween(currentStart, currentEnd, Integer.MAX_VALUE);
+        List<UserXpAwardRepository.UserPeriodXp> rankedUsers = fetchPeriodRankingsInBatches(currentStart, currentEnd);
 
         List<UserXpAwardRepository.UserPeriodXp> uniqueRankedUsers = deduplicateRankedUsers(rankedUsers, rankingPeriod, currentStart.toLocalDate());
 
@@ -375,6 +375,45 @@ public class XpService implements XpCommandUseCase, XpQueryUseCase {
         }
 
         userXpRankingSnapshotRepository.replaceSnapshots(rankingPeriod, currentStart.toLocalDate(), snapshots);
+    }
+
+    private List<UserXpAwardRepository.UserPeriodXp> fetchPeriodRankingsInBatches(
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive) {
+        List<UserXpAwardRepository.UserPeriodXp> rankedUsers = new ArrayList<>();
+        Long lastXp = null;
+        UUID lastUserId = null;
+
+        while (true) {
+            List<UserXpAwardRepository.UserPeriodXp> batch = userXpAwardRepository.findUserPeriodXpRankingBetweenAfter(
+                    startInclusive,
+                    endExclusive,
+                    lastXp,
+                    lastUserId,
+                    RANKING_SNAPSHOT_BATCH_SIZE);
+
+            if (batch.isEmpty()) {
+                break;
+            }
+
+            rankedUsers.addAll(batch);
+
+            UserXpAwardRepository.UserPeriodXp last = batch.get(batch.size() - 1);
+            if (lastXp != null && lastUserId != null
+                    && lastXp.equals(last.xp())
+                    && lastUserId.equals(last.userId())) {
+                break;
+            }
+
+            lastXp = last.xp();
+            lastUserId = last.userId();
+
+            if (batch.size() < RANKING_SNAPSHOT_BATCH_SIZE) {
+                break;
+            }
+        }
+
+        return rankedUsers;
     }
 
     private List<UserXpAwardRepository.UserPeriodXp> deduplicateRankedUsers(

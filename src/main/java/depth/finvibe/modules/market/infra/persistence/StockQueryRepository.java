@@ -13,6 +13,7 @@ import static depth.finvibe.modules.market.domain.QStock.stock;
 
 @Repository
 public class StockQueryRepository {
+  private static final int MAX_SEARCH_RESULTS = 100;
 
   private final JPAQueryFactory queryFactory;
 
@@ -46,6 +47,7 @@ public class StockQueryRepository {
             stock.name.asc(),
             stock.symbol.asc()
         )
+        .limit(MAX_SEARCH_RESULTS)
         .fetch();
   }
 }

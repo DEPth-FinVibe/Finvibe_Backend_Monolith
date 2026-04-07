@@ -14,6 +14,8 @@ public interface DiscussionRepository {
 
     List<Discussion> findAllOrderByCreatedAtDesc();
 
+    List<Discussion> findAllOrderByCreatedAtDesc(int limit);
+
     List<Discussion> findAll();
 
     Discussion save(Discussion discussion);

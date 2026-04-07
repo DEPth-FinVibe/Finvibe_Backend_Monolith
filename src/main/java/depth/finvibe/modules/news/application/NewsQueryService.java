@@ -34,6 +34,9 @@ public class NewsQueryService implements NewsQueryUseCase {
     private final NewsDiscussionPort newsDiscussionPort;
     private static final int DAILY_KEYWORD_LIMIT = 5;
     private static final int RECENT_NEWS_WINDOW_SIZE = 30;
+    private static final int NEWS_SUMMARY_WINDOW_SIZE = 500;
+    private static final int MAX_NEWS_PAGE_SIZE = 100;
+    private static final int MAX_NEWS_PAGE_NUMBER = 1_000;
     private static final List<NewsKeyword> KEYWORD_FALLBACK_ORDER = List.of(
             NewsKeyword.AI,
             NewsKeyword.ETF,
@@ -43,21 +46,26 @@ public class NewsQueryService implements NewsQueryUseCase {
 
     @Override
     public List<NewsDto.Response> findAllNewsSummary(NewsSortType sortType) {
-        List<News> newsList = newsRepository.findAll();
+        List<News> newsList = newsRepository
+                .findAllOrderByPublishedAtDescIdDesc(PageRequest.of(0, NEWS_SUMMARY_WINDOW_SIZE))
+                .getContent();
         return convertToResponseList(newsList, sortType);
     }
 
     @Override
     public Page<NewsDto.Response> findAllNews(NewsSortType sortType, Pageable pageable) {
+        int normalizedPage = Math.max(0, Math.min(pageable.getPageNumber(), MAX_NEWS_PAGE_NUMBER));
+        int normalizedSize = Math.max(1, Math.min(pageable.getPageSize(), MAX_NEWS_PAGE_SIZE));
+        Pageable boundedPageable = PageRequest.of(normalizedPage, normalizedSize);
+
         Page<News> newsPage;
         if (sortType == NewsSortType.LATEST) {
-            Pageable latestPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
-            newsPage = newsRepository.findAllOrderByPublishedAtDescIdDesc(latestPageable);
+            newsPage = newsRepository.findAllOrderByPublishedAtDescIdDesc(boundedPageable);
         } else {
-            newsPage = newsRepository.findAll(pageable);
+            newsPage = newsRepository.findAll(boundedPageable);
         }
         List<NewsDto.Response> responses = convertToResponseList(newsPage.getContent(), sortType);
-        return new PageImpl<>(responses, pageable, newsPage.getTotalElements());
+        return new PageImpl<>(responses, boundedPageable, newsPage.getTotalElements());
     }
 
     private List<NewsDto.Response> convertToResponseList(List<News> newsList, NewsSortType sortType) {

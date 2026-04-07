@@ -22,6 +22,9 @@ import depth.finvibe.modules.asset.dto.UserProfitRankingDto;
 @RequiredArgsConstructor
 @Tag(name = "랭킹", description = "랭킹 API")
 public class UserProfitRankingController {
+  private static final int MAX_PAGE_SIZE = 100;
+  private static final int MAX_PAGE_NUMBER = 1_000;
+
   private final UserProfitRankingQueryUseCase userProfitRankingQueryUseCase;
 
   @GetMapping("/user-profit")
@@ -34,7 +37,9 @@ public class UserProfitRankingController {
     @Parameter(description = "페이지 크기", example = "50")
     @RequestParam(defaultValue = "50") int size
   ) {
-    Pageable pageable = PageRequest.of(page, size);
+    int normalizedPage = Math.max(0, Math.min(page, MAX_PAGE_NUMBER));
+    int normalizedSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+    Pageable pageable = PageRequest.of(normalizedPage, normalizedSize);
     return ResponseEntity.ok(userProfitRankingQueryUseCase.getUserProfitRankings(type, pageable));
   }
 }

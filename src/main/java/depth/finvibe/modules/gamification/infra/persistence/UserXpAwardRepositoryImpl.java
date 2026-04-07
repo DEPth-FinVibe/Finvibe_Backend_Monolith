@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.querydsl.core.Tuple;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -56,6 +57,41 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
                 .where(userXpAward.createdAt.goe(startInclusive)
                         .and(userXpAward.createdAt.lt(endExclusive)))
                 .groupBy(userXpAward.userId)
+                .orderBy(userXpAward.xp.value.sum().desc(), userXpAward.userId.asc())
+                .limit(limit)
+                .fetch();
+
+        return rows.stream()
+                .map(tuple -> new UserPeriodXp(
+                        tuple.get(userXpAward.userId),
+                        tuple.get(userXpAward.xp.value.sum())))
+                .toList();
+    }
+
+    @Override
+    public List<UserPeriodXp> findUserPeriodXpRankingBetweenAfter(
+            LocalDateTime startInclusive,
+            LocalDateTime endExclusive,
+            Long afterXp,
+            UUID afterUserId,
+            int limit) {
+        QUserXpAward userXpAward = QUserXpAward.userXpAward;
+
+        JPAQuery<Tuple> query = jpaQueryFactory
+                .select(userXpAward.userId, userXpAward.xp.value.sum())
+                .from(userXpAward)
+                .where(userXpAward.createdAt.goe(startInclusive)
+                        .and(userXpAward.createdAt.lt(endExclusive)))
+                .groupBy(userXpAward.userId);
+
+        if (afterXp != null && afterUserId != null) {
+            query = query.having(
+                    userXpAward.xp.value.sum().lt(afterXp)
+                            .or(userXpAward.xp.value.sum().eq(afterXp)
+                                    .and(userXpAward.userId.gt(afterUserId))));
+        }
+
+        List<Tuple> rows = query
                 .orderBy(userXpAward.xp.value.sum().desc(), userXpAward.userId.asc())
                 .limit(limit)
                 .fetch();
