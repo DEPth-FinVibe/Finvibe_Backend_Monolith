@@ -133,3 +133,97 @@ loki.write "default" {
 - [ ] Prometheus UI → Targets → `finvibe-backend` job `UP` 상태
 - [ ] Grafana → Explore → Loki → `{container="finvibe-backend"}` 로그 조회
 - [ ] `prod` 프로파일 실행 시 `/app/logs/application-json.log`(호스트 마운트 포함) 생성 확인
+
+---
+
+## Current-Price Cache 대시보드 해석 기준
+
+### result 라벨 의미
+
+`market.current_price.cache.requests`는 Prometheus에서 보통 아래처럼 보입니다.
+
+- `market_current_price_cache_requests_total{result="hit"}`
+- `market_current_price_cache_requests_total{result="miss"}`
+- `market_current_price_cache_requests_total{result="market_closed"}`
+- `market_current_price_cache_requests_total{result="market_closed_empty"}`
+
+해석 기준:
+
+- `hit`: Redis current-price cache에서 바로 반환
+- `miss`: cache에 없어 fallback 경로 사용
+- `market_closed`: 장 마감 상태에서 closing price 경로 사용
+- `market_closed_empty`: 장 마감 상태인데 closing price도 없음
+
+### 주의
+
+- `market_closed*` 결과가 섞인 상태에서는 **pure cache-hit/miss 테스트가 아닙니다.**
+- hit/miss 비율 패널의 분모에 `market_closed*`를 포함하면 해석이 왜곡됩니다.
+
+### 권장 PromQL
+
+#### hit rate
+
+```promql
+sum(rate(market_current_price_cache_requests_total{result="hit"}[5m]))
+/
+sum(rate(market_current_price_cache_requests_total{result=~"hit|miss"}[5m]))
+```
+
+#### miss rate
+
+```promql
+sum(rate(market_current_price_cache_requests_total{result="miss"}[5m]))
+/
+sum(rate(market_current_price_cache_requests_total{result=~"hit|miss"}[5m]))
+```
+
+#### result별 요청량
+
+```promql
+sum by (result) (
+  rate(market_current_price_cache_requests_total[5m])
+)
+```
+
+### latency 해석
+
+#### hit 평균 latency
+
+```promql
+sum(rate(market_current_price_cache_read_duration_seconds_sum{result="hit"}[5m]))
+/
+sum(rate(market_current_price_cache_read_duration_seconds_count{result="hit"}[5m]))
+```
+
+#### miss 평균 latency
+
+```promql
+sum(rate(market_current_price_cache_read_duration_seconds_sum{result="miss"}[5m]))
+/
+sum(rate(market_current_price_cache_read_duration_seconds_count{result="miss"}[5m]))
+```
+
+### Redis memory usage % 패널 주의
+
+다음 쿼리는 **`redis_memory_max_bytes`가 존재하고 0보다 클 때만** 의미가 있습니다.
+
+```promql
+redis_memory_used_bytes / redis_memory_max_bytes * 100
+```
+
+만약:
+
+- `redis_memory_max_bytes`가 없거나
+- 값이 0이면
+
+퍼센트 패널은 신뢰할 수 없습니다. 이 경우엔 아래 절대값 패널만 사용하세요.
+
+```promql
+redis_memory_used_bytes
+```
+
+### 운영 해석 원칙
+
+- **요청 성공**과 **cache-hit 검증 성공**은 다릅니다.
+- `hit=0`인데 요청이 200으로 끝났다고 해서 cache 전략이 성공했다고 보면 안 됩니다.
+- `market_closed*`가 존재하면 장중 current-price cache 실험 결과와 분리해서 해석해야 합니다.
