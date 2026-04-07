@@ -94,7 +94,7 @@ echo "============================================================"
 echo "1) REST API 테스트"
 echo "2) WebSocket 테스트  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "3) WebSocket 실시간 모니터링  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
-echo "4) Hotkey 테스트  (subscribe-init / cache-read)"
+echo "4) Redis 부하 테스트  (Stage 1)"
 echo "============================================================"
 read -p "테스트 종류 선택 (1~4): " test_type
 
@@ -220,48 +220,30 @@ case $test_type in
   4)
     echo ""
     echo "------------------------------------------------------------"
-    echo "  Hotkey 프로파일"
+    echo "  Redis Latency First 프로파일"
     echo "------------------------------------------------------------"
-    echo "0) hotkey-smoke         │ 30초  │   3 VU (고정)"
-    echo "   subscribe-init sanity: 동일 topic 집중 subscribe의 기본 재현/연결/인증 검증"
+    echo "0) redis-latency-smoke  │  1분  │ 500 rps 고정"
+    echo "   stage1 sanity: 넓은 stock pool current-price 조회로 단일 Redis 지연 유발 여부 확인"
     echo ""
-    echo "1) hotkey-ramp          │ 15분  │ 10 → 50 → 120 VU"
-    echo "   subscribe-init ramp: subscribe ack / first-event 지연 추이 관찰"
+    echo "1) redis-latency-ramp   │ 10분  │ 1000 → 1500 → 2000 → 2400 rps"
+    echo "   stage1 ramp: 전체 캐시 부하 증가에 따라 단일 Redis latency 변화를 관찰"
     echo ""
-    echo "2) hotkey-stress        │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
-    echo "   subscribe-init stress: subscribe 시점 병목과 실패율 증가 구간 탐색"
+    echo "2) redis-latency-hold   │ 10분  │ 1100 rps 고정"
+    echo "   stage1 hold: 단일 Redis에 지속 부하를 걸어 지연 누적/회복 여부를 확인"
     echo ""
-    echo "3) hotkey-cache-smoke   │ 30초  │   5 VU (고정)"
-    echo "   cache-read sanity: 동일 stockId current-price 반복 조회"
-    echo ""
-    echo "4) hotkey-cache-ramp    │ 15분  │ 10 → 50 → 120 VU"
-    echo "   cache-read ramp: current-price cache hit latency 추이 관찰"
-    echo ""
-    echo "5) hotkey-cache-stress  │ 16분  │ 20 → 120 → 300 → 500 → 700 VU"
-    echo "   cache-read stress: Redis current-price hot key 한계 구간 탐색"
-    echo ""
-    echo "6) redis-spike-smoke    │ 45초  │ read 5 VU + churn 5 VU"
-    echo "   mixed sanity: current-price 반복 조회 + websocket churn 동시 부하"
-    echo ""
-    echo "7) redis-spike-ramp     │  8분  │ read 10→80→200 / churn 5→50→120 VU"
-    echo "   mixed ramp: 단일 Redis 서버 지연/실패 징후 관찰"
-    echo ""
-    echo "8) redis-spike-stress   │  8분  │ read 20→150→350→500 / churn 10→80→200→300 VU"
-    echo "   mixed stress: latency collapse, error surge, OOM 전조 탐색"
+    echo "3) redis-latency-spike  │ 4.5분 │ 1000 → 1400 → 1600 → 1000 rps"
+    echo "   stage1 spike: 단일 Redis에 순간 부하를 밀어 넣어 지연/실패/OOM 전조를 탐색"
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~8): " choice
+    echo "※ hotkey / mixed spike / websocket pressure는 후속 단계에서 별도 수행"
+    echo "------------------------------------------------------------"
+    read -p "프로파일 선택 (0~3): " choice
     case $choice in
-      0) ENV_FILE="k6/hotkey/.env.hotkey-smoke" ;;
-      1) ENV_FILE="k6/hotkey/.env.hotkey-ramp" ;;
-      2) ENV_FILE="k6/hotkey/.env.hotkey-stress" ;;
-      3) ENV_FILE="k6/hotkey/.env.hotkey-cache-smoke" ;;
-      4) ENV_FILE="k6/hotkey/.env.hotkey-cache-ramp" ;;
-      5) ENV_FILE="k6/hotkey/.env.hotkey-cache-stress" ;;
-      6) ENV_FILE="k6/hotkey/.env.redis-spike-smoke" ;;
-      7) ENV_FILE="k6/hotkey/.env.redis-spike-ramp" ;;
-      8) ENV_FILE="k6/hotkey/.env.redis-spike-stress" ;;
+      0) ENV_FILE="k6/hotkey/.env.redis-latency-smoke" ;;
+      1) ENV_FILE="k6/hotkey/.env.redis-latency-ramp" ;;
+      2) ENV_FILE="k6/hotkey/.env.redis-latency-hold" ;;
+      3) ENV_FILE="k6/hotkey/.env.redis-latency-spike" ;;
       *)
-        echo "잘못된 선택입니다. 0~8 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~3 중 하나를 입력하세요."
         exit 1
         ;;
     esac

@@ -293,6 +293,7 @@ def build_deterministic_hotkey_cache_report(data: dict, server_metrics: dict, js
         lines.append(f"- p95: {fmt_ms(v.get('p(95)'))}")
         lines.append(f"- p99: {fmt_ms(v.get('p(99)'))}")
         lines.append(f"- max: {fmt_ms(v.get('max'))}")
+        lines.append(f"- cache-read SLA 기준: p95 < 500ms, p99 < 300ms")
     lines.append("")
 
     lines.append("## 3. 서버 메트릭 관점 결과")
@@ -332,6 +333,7 @@ def build_deterministic_hotkey_cache_report(data: dict, server_metrics: dict, js
     lines.append("")
 
     lines.append("## 6. 다음 조치")
+    lines.append("- 현재 cache-read 성공 기준은 p95 < 500ms, p99 < 300ms 입니다.")
     lines.append("- Grafana에서 `sum by (result)(rate(market_current_price_cache_requests_total[5m]))` 패널을 우선 확인하세요.")
     lines.append("- hit/miss 비율은 `result=~\"hit|miss\"`만 분모에 포함해 계산하세요.")
     lines.append("- `redis_memory_max_bytes`가 없거나 0이면 memory usage % 패널은 제거하거나 절대값만 사용하세요.")
@@ -376,7 +378,7 @@ def is_hotkey_profile(profile: str) -> bool:
 
 
 def is_hotkey_cache_profile(profile: str) -> bool:
-    return profile.startswith("hotkey-cache-")
+    return profile.startswith("hotkey-cache-") or profile.startswith("redis-latency-")
 
 
 def is_redis_spike_profile(profile: str) -> bool:

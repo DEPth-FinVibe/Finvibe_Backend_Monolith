@@ -1,12 +1,20 @@
 # k6 Hotkey Test
 
-`k6/hotkey` 패키지는 **집중 조회(hot key) 상황을 별도 검증**하기 위한 전용 패키지다.
+`k6/hotkey` 패키지는 지금 기준으로 **Stage 1: Redis latency first**에 우선 초점을 둔다.
 
-- 트랙 1: **WebSocket subscribe-init pressure**
+- **Stage 1: Redis latency first**
+  - 목적: 단일 Redis 서버에서 전체 cache-read 부하가 쌓일 때 지연이 생기는지 먼저 확인
+- **Stage 2: Hotkey / mixed spike**
+  - 목적: 단일 key 집중(hot key) 또는 read+write-ish 혼합 spike 문제를 별도로 검증
+  - 현재는 기본 실행 경로에서 제외하고 후속 단계로 미룬다.
+
+- 트랙 1: **Redis latency first**
+  - 목적: 넓은 stock pool에 current-price 조회를 분산시켜 단일 Redis 노드의 전반적 지연을 재현
+- 트랙 2: **WebSocket subscribe-init pressure**
   - 목적: 동일 `quote:<stockId>` 토픽으로 subscribe가 몰릴 때 ack/first-event 지연과 실패율을 관찰
-- 트랙 2: **Redis current-price cache read hotkey**
+- 트랙 3: **Redis current-price cache read hotkey**
   - 목적: 동일 stockId의 현재가를 반복 조회할 때 cache-read latency와 실패율을 관찰
-- 트랙 3: **Redis mixed spike**
+- 트랙 4: **Redis mixed spike**
   - 목적: current-price 반복 조회(read)와 websocket churn(write-ish pressure)을 동시에 올려 단일 Redis 서버의 지연/실패 징후를 관찰
 - 비목적: 기존 `k6/ws-main.js` 처럼 steady-state fanout throughput/lag를 주지표로 보는 테스트
 
@@ -18,7 +26,7 @@
 ## Files
 
 - `main.js`: hotkey 전용 entrypoint (`setup()`에서 기존 login bootstrap 재사용)
-- `lib/config.js`: subscribe-init / cache-read profile 및 threshold
+- `lib/config.js`: redis-latency / subscribe-init / cache-read / redis-spike profile 및 threshold
 - `lib/metrics.js`: hotkey 진단용 메트릭
 - `scenarios/ws-hotkey-subscribe.js`: subscribe-init 집중/분산/churn 시나리오
 - `scenarios/http-hotkey-cache-read.js`: current-price cache 반복 조회 시나리오
@@ -34,7 +42,7 @@
 
 ## Optional Environment Variables
 
-- `HOTKEY_LOAD_PROFILE`: `hotkey-smoke`, `hotkey-ramp`, `hotkey-stress`, `hotkey-cache-smoke`, `hotkey-cache-ramp`, `hotkey-cache-stress` (기본 `hotkey-smoke`)
+- `HOTKEY_LOAD_PROFILE`: `redis-latency-smoke`, `redis-latency-ramp`, `redis-latency-hold`, `redis-latency-spike`, `hotkey-smoke`, `hotkey-ramp`, `hotkey-stress`, `hotkey-cache-smoke`, `hotkey-cache-ramp`, `hotkey-cache-stress` (기본 `redis-latency-smoke`)
 - `HOTKEY_SCENARIO`: `hot-key`, `baseline`, `churn` (기본 `hot-key`)
 - `HOTKEY_STOCK_ID`: 집중 대상 종목 ID (미지정 시 `IDS_FILE.stockIds` 풀 첫 ID 사용)
 - `HOTKEY_DISTRIBUTED_TOPIC_COUNT`: baseline 모드에서 subscribe할 분산 topic 수 (기본 10)
@@ -62,6 +70,12 @@
 - `hotkey_cache_read_rate`: cache-read 요청 성공률
 - `hotkey_cache_read_fail_count`: cache-read 요청 실패 수
 
+### redis-latency-first track
+
+- current-price endpoint를 **넓은 stock pool**에 대해 분산 조회
+- 단일 key 집중이 아니라 **전체 Redis read pressure**를 먼저 확인
+- Grafana에서는 `market_current_price_cache_requests_total{result=*}` 와 Redis exporter 메트릭을 함께 봐야 함
+
 ### redis-spike track
 
 - `hotkey_cache_read_*`: Redis current-price read pressure 결과
@@ -70,19 +84,26 @@
 
 ## Profiles
 
-- `hotkey-smoke`: subscribe-init sanity, 3 VU 고정, 30초
-- `hotkey-ramp`: subscribe-init ramp, 10 → 50 → 120 VU, 15분
-- `hotkey-stress`: subscribe-init stress, 20 → 120 → 300 → 500 → 700 VU, 16분
-- `hotkey-cache-smoke`: cache-read sanity, 5 VU 고정, 30초
-- `hotkey-cache-ramp`: cache-read ramp, 10 → 50 → 120 VU, 15분
-- `hotkey-cache-stress`: cache-read stress, 20 → 120 → 300 → 500 → 700 VU, 16분
-- `redis-spike-smoke`: mixed sanity, read 5 VU + churn 5 VU, 45초
-- `redis-spike-ramp`: mixed ramp, read 10 → 80 → 200 / churn 5 → 50 → 120, 8분
-- `redis-spike-stress`: mixed stress, read 20 → 150 → 350 → 500 / churn 10 → 80 → 200 → 300, 8분
+- `redis-latency-smoke`: stage1 sanity, 500 rps 고정, 1분
+- `redis-latency-ramp`: stage1 ramp, 1000 → 1500 → 2000 → 2400 rps, 10분
+- `redis-latency-hold`: stage1 hold, 1100 rps 고정, 10분
+- `redis-latency-spike`: stage1 spike, 1000 → 1400 → 1600 → 1000 rps, 4.5분
+
+후속 단계(Stage 2)에 남겨둔 프로파일:
+
+- `hotkey-smoke`, `hotkey-ramp`, `hotkey-stress`
+- `hotkey-cache-smoke`, `hotkey-cache-ramp`, `hotkey-cache-stress`
+- `redis-spike-smoke`, `redis-spike-ramp`, `redis-spike-stress`
 
 `hotkey-smoke`는 성능 상한 측정보다 **구독 흐름 정상성(connect/auth/subscribe/snapshot miss 없음)** 확인에 맞춘 sanity 프로파일이다.
 
-`hotkey-cache-smoke`는 **같은 stockId 반복 조회 시 current-price cache-read 지연이 500ms 안으로 들어오는지** 확인하는 sanity 프로파일이다.
+`redis-latency-*`는 지금 가장 먼저 봐야 하는 Stage 1 프로파일이다.
+
+- current-price endpoint를 넓은 stock pool에 대해 분산 조회한다.
+- 목표는 **단일 Redis 서버 전체 지연 유발**이다.
+- 아직 hot key나 websocket 병목을 따지는 단계가 아니다.
+
+`hotkey-cache-smoke`는 **같은 stockId 반복 조회 시 current-price cache-read 지연이 500ms 안으로 들어오는지** 확인하는 Stage 2 프로파일이다.
 
 `redis-spike-*`는 단일 Redis 서버에 read + write-ish pressure를 함께 밀어 넣어,
 - current-price read latency 급등
@@ -93,77 +114,29 @@
 
 ## Example Commands
 
-### 1) subscribe-init direct run
+### 1) redis-latency direct run (Stage 1)
 
 ```bash
 set -a
 . .env
-. k6/hotkey/.env.hotkey-smoke
-set +a
-
-HOTKEY_SCENARIO=hot-key \
-HOTKEY_STOCK_ID=5930 \
-k6 run k6/hotkey/main.js
-```
-
-### 2) cache-read direct run
-
-```bash
-set -a
-. .env
-. k6/hotkey/.env.hotkey-cache-smoke
-set +a
-
-HOTKEY_SCENARIO=hot-key \
-HOTKEY_STOCK_ID=5930 \
-k6 run k6/hotkey/main.js
-```
-
-### 3) subscribe-init baseline(분산 topic) 비교
-
-```bash
-set -a
-. .env
-. k6/hotkey/.env.hotkey-ramp
+. k6/hotkey/.env.redis-latency-smoke
 set +a
 
 HOTKEY_SCENARIO=baseline \
-HOTKEY_DISTRIBUTED_TOPIC_COUNT=10 \
-k6 run k6/hotkey/main.js
-```
-
-### 4) subscribe-init churn 비교
-
-```bash
-set -a
-. .env
-. k6/hotkey/.env.hotkey-smoke
-set +a
-
-HOTKEY_SCENARIO=churn \
-HOTKEY_CHURN_ROUNDS=5 \
-k6 run k6/hotkey/main.js
-```
-
-### 5) mixed Redis spike direct run
-
-```bash
-set -a
-. .env
-. k6/hotkey/.env.redis-spike-smoke
-set +a
-
-HOTKEY_STOCK_ID=5930 \
+HOTKEY_DISTRIBUTED_TOPIC_COUNT=50 \
 k6 run k6/hotkey/main.js
 ```
 
 ## Runner Integration
 
-`k6/run.sh`에 `Hotkey 테스트` 메뉴가 추가되어 아래를 선택 실행할 수 있다.
+`k6/run.sh`의 4번 메뉴는 현재 **redis latency first**만 노출한다.
 
-- subscribe-init hotkey
-- cache-read hotkey
-- redis mixed spike
+- `redis-latency-smoke`
+- `redis-latency-ramp`
+- `redis-latency-hold`
+- `redis-latency-spike`
+
+나머지 hotkey / mixed spike / websocket pressure 프로파일은 후속 단계에서 필요할 때만 직접 env 파일로 실행한다.
 
 ## Reporting
 

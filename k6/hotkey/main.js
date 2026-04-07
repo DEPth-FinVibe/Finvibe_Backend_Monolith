@@ -7,7 +7,7 @@ import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
 const profileName = hotkeyLoadProfileName();
 
 function isCacheReadProfile() {
-	return profileName.startsWith('hotkey-cache-');
+	return profileName.startsWith('hotkey-cache-') || profileName.startsWith('redis-latency-');
 }
 
 function isRedisSpikeProfile() {
@@ -22,12 +22,15 @@ export const options = {
 
 export function setup() {
 	ensureRuntimeConfig();
-	const authTokens = issueTokensFromCredentials(
-		sharedRuntimeData.baseUrl,
-		sharedRuntimeData.credentials
-	);
 	const wsStockPool = pickWsStockPool();
 	const hotkeyOptions = resolveHotkeyRuntimeOptions(wsStockPool);
+	const requiresAuthBootstrap = !isCacheReadProfile();
+	const authTokens = requiresAuthBootstrap
+		? issueTokensFromCredentials(
+			sharedRuntimeData.baseUrl,
+			sharedRuntimeData.credentials
+		)
+		: [];
 	const targetStockIds = hotkeyOptions.scenarioMode === 'baseline'
 		? wsStockPool.slice(0, Math.min(hotkeyOptions.distributedTopicCount, wsStockPool.length)).map((id) => Number(id))
 		: [Number(hotkeyOptions.hotStockId)];
@@ -95,7 +98,9 @@ export function handleSummary(data) {
 			isRedisSpikeProfile()
 				? 'k6 redis spike mixed test summary'
 				: isCacheReadProfile()
-					? 'k6 hotkey cache-read test summary'
+					? profileName.startsWith('redis-latency-')
+						? 'k6 redis latency test summary'
+						: 'k6 hotkey cache-read test summary'
 					: 'k6 WebSocket hotkey subscribe test summary',
 			`profile: ${profileName}`,
 			`baseUrl: ${sharedRuntimeData.baseUrl}`,

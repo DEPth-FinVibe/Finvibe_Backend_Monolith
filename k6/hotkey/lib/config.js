@@ -37,6 +37,80 @@ function buildRedisSpikeScenarios(readExecutorConfig, writeExecutorConfig) {
 }
 
 const HOTKEY_LOAD_PROFILES = {
+	'redis-latency-smoke': {
+		scenarios: buildCacheReadScenario({
+			executor: 'constant-arrival-rate',
+			rate: 500,
+			timeUnit: '1s',
+			duration: '1m',
+			preAllocatedVUs: 100,
+			maxVUs: 1000,
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.99'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<300', 'p(99)<500'],
+			hotkey_cache_read_fail_count: ['count<10'],
+		},
+	},
+
+	'redis-latency-ramp': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 1000,
+			timeUnit: '1s',
+			preAllocatedVUs: 1000,
+			maxVUs: 6000,
+			stages: [
+				{ target: 1000, duration: '2m' },
+				{ target: 1500, duration: '3m' },
+				{ target: 2000, duration: '3m' },
+				{ target: 2400, duration: '2m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.98'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<800'],
+			hotkey_cache_read_fail_count: ['count<100'],
+		},
+	},
+
+	'redis-latency-hold': {
+		scenarios: buildCacheReadScenario({
+			executor: 'constant-arrival-rate',
+			rate: 1100,
+			timeUnit: '1s',
+			duration: '10m',
+			preAllocatedVUs: 1500,
+			maxVUs: 3000,
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<800', 'p(99)<1200'],
+			hotkey_cache_read_fail_count: ['count<300'],
+		},
+	},
+
+	'redis-latency-spike': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 1000,
+			timeUnit: '1s',
+			preAllocatedVUs: 1500,
+			maxVUs: 5000,
+			stages: [
+				{ target: 1000, duration: '1m' },
+				{ target: 1400, duration: '30s' },
+				{ target: 1600, duration: '2m' },
+				{ target: 1000, duration: '1m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.90'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1000', 'p(99)<1500'],
+			hotkey_cache_read_fail_count: ['count<1000'],
+		},
+	},
+
 	'hotkey-smoke': {
 		scenarios: buildSubscribeScenario({
 			executor: 'constant-vus',
@@ -103,7 +177,7 @@ const HOTKEY_LOAD_PROFILES = {
 		}),
 		thresholds: {
 			hotkey_cache_read_rate: ['rate>0.99'],
-			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<1000'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<300'],
 			hotkey_cache_read_fail_count: ['count<5'],
 		},
 	},
@@ -120,7 +194,7 @@ const HOTKEY_LOAD_PROFILES = {
 		}),
 		thresholds: {
 			hotkey_cache_read_rate: ['rate>0.99'],
-			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<700', 'p(99)<1500'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<300'],
 			hotkey_cache_read_fail_count: ['count<20'],
 		},
 	},
@@ -139,7 +213,7 @@ const HOTKEY_LOAD_PROFILES = {
 		}),
 		thresholds: {
 			hotkey_cache_read_rate: ['rate>0.98'],
-			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1000', 'p(99)<2500'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<500', 'p(99)<300'],
 			hotkey_cache_read_fail_count: ['count<100'],
 		},
 	},
@@ -281,7 +355,7 @@ function parseHotStockId(wsStockPool) {
 }
 
 export function hotkeyLoadProfileName() {
-	return __ENV.HOTKEY_LOAD_PROFILE || 'hotkey-smoke';
+	return __ENV.HOTKEY_LOAD_PROFILE || 'redis-latency-smoke';
 }
 
 export function getHotkeyScenarios(profileName) {
