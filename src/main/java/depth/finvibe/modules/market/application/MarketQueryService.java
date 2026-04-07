@@ -302,8 +302,22 @@ public class MarketQueryService implements MarketQueryUseCase {
 
             List<PriceCandleDto.Response> snapshots = realMarketClient.bulkFetchCurrentPrices(List.of(stock.getSymbol()));
             if (!snapshots.isEmpty()) {
+                PriceCandleDto.Response snapshot = snapshots.getFirst();
+                CurrentPrice currentPrice = new CurrentPrice(
+                        stockId,
+                        snapshot.getAt(),
+                        snapshot.getClose(),
+                        snapshot.getOpen(),
+                        snapshot.getHigh(),
+                        snapshot.getLow(),
+                        snapshot.getClose(),
+                        snapshot.getPrevDayChangePct(),
+                        snapshot.getVolume(),
+                        snapshot.getValue()
+                );
+                currentPriceRepository.upsertCurrentPrice(currentPrice);
                 result = "miss";
-                return snapshots.getFirst().getClose().longValue();
+                return snapshot.getClose().longValue();
             }
 
             result = "miss_empty";
