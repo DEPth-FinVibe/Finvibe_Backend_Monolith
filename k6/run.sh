@@ -228,25 +228,41 @@ case $test_type in
     echo "1) redis-latency-ramp   │ 10분  │ 1000 → 1500 → 2000 → 2400 rps"
     echo "   stage1 ramp: 전체 캐시 부하 증가에 따라 단일 Redis latency 변화를 관찰"
     echo ""
-    echo "2) redis-latency-hold   │ 10분  │ 1100 rps 고정"
-    echo "   stage1 hold: 단일 Redis에 지속 부하를 걸어 지연 누적/회복 여부를 확인"
-    echo ""
-    echo "3) redis-latency-spike  │ 4.5분 │ 1000 → 1400 → 1600 → 1000 rps"
-    echo "   stage1 spike: 단일 Redis에 순간 부하를 밀어 넣어 지연/실패/OOM 전조를 탐색"
-    echo "------------------------------------------------------------"
-    echo "※ hotkey / mixed spike / websocket pressure는 후속 단계에서 별도 수행"
-    echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~3): " choice
-    case $choice in
-      0) ENV_FILE="k6/hotkey/.env.redis-latency-smoke" ;;
-      1) ENV_FILE="k6/hotkey/.env.redis-latency-ramp" ;;
-      2) ENV_FILE="k6/hotkey/.env.redis-latency-hold" ;;
-      3) ENV_FILE="k6/hotkey/.env.redis-latency-spike" ;;
-      *)
-        echo "잘못된 선택입니다. 0~3 중 하나를 입력하세요."
-        exit 1
-        ;;
-    esac
+	 echo "2) redis-latency-hold   │ 10분  │ 1100 rps 고정"
+	 echo "   stage1 hold: 단일 Redis에 지속 부하를 걸어 지연 누적/회복 여부를 확인"
+	 echo ""
+	 echo "3) redis-latency-spike  │ 4.5분 │ 1000 → 1400 → 1600 → 1000 rps"
+	 echo "   stage1 spike: 단일 Redis에 순간 부하를 밀어 넣어 지연/실패/OOM 전조를 탐색"
+	 echo ""
+	 echo "4) redis-ramp-discovery │  7분  │ 300 → 500 → 700 → 850 → 1000 → 1100 → 900 rps"
+	 echo "   stage1.5 discovery: 즉시 1000을 꽂지 않고 임계 구간을 단계별로 찾는다"
+	 echo ""
+	 echo "5) redis-ramp-narrow    │  7분  │ 700 → 800 → 850 → 900 → 950 → 1000 → 850 rps"
+	 echo "   stage1.6 narrow: discovery 결과를 바탕으로 실제 안전 상한선을 좁혀서 측정"
+	 echo ""
+	 echo "6) redis-step-guarded   │ 5.5분 │ 500 고정 → 700 → 900 → 1000 → 700 rps"
+	 echo "   stage1.7 guarded: 워밍업 뒤 step 입력을 넣어 순간 충격과 절대 한계를 분리"
+	 echo ""
+	 echo "7) redis-ramp-fine      │ 14분  │ 500 → 600 → 650 → 700 → 750 → 800 → 650 rps"
+	 echo "   stage1.8 fine: safe ceiling 후보 구간을 50~100 rps 단위로 촘촘히 측정"
+	 echo "------------------------------------------------------------"
+	 echo "※ hotkey / mixed spike / websocket pressure는 후속 단계에서 별도 수행"
+	 echo "------------------------------------------------------------"
+	 read -p "프로파일 선택 (0~7): " choice
+	 case $choice in
+	   0) ENV_FILE="k6/hotkey/.env.redis-latency-smoke" ;;
+	   1) ENV_FILE="k6/hotkey/.env.redis-latency-ramp" ;;
+	   2) ENV_FILE="k6/hotkey/.env.redis-latency-hold" ;;
+	   3) ENV_FILE="k6/hotkey/.env.redis-latency-spike" ;;
+	   4) ENV_FILE="k6/hotkey/.env.redis-ramp-discovery" ;;
+	   5) ENV_FILE="k6/hotkey/.env.redis-ramp-narrow" ;;
+	   6) ENV_FILE="k6/hotkey/.env.redis-step-guarded" ;;
+	   7) ENV_FILE="k6/hotkey/.env.redis-ramp-fine" ;;
+	   *)
+	     echo "잘못된 선택입니다. 0~7 중 하나를 입력하세요."
+	     exit 1
+	     ;;
+	 esac
     ;;
   *)
     echo "잘못된 선택입니다. 1~4 중 하나를 입력하세요."

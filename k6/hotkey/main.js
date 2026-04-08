@@ -7,7 +7,10 @@ import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
 const profileName = hotkeyLoadProfileName();
 
 function isCacheReadProfile() {
-	return profileName.startsWith('hotkey-cache-') || profileName.startsWith('redis-latency-');
+	return profileName.startsWith('hotkey-cache-')
+		|| profileName.startsWith('redis-latency-')
+		|| profileName.startsWith('redis-ramp-')
+		|| profileName.startsWith('redis-step-');
 }
 
 function isRedisSpikeProfile() {

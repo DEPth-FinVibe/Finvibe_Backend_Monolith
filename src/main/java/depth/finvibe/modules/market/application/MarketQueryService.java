@@ -41,6 +41,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -59,6 +61,8 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final DistributedLockManager distributedLockManager;
     private final HolidayCalendarService holidayCalendarService;
     private final MeterRegistry meterRegistry;
+    private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
+    private final Map<Long, ReentrantLock> currentPriceMissLocks = new ConcurrentHashMap<>();
     @Value("${market.provider:kis}")
     private String marketProvider;
 
@@ -291,37 +295,15 @@ public class MarketQueryService implements MarketQueryUseCase {
                 throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
             }
 
-            List<CurrentPrice> currentPrices = currentPriceRepository.findByStockIds(List.of(stockId));
-            if (!currentPrices.isEmpty()) {
+            Optional<Long> cachedPrice = findCachedCurrentPrice(stockId);
+            if (cachedPrice.isPresent()) {
                 result = "hit";
-                return currentPrices.getFirst().getClose().longValue();
+                return cachedPrice.get();
             }
 
-            Stock stock = stockRepository.findById(stockId)
-                    .orElseThrow(() -> new DomainException(MarketErrorCode.STOCK_NOT_FOUND));
-
-            List<PriceCandleDto.Response> snapshots = realMarketClient.bulkFetchCurrentPrices(List.of(stock.getSymbol()));
-            if (!snapshots.isEmpty()) {
-                PriceCandleDto.Response snapshot = snapshots.getFirst();
-                CurrentPrice currentPrice = new CurrentPrice(
-                        stockId,
-                        snapshot.getAt(),
-                        snapshot.getClose(),
-                        snapshot.getOpen(),
-                        snapshot.getHigh(),
-                        snapshot.getLow(),
-                        snapshot.getClose(),
-                        snapshot.getPrevDayChangePct(),
-                        snapshot.getVolume(),
-                        snapshot.getValue()
-                );
-                currentPriceRepository.upsertCurrentPrice(currentPrice);
-                result = "miss";
-                return snapshot.getClose().longValue();
-            }
-
-            result = "miss_empty";
-            throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
+            Long refreshedPrice = refreshCurrentPriceOnMiss(stockId);
+            result = "miss";
+            return refreshedPrice;
         } finally {
             meterRegistry.counter("market.current_price.cache.requests", "result", result).increment();
             sample.stop(
@@ -334,6 +316,55 @@ public class MarketQueryService implements MarketQueryUseCase {
 
     private boolean isMockProvider() {
         return "mock".equalsIgnoreCase(marketProvider);
+    }
+
+    private Optional<Long> findCachedCurrentPrice(Long stockId) {
+        List<CurrentPrice> currentPrices = currentPriceRepository.findByStockIds(List.of(stockId));
+        if (currentPrices.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(currentPrices.getFirst().getClose().longValue());
+    }
+
+    private Long refreshCurrentPriceOnMiss(Long stockId) {
+        ReentrantLock lock = currentPriceMissLocks.computeIfAbsent(stockId, ignored -> new ReentrantLock());
+        lock.lock();
+        try {
+            Optional<Long> cachedPrice = findCachedCurrentPrice(stockId);
+            if (cachedPrice.isPresent()) {
+                return cachedPrice.get();
+            }
+
+            String symbol = stockSymbolCache.computeIfAbsent(stockId, this::resolveStockSymbol);
+            List<PriceCandleDto.Response> snapshots = realMarketClient.bulkFetchCurrentPrices(List.of(symbol));
+            if (snapshots.isEmpty()) {
+                throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
+            }
+
+            PriceCandleDto.Response snapshot = snapshots.getFirst();
+            CurrentPrice currentPrice = new CurrentPrice(
+                    stockId,
+                    snapshot.getAt(),
+                    snapshot.getClose(),
+                    snapshot.getOpen(),
+                    snapshot.getHigh(),
+                    snapshot.getLow(),
+                    snapshot.getClose(),
+                    snapshot.getPrevDayChangePct(),
+                    snapshot.getVolume(),
+                    snapshot.getValue()
+            );
+            currentPriceRepository.upsertCurrentPrice(currentPrice);
+            return snapshot.getClose().longValue();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private String resolveStockSymbol(Long stockId) {
+        return stockRepository.findById(stockId)
+                .map(Stock::getSymbol)
+                .orElseThrow(() -> new DomainException(MarketErrorCode.STOCK_NOT_FOUND));
     }
 
     @Override

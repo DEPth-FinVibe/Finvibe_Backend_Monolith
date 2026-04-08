@@ -111,6 +111,100 @@ const HOTKEY_LOAD_PROFILES = {
 		},
 	},
 
+	'redis-ramp-discovery': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 300,
+			timeUnit: '1s',
+			preAllocatedVUs: 600,
+			maxVUs: 4000,
+			stages: [
+				{ target: 300, duration: '1m' },
+				{ target: 500, duration: '1m' },
+				{ target: 700, duration: '1m' },
+				{ target: 850, duration: '1m' },
+				{ target: 1000, duration: '1m' },
+				{ target: 1100, duration: '1m' },
+				{ target: 900, duration: '1m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1200', 'p(99)<2000'],
+			hotkey_cache_read_fail_count: ['count<1000'],
+		},
+	},
+
+	'redis-ramp-narrow': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 700,
+			timeUnit: '1s',
+			preAllocatedVUs: 800,
+			maxVUs: 4500,
+			stages: [
+				{ target: 700, duration: '1m' },
+				{ target: 800, duration: '1m' },
+				{ target: 850, duration: '1m' },
+				{ target: 900, duration: '1m' },
+				{ target: 950, duration: '1m' },
+				{ target: 1000, duration: '1m' },
+				{ target: 850, duration: '1m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1200', 'p(99)<2000'],
+			hotkey_cache_read_fail_count: ['count<1000'],
+		},
+	},
+
+	'redis-step-guarded': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 500,
+			timeUnit: '1s',
+			preAllocatedVUs: 700,
+			maxVUs: 4000,
+			stages: [
+				{ target: 500, duration: '2m' },
+				{ target: 700, duration: '1m' },
+				{ target: 900, duration: '1m' },
+				{ target: 1000, duration: '30s' },
+				{ target: 700, duration: '1m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1200', 'p(99)<2000'],
+			hotkey_cache_read_fail_count: ['count<1000'],
+		},
+	},
+
+	'redis-ramp-fine': {
+		scenarios: buildCacheReadScenario({
+			executor: 'ramping-arrival-rate',
+			startRate: 500,
+			timeUnit: '1s',
+			preAllocatedVUs: 700,
+			maxVUs: 4000,
+			stages: [
+				{ target: 500, duration: '2m' },
+				{ target: 600, duration: '2m' },
+				{ target: 650, duration: '2m' },
+				{ target: 700, duration: '2m' },
+				{ target: 750, duration: '2m' },
+				{ target: 800, duration: '2m' },
+				{ target: 650, duration: '2m' },
+			],
+		}),
+		thresholds: {
+			hotkey_cache_read_rate: ['rate>0.95'],
+			'hotkey_cache_read_latency_ms{scenario_group:hotkey_cache_read}': ['p(95)<1000', 'p(99)<2000'],
+			hotkey_cache_read_fail_count: ['count<1000'],
+		},
+	},
+
 	'hotkey-smoke': {
 		scenarios: buildSubscribeScenario({
 			executor: 'constant-vus',
