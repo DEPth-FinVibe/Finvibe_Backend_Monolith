@@ -11,7 +11,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -57,9 +59,9 @@ import depth.finvibe.modules.market.infra.lock.ActiveNodeRegistry;
  * // Rate Limit이 여유있는 Credential을 라운드로빈 방식으로 선택
  * </pre>
  */
-@Slf4j
 @Component
 public class KisCredentialAllocator {
+	private static final Logger log = LoggerFactory.getLogger(KisCredentialAllocator.class);
     private static final Duration DEFAULT_TTL = Duration.ofSeconds(60);
     private static final Duration DEFAULT_RENEW_INTERVAL = Duration.ofSeconds(20);
     private static final int DEFAULT_RETRY_MAX = 50;
@@ -84,6 +86,7 @@ public class KisCredentialAllocator {
     private final StringRedisTemplate redisTemplate;
     private final TaskScheduler taskScheduler;
     private final ActiveNodeRegistry activeNodeRegistry;
+    private final boolean allocationRequired;
     private final String ownerId;
     private final AtomicInteger cursor = new AtomicInteger();
 
@@ -93,12 +96,14 @@ public class KisCredentialAllocator {
             KisCredentialsProperties properties,
             StringRedisTemplate redisTemplate,
             TaskScheduler taskScheduler,
-            ActiveNodeRegistry activeNodeRegistry
+            ActiveNodeRegistry activeNodeRegistry,
+            @Value("${kis.allocator.required:true}") boolean allocationRequired
     ) {
         this.properties = properties;
         this.redisTemplate = redisTemplate;
         this.taskScheduler = taskScheduler;
         this.activeNodeRegistry = activeNodeRegistry;
+        this.allocationRequired = allocationRequired;
         this.ownerId = UUID.randomUUID().toString();
     }
 
@@ -110,6 +115,11 @@ public class KisCredentialAllocator {
    */
   @PostConstruct
   public void init() {
+    if (!allocationRequired && properties.getValidCredentials().isEmpty()) {
+      log.warn("KIS credential allocation skipped: kis.allocator.required=false and no valid credentials configured.");
+      return;
+    }
+
     rebalanceAndRenew();
     taskScheduler.scheduleAtFixedRate(this::rebalanceAndRenew, resolveRenewInterval());
   }
@@ -229,6 +239,11 @@ public class KisCredentialAllocator {
   private void rebalanceAndRenew() {
         List<Credential> validCredentials = properties.getValidCredentials();
         if (validCredentials.isEmpty()) {
+            if (!allocationRequired) {
+                log.warn("KIS credentials are not configured. Continuing because kis.allocator.required=false.");
+                allocatedCredentials.clear();
+                return;
+            }
             log.error("유효한 KIS credential이 없습니다. application-prod.yml의 KIS_API_KEY 환경 변수들을 확인하세요.");
             throw new IllegalStateException("최소 하나의 유효한 KIS credential이 필요합니다");
         }
@@ -240,6 +255,10 @@ public class KisCredentialAllocator {
         adjustAllocation(validCredentials, targetCount);
 
         if (allocatedCredentials.isEmpty()) {
+            if (!allocationRequired) {
+                log.warn("KIS credential allocation failed, but continuing because kis.allocator.required=false.");
+                return;
+            }
             log.error("KIS credential 할당 실패. Redis 연결 상태 및 다른 노드의 락 점유 상태를 확인하세요. 유효한 credential: {}", validCredentials.size());
             throw new IllegalStateException("KIS credential allocation failed. No credentials assigned.");
         }

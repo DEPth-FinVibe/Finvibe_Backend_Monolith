@@ -1,3 +1,12 @@
+spring:
+  kafka:
+    listener:
+      auto-startup: false
+
+kis:
+  allocator:
+    required: false
+
 market:
   provider: mock
   mock:
