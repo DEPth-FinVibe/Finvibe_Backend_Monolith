@@ -156,40 +156,9 @@ public class XpService implements XpCommandUseCase, XpQueryUseCase {
         }
 
         // 2️⃣ 스냅샷 없으면 실시간 집계 (초기 상태/배치 미실행 시에만)
-        LocalDateTime currentPeriodEnd = getCurrentEnd(period, currentPeriodStart);
-
-        List<UserXpAwardRepository.UserPeriodXp> rankedUsers = userXpAwardRepository
-                .findUserPeriodXpRankingBetween(currentPeriodStart, currentPeriodEnd, 100);
-
-        if (rankedUsers.isEmpty()) {
-            return List.of();
-        }
-
-        List<UUID> userIds = rankedUsers.stream()
-                .map(UserXpAwardRepository.UserPeriodXp::userId)
-                .toList();
-
-        Map<UUID, UserXp> userXpMap = new HashMap<>();
-        for (UserXp userXp : userXpRepository.findAllByUserIdIn(userIds)) {
-            userXpMap.put(userXp.getUserId(), userXp);
-        }
-
-        List<XpDto.UserRankingResponse> result = new ArrayList<>(rankedUsers.size());
-        for (int i = 0; i < rankedUsers.size(); i++) {
-            UserXpAwardRepository.UserPeriodXp rankedUser = rankedUsers.get(i);
-            UserXp userXp = userXpMap.get(rankedUser.userId());
-
-            result.add(XpDto.UserRankingResponse.builder()
-                    .userId(rankedUser.userId())
-                    .nickname(userXp != null ? userXp.getNickname() : "이름 없음")
-                    .ranking(i + 1)
-                    .currentXp(userXp != null ? userXp.getTotalXp() : rankedUser.xp())
-                    .periodXp(rankedUser.xp())
-                    .previousPeriodXp(0L)
-                    .growthRate(null)
-                    .build());
-        }
-        return result;
+        log.warn("XP ranking snapshot is missing. Skipping realtime aggregation for period={} startDate={}",
+                period, currentPeriodStart.toLocalDate());
+        return List.of();
     }
 
     private void updateUserXp(UUID userId, Long amount) {

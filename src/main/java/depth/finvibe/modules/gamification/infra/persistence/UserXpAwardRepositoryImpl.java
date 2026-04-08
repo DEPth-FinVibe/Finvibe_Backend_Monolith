@@ -19,6 +19,8 @@ import depth.finvibe.modules.gamification.domain.UserXpAward;
 @Repository
 @RequiredArgsConstructor
 public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
+    private static final int MAX_RANKING_QUERY_LIMIT = 5_000;
+
     private final UserXpAwardJpaRepository userXpAwardJpaRepository;
     private final JPAQueryFactory jpaQueryFactory;
 
@@ -50,6 +52,7 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
             LocalDateTime endExclusive,
             int limit) {
         QUserXpAward userXpAward = QUserXpAward.userXpAward;
+        int boundedLimit = Math.max(1, Math.min(limit, MAX_RANKING_QUERY_LIMIT));
 
         List<Tuple> rows = jpaQueryFactory
                 .select(userXpAward.userId, userXpAward.xp.value.sum())
@@ -58,7 +61,7 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
                         .and(userXpAward.createdAt.lt(endExclusive)))
                 .groupBy(userXpAward.userId)
                 .orderBy(userXpAward.xp.value.sum().desc(), userXpAward.userId.asc())
-                .limit(limit)
+                .limit(boundedLimit)
                 .fetch();
 
         return rows.stream()
@@ -76,6 +79,7 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
             UUID afterUserId,
             int limit) {
         QUserXpAward userXpAward = QUserXpAward.userXpAward;
+        int boundedLimit = Math.max(1, Math.min(limit, MAX_RANKING_QUERY_LIMIT));
 
         JPAQuery<Tuple> query = jpaQueryFactory
                 .select(userXpAward.userId, userXpAward.xp.value.sum())
@@ -93,7 +97,7 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
 
         List<Tuple> rows = query
                 .orderBy(userXpAward.xp.value.sum().desc(), userXpAward.userId.asc())
-                .limit(limit)
+                .limit(boundedLimit)
                 .fetch();
 
         return rows.stream()

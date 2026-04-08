@@ -22,6 +22,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
@@ -42,6 +43,8 @@ import depth.finvibe.common.investment.dto.UserMetricUpdatedEvent;
 @RequiredArgsConstructor
 public class ProfitCalculationService implements ProfitCalculationUseCase {
   private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+  private static final int DEFAULT_PORTFOLIO_FETCH_CHUNK_SIZE = 500;
+  private static final int DEFAULT_VALUATION_UPDATE_CHUNK_SIZE = 500;
 
   private final ProfitCalculationTxHelper txHelper;
   private final MarketPriceClient marketPriceClient;
@@ -51,6 +54,12 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
   private final GamificationEventProducer gamificationEventProducer;
   private final MeterRegistry meterRegistry;
 
+  @Value("${asset.profit.recalculation.portfolio-fetch-chunk-size:500}")
+  private int portfolioFetchChunkSize;
+
+  @Value("${asset.profit.recalculation.valuation-update-chunk-size:500}")
+  private int valuationUpdateChunkSize;
+
   @Override
   public void recalculateAllProfits(List<Long> updatedStockIds) {
     Timer.Sample sample = Timer.start(meterRegistry);
@@ -59,62 +68,80 @@ public class ProfitCalculationService implements ProfitCalculationUseCase {
       return;
     }
 
-    // ① 짧은 read 트랜잭션 — 완료 후 커넥션 즉시 반환
-    List<PortfolioGroup> portfolios = txHelper.readPortfoliosByStockIds(updatedStockIds);
-    DistributionSummary.builder("asset.profit.recalculation.portfolios")
-      .description("수익률 재계산 대상 포트폴리오 수")
-      .register(meterRegistry)
-      .record(portfolios.size());
+    int fetchChunk = normalizedChunkSize(portfolioFetchChunkSize, DEFAULT_PORTFOLIO_FETCH_CHUNK_SIZE);
+    int updateChunk = normalizedChunkSize(valuationUpdateChunkSize, DEFAULT_VALUATION_UPDATE_CHUNK_SIZE);
+
     DistributionSummary.builder("asset.profit.recalculation.stocks")
       .description("수익률 재계산 요청 종목 수")
       .register(meterRegistry)
       .record(updatedStockIds.size());
-    if (portfolios.isEmpty()) {
+
+    long lastPortfolioId = 0L;
+    int processedPortfolioCount = 0;
+    Set<UUID> impactedUserIds = new HashSet<>();
+
+    while (true) {
+      List<Long> portfolioIds = txHelper.readAffectedPortfolioIdsByStockIdsAfterId(updatedStockIds, lastPortfolioId, fetchChunk);
+      if (portfolioIds.isEmpty()) {
+        break;
+      }
+
+      List<PortfolioGroup> portfolios = txHelper.readPortfoliosByIdsWithAssets(portfolioIds);
+      if (portfolios.isEmpty()) {
+        lastPortfolioId = portfolioIds.get(portfolioIds.size() - 1);
+        continue;
+      }
+
+      List<Long> stockIds = portfolios.stream()
+        .flatMap(portfolio -> portfolio.getAssets().stream())
+        .map(Asset::getStockId)
+        .filter(Objects::nonNull)
+        .distinct()
+        .toList();
+
+      if (!stockIds.isEmpty()) {
+        List<BatchPriceSnapshot> batchPrices = marketPriceClient.getBatchPrices(stockIds);
+        if (batchPrices != null && !batchPrices.isEmpty()) {
+          Map<Long, BigDecimal> priceByStockId = batchPrices.stream()
+            .collect(Collectors.toMap(BatchPriceSnapshot::getStockId, BatchPriceSnapshot::getPrice));
+          txHelper.updateValuations(portfolios, priceByStockId, updateChunk);
+        }
+      }
+
+      processedPortfolioCount += portfolios.size();
+      impactedUserIds.addAll(
+        portfolios.stream()
+          .map(PortfolioGroup::getUserId)
+          .filter(Objects::nonNull)
+          .collect(Collectors.toSet())
+      );
+
+      lastPortfolioId = portfolioIds.get(portfolioIds.size() - 1);
+      if (portfolioIds.size() < fetchChunk) {
+        break;
+      }
+    }
+
+    DistributionSummary.builder("asset.profit.recalculation.portfolios")
+      .description("수익률 재계산 대상 포트폴리오 수")
+      .register(meterRegistry)
+      .record(processedPortfolioCount);
+
+    if (processedPortfolioCount == 0) {
       log.info("No portfolios found with updated stock IDs for profit recalculation.");
       sample.stop(profitRecalculationTimer());
       return;
     }
-
-    List<Long> stockIds = portfolios.stream()
-      .flatMap(portfolio -> portfolio.getAssets().stream())
-      .map(Asset::getStockId)
-      .distinct()
-      .toList();
-    DistributionSummary.builder("asset.profit.recalculation.distinct_stocks")
-      .description("수익률 재계산 대상 고유 종목 수")
-      .register(meterRegistry)
-      .record(stockIds.size());
-
-    if (stockIds.isEmpty()) {
-      log.info("No stock IDs found in portfolios for profit recalculation.");
-      sample.stop(profitRecalculationTimer());
-      return;
-    }
-
-    // ② 외부 HTTP 호출 — 커넥션 없음
-    List<BatchPriceSnapshot> batchPrices = marketPriceClient.getBatchPrices(stockIds);
-    if (batchPrices == null || batchPrices.isEmpty()) {
-      log.warn("No batch prices retrieved for stock IDs: {}", stockIds);
-      sample.stop(profitRecalculationTimer());
-      return;
-    }
-
-    Map<Long, BigDecimal> priceByStockId = batchPrices.stream()
-      .collect(Collectors.toMap(BatchPriceSnapshot::getStockId, BatchPriceSnapshot::getPrice));
-
-    // ③ 짧은 write 트랜잭션 — valuation 업데이트 후 커넥션 반환
-    txHelper.updateValuations(portfolios, priceByStockId);
-
-    Set<UUID> impactedUserIds = portfolios.stream()
-      .map(PortfolioGroup::getUserId)
-      .filter(Objects::nonNull)
-      .collect(Collectors.toCollection(HashSet::new));
 
     // ④ 짧은 read 트랜잭션 — 랭킹 집계용 사용자 요약 조회
     List<UserProfitSummaryRow> allSummaries = txHelper.readAllUserProfitSummaries();
     Set<UUID> usersWithAssets = new HashSet<>(txHelper.readUserIdsWithAssets());
     publishUserProfitRatesUpdatedEvent(allSummaries, usersWithAssets, impactedUserIds);
     sample.stop(profitRecalculationTimer());
+  }
+
+  private int normalizedChunkSize(int configuredValue, int defaultValue) {
+    return configuredValue <= 0 ? defaultValue : configuredValue;
   }
 
   private Timer profitRecalculationTimer() {

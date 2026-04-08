@@ -64,6 +64,16 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     }
 
     @Override
+    public List<Long> findAffectedPortfolioIdsByStockIdsAfterId(List<Long> stockIds, Long lastPortfolioId, int limit) {
+        return queryRepository.findAffectedPortfolioIdsByStockIdsAfterId(stockIds, lastPortfolioId, limit);
+    }
+
+    @Override
+    public List<PortfolioGroup> findAllByIdsWithAssets(List<Long> portfolioIds) {
+        return queryRepository.findAllByIdsWithAssets(portfolioIds);
+    }
+
+    @Override
     public List<UserProfitSummaryRow> findAllUserProfitSummaries() {
         return queryRepository.findAllUserProfitSummaries();
     }

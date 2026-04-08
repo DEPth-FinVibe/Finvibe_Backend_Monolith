@@ -27,6 +27,10 @@ public interface PortfolioGroupRepository {
 
     List<PortfolioGroup> findAllByStockIdsWithAssets(List<Long> stockIds);
 
+    List<Long> findAffectedPortfolioIdsByStockIdsAfterId(List<Long> stockIds, Long lastPortfolioId, int limit);
+
+    List<PortfolioGroup> findAllByIdsWithAssets(List<Long> portfolioIds);
+
     List<UserProfitSummaryRow> findAllUserProfitSummaries();
 
     List<UUID> findUserIdsWithAssets();
