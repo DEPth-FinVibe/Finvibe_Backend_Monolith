@@ -2,6 +2,7 @@ package depth.finvibe.modules.asset.infra.messaging;
 
 import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +12,7 @@ import depth.finvibe.common.investment.dto.SignUpEvent;
 import depth.finvibe.common.investment.dto.TradeExecutedEvent;
 
 @Component
+@Profile("!mock-market")
 @RequiredArgsConstructor
 public class KafkaConsumer {
     private final AssetEventUseCase assetEventService;
