@@ -32,6 +32,29 @@ const WS_LOAD_PROFILES = {
 		},
 	},
 
+	'ws-connect-10k': {
+		scenarios: {
+			ws_connect: {
+				executor: 'ramping-vus',
+				startVUs: 100,
+				stages: [
+					{ target: 100, duration: '1m' },
+					{ target: 2000, duration: '2m' },
+					{ target: 5000, duration: '2m' },
+					{ target: 8000, duration: '2m' },
+					{ target: 10000, duration: '3m' },
+				],
+				exec: 'wsConnectFlow',
+				tags: { scenario_group: 'ws_connect' },
+			},
+		},
+		thresholds: {
+			ws_connect_rate: ['rate>0.95'],
+			ws_auth_rate: ['rate>0.95'],
+			ws_auth_fail_count: ['count==0'],
+		},
+	},
+
 	'ws-smoke': {
 		scenarios: {
 			ws_quote: {

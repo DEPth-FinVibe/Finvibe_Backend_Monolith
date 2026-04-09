@@ -12,7 +12,19 @@ import {
 	wsCleanCloseRate,
 } from '../lib/ws-metrics.js';
 
-const SESSION_DURATION_MS = 10_000;
+function sessionDurationMs() {
+	const raw = __ENV.WS_CONNECT_SESSION_DURATION_MS;
+	if (!raw) {
+		return 10_000;
+	}
+
+	const parsed = Number(raw);
+	if (!Number.isFinite(parsed) || parsed < 1_000) {
+		return 10_000;
+	}
+
+	return Math.floor(parsed);
+}
 
 export function runWsConnectFlow(wsUrl, tokens) {
 	const token = pickToken(tokens);
@@ -23,6 +35,7 @@ export function runWsConnectFlow(wsUrl, tokens) {
 	}
 
 	const startMs = Date.now();
+	const holdDurationMs = sessionDurationMs();
 	let cleanClose = false;
 
 	const response = ws.connect(wsUrl, {}, function (socket) {
@@ -46,11 +59,10 @@ export function runWsConnectFlow(wsUrl, tokens) {
 					const ok = msg.ok === true;
 					wsAuthRate.add(ok);
 					if (ok) {
-						// 인증 성공 후 10초 뒤 정상 종료
 						socket.setTimeout(function () {
 							cleanClose = true;
 							socket.close();
-						}, SESSION_DURATION_MS);
+						}, holdDurationMs);
 					} else {
 						socket.close();
 					}

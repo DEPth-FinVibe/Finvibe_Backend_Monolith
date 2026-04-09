@@ -91,8 +91,8 @@ public class AuthService implements AuthCommandUseCase {
         PhoneNumber phoneNumber = PhoneNumber.parse(request.getPhoneNumber());
         PersonalDetails personalDetails = PersonalDetails.of(
             phoneNumber, request.getBirthDate(),
-            request.getNickname(),
             request.getName(),
+            request.getNickname(),
             new Email(request.getEmail()));
 
         return User.createSocial(
@@ -220,8 +220,8 @@ public class AuthService implements AuthCommandUseCase {
         PersonalDetails personalDetails = PersonalDetails.of(
             PhoneNumber.parse(request.getPhoneNumber()),
             request.getBirthDate(),
-            request.getNickname(),
             request.getName(),
+            request.getNickname(),
             new Email(request.getEmail())
         );
         LoginId loginId = new LoginId(request.getLoginId());

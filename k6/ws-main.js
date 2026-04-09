@@ -7,6 +7,30 @@ import { issueTokensFromCredentials } from './lib/auth.js';
 const profileName = wsLoadProfileName();
 let issuedTokenCount = 0;
 
+function parsePreissuedTokens() {
+	const rawJson = __ENV.WS_PREISSUED_TOKENS_JSON;
+	if (rawJson && rawJson.trim()) {
+		try {
+			const parsed = JSON.parse(rawJson);
+			if (Array.isArray(parsed)) {
+				return parsed.map((token) => String(token || '').trim()).filter((token) => token.length > 0);
+			}
+		} catch (error) {
+			throw new Error(`WS_PREISSUED_TOKENS_JSON is not valid JSON array: ${error}`);
+		}
+	}
+
+	const csv = __ENV.WS_PREISSUED_TOKENS;
+	if (csv && csv.trim()) {
+		return csv
+			.split(',')
+			.map((token) => token.trim())
+			.filter((token) => token.length > 0);
+	}
+
+	return [];
+}
+
 export const options = {
 	scenarios: getWsScenarios(profileName),
 	thresholds: getWsThresholds(profileName),
@@ -15,10 +39,13 @@ export const options = {
 
 export function setup() {
 	ensureRuntimeConfig();
-	const authTokens = issueTokensFromCredentials(
-		sharedRuntimeData.baseUrl,
-		sharedRuntimeData.credentials
-	);
+	let authTokens = parsePreissuedTokens();
+	if (authTokens.length === 0) {
+		authTokens = issueTokensFromCredentials(
+			sharedRuntimeData.baseUrl,
+			sharedRuntimeData.credentials
+		);
+	}
 	issuedTokenCount = authTokens.length;
 	const wsStockPool = pickWsStockPool();
 	printRuntimeSummary(profileName, {
