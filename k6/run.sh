@@ -175,8 +175,12 @@ case $test_type in
     echo "5) ws-spike  │ 10분  │  20 → 200 → 20 VU"
     echo "   연결이 30초 만에 10배로 급증했다가 다시 줄어드는 시나리오입니다."
     echo "   급격한 연결 폭증 후 lag가 회복되는지, 연결이 끊기지 않는지 봅니다."
+    echo ""
+    echo "6) ws-connect-dense-10k │ 약 45초 │ 500 VU × 20 connections (총 10,000 연결)"
+    echo "   1개 VU가 여러 WebSocket을 동시에 열어 로컬 k6 pthread 한계를 낮춥니다."
+    echo "   연결 수용/인증 병목을 먼저 확인할 때 사용하세요."
     echo "------------------------------------------------------------"
-    read -p "프로파일 선택 (0~5): " choice
+    read -p "프로파일 선택 (0~6): " choice
     case $choice in
       0) ENV_FILE="k6/.env.ws-connect" ;;
       1) ENV_FILE="k6/.env.ws-smoke" ;;
@@ -184,8 +188,9 @@ case $test_type in
       3) ENV_FILE="k6/.env.ws-stress" ;;
       4) ENV_FILE="k6/.env.ws-fast-stress" ;;
       5) ENV_FILE="k6/.env.ws-spike" ;;
+      6) ENV_FILE="k6/.env.ws-connect-dense-10k" ;;
       *)
-        echo "잘못된 선택입니다. 0~5 중 하나를 입력하세요."
+        echo "잘못된 선택입니다. 0~6 중 하나를 입력하세요."
         exit 1
         ;;
     esac
@@ -290,6 +295,10 @@ if [ -n "$HOTKEY_LOAD_PROFILE" ]; then
   PROFILE_NAME="$HOTKEY_LOAD_PROFILE"
   K6_ENTRYPOINT="k6/hotkey/main.js"
   REPORTS_DIR="k6/hotkey/reports"
+elif [ -n "$WS_DENSE_PROFILE" ]; then
+  PROFILE_NAME="$WS_DENSE_PROFILE"
+  K6_ENTRYPOINT="k6/ws-connect-dense.js"
+  REPORTS_DIR="k6/reports"
 elif [ -n "$WS_LOAD_PROFILE" ]; then
   PROFILE_NAME="$WS_LOAD_PROFILE"
   K6_ENTRYPOINT="k6/ws-main.js"

@@ -15,8 +15,35 @@
 - 회원가입/토큰 갱신
 - 생성/수정/삭제/좋아요 토글
 - `/dev/**`
-- WebSocket
+- `main.js` 기준 WebSocket
 - LLM/배치/관리 API
+
+## WebSocket Entry Points
+
+WebSocket 부하는 `main.js`가 아니라 별도 entrypoint를 사용한다.
+
+- `ws-main.js`: 기존 WebSocket quote/connect 시나리오 (`k6/ws` 기반)
+- `ws-connect-dense.js`: 1개 VU가 여러 WebSocket 연결을 동시에 열어 로컬 k6 발생기 한계를 낮춘 고밀도 connect 전용 시나리오 (`k6/websockets` 기반)
+
+10,000 연결 검증에서 `ws-connect-10k`가 `10,000 VU = 10,000 연결` 모델이라 로컬 `pthread_create failed`에 먼저 걸릴 수 있으므로, 연결 수용만 확인할 때는 `ws-connect-dense.js`를 우선 사용한다.
+
+예시:
+
+```bash
+set -a
+. .env
+. k6/.env.ws-connect-dense-10k
+set +a
+
+k6 run k6/ws-connect-dense.js
+```
+
+선발급 토큰이 있으면 bootstrap login 병목을 피할 수 있다.
+
+```bash
+WS_PREISSUED_TOKENS_JSON='["token-1","token-2"]' \
+k6 run k6/ws-connect-dense.js
+```
 
 ## Files
 
