@@ -13,7 +13,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 @Configuration
-@Profile("prod")
+@Profile("prod & !mock-market")
 public class KafkaConnectionChecker {
 
     @Value("${spring.kafka.bootstrap-servers}")

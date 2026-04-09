@@ -6,7 +6,8 @@ import {
 	wsAuthRate,
 	wsAuthFailCount,
 	wsConnectFail,
-	wsActiveConnections,
+	wsConnectionsOpened,
+	wsConnectionsClosed,
 	wsSessionDuration,
 	wsCleanCloseRate,
 } from '../lib/ws-metrics.js';
@@ -25,7 +26,7 @@ export function runWsConnectFlow(wsUrl, tokens) {
 	let cleanClose = false;
 
 	const response = ws.connect(wsUrl, {}, function (socket) {
-		wsActiveConnections.add(1);
+		wsConnectionsOpened.add(1);
 
 		socket.on('open', function () {
 			wsConnectRate.add(true);
@@ -77,7 +78,7 @@ export function runWsConnectFlow(wsUrl, tokens) {
 		});
 
 		socket.on('close', function () {
-			wsActiveConnections.add(-1);
+			wsConnectionsClosed.add(1);
 			wsSessionDuration.add(Date.now() - startMs);
 			wsCleanCloseRate.add(cleanClose);
 		});

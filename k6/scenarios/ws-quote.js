@@ -9,7 +9,8 @@ import {
 	wsAuthRate,
 	wsEventsReceived,
 	wsConnectFail,
-	wsActiveConnections,
+	wsConnectionsOpened,
+	wsConnectionsClosed,
 	wsAuthFailCount,
 } from '../lib/ws-metrics.js';
 
@@ -39,7 +40,7 @@ export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
 	let clockOffsetMs = 0;
 
 	const response = ws.connect(wsUrl, {}, function (socket) {
-		wsActiveConnections.add(1);
+		wsConnectionsOpened.add(1);
 
 		socket.on('open', function () {
 			wsConnectRate.add(true);
@@ -118,7 +119,7 @@ export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
 		});
 
 		socket.on('close', function () {
-			wsActiveConnections.add(-1);
+			wsConnectionsClosed.add(1);
 		});
 	});
 
