@@ -22,7 +22,9 @@ import depth.finvibe.modules.user.domain.error.UserErrorCode;
 import depth.finvibe.modules.user.dto.UserDto;
 import depth.finvibe.common.error.DomainException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -43,7 +45,7 @@ public class AuthService implements AuthCommandUseCase {
     public UserDto.SignUpResponse signUp(UserDto.SignUpRequest request) {
         User savedUser = signUpWithLocal(request);
 
-        userEventPublisher.publishUserSignUpEvent(savedUser.getId());
+        publishUserSignUpEventSafely(savedUser.getId());
 
         UserDto.TokenResponse tokens = issueTokens(savedUser);
 
@@ -55,7 +57,7 @@ public class AuthService implements AuthCommandUseCase {
     public UserDto.SignUpResponse oauthSignUp(UserDto.OAuthSignUpRequest request) {
         User savedUser = signUpWithOAuth(request);
 
-        userEventPublisher.publishUserSignUpEvent(savedUser.getId());
+        publishUserSignUpEventSafely(savedUser.getId());
 
         UserDto.TokenResponse tokens = issueTokens(savedUser);
 
@@ -156,8 +158,24 @@ public class AuthService implements AuthCommandUseCase {
     }
 
     private UserDto.TokenResponse completeLogin(User user) {
-        userEventPublisher.publishUserSignInEvent(user.getId());
+        publishUserSignInEventSafely(user.getId());
         return issueTokens(user);
+    }
+
+    private void publishUserSignUpEventSafely(UUID userId) {
+        try {
+            userEventPublisher.publishUserSignUpEvent(userId);
+        } catch (Exception ex) {
+            log.error("User signup event publish failed, but signup will continue. userId={}", userId, ex);
+        }
+    }
+
+    private void publishUserSignInEventSafely(UUID userId) {
+        try {
+            userEventPublisher.publishUserSignInEvent(userId);
+        } catch (Exception ex) {
+            log.error("User signin event publish failed, but login will continue. userId={}", userId, ex);
+        }
     }
 
     @Override
