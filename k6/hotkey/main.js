@@ -3,6 +3,7 @@ import { ensureRuntimeConfig, pickWsStockPool, printRuntimeSummary, sharedRuntim
 import { issueTokensFromCredentials } from '../lib/auth.js';
 import { prewarmCurrentPriceCache, runHotkeyCacheReadFlow } from './scenarios/http-hotkey-cache-read.js';
 import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
+import { runWsRedisMixedFlow } from './scenarios/ws-redis-mixed.js';
 
 const profileName = hotkeyLoadProfileName();
 
@@ -15,6 +16,10 @@ function isCacheReadProfile() {
 
 function isRedisSpikeProfile() {
 	return profileName.startsWith('redis-spike-');
+}
+
+function isRedisSingleMixedProfile() {
+	return profileName.startsWith('redis-single-mixed-');
 }
 
 export const options = {
@@ -52,6 +57,10 @@ export function setup() {
 			`[k6-hotkey] hotStockId=${hotkeyOptions.hotStockId}`,
 			`[k6-hotkey] distributedTopicCount=${hotkeyOptions.distributedTopicCount}`,
 			`[k6-hotkey] churnRounds=${hotkeyOptions.churnRounds}`,
+			`[k6-hotkey] sessionHoldMs=${hotkeyOptions.sessionHoldMs}`,
+			`[k6-hotkey] mixedTopicCount=${hotkeyOptions.mixedTopicCount}`,
+			`[k6-hotkey] mixedHotRatio=${hotkeyOptions.mixedHotRatio}`,
+			`[k6-hotkey] mixedChurnProbability=${hotkeyOptions.mixedChurnProbability}`,
 		].join('\n')
 	);
 
@@ -73,6 +82,16 @@ export default function (data) {
 	if (isCacheReadProfile()) {
 		runHotkeyCacheReadFlow(
 			data?.targetStockIds || data?.wsStockPool || [],
+			data?.hotkeyOptions
+		);
+		return;
+	}
+
+	if (isRedisSingleMixedProfile()) {
+		runWsRedisMixedFlow(
+			getWsUrl(),
+			data?.wsStockPool || [],
+			data?.authTokens || [],
 			data?.hotkeyOptions
 		);
 		return;
@@ -100,6 +119,8 @@ export function handleSummary(data) {
 			'',
 			isRedisSpikeProfile()
 				? 'k6 redis spike mixed test summary'
+				: isRedisSingleMixedProfile()
+					? 'k6 redis single-node mixed websocket test summary'
 				: isCacheReadProfile()
 					? profileName.startsWith('redis-latency-')
 						? 'k6 redis latency test summary'

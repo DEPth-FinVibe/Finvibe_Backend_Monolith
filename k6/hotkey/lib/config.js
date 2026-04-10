@@ -1,5 +1,5 @@
 const DEFAULT_SCENARIO_MODE = 'hot-key';
-const ALLOWED_SCENARIO_MODES = ['hot-key', 'baseline', 'churn'];
+const ALLOWED_SCENARIO_MODES = ['hot-key', 'baseline', 'churn', 'mixed'];
 
 function buildCacheReadScenario(executorConfig) {
 	return {
@@ -17,6 +17,16 @@ function buildSubscribeScenario(executorConfig) {
 			...executorConfig,
 			exec: 'default',
 			tags: { scenario_group: 'ws_hotkey_subscribe' },
+		},
+	};
+}
+
+function buildMixedSubscribeScenario(executorConfig) {
+	return {
+		ws_redis_single_mixed: {
+			...executorConfig,
+			exec: 'default',
+			tags: { scenario_group: 'ws_redis_single_mixed', test_kind: 'redis_single_mixed' },
 		},
 	};
 }
@@ -408,6 +418,66 @@ const HOTKEY_LOAD_PROFILES = {
 			ws_hotkey_snapshot_miss_count: ['count<200'],
 		},
 	},
+
+	'redis-single-mixed-smoke': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'constant-vus',
+			vus: 100,
+			duration: '2m',
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.98'],
+			ws_hotkey_auth_rate: ['rate>0.98'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<1500', 'p(99)<3000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<6000', 'p(99)<10000'],
+			'ws_hotkey_mixed_session_duration_ms{scenario_group:ws_redis_single_mixed}': ['p(95)>60000'],
+			ws_hotkey_connect_fail_count: ['count<20'],
+			ws_hotkey_subscribe_fail_count: ['count<20'],
+		},
+	},
+
+	'redis-single-mixed-ramp': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 200,
+			stages: [
+				{ target: 200, duration: '2m' },
+				{ target: 1000, duration: '3m' },
+				{ target: 3000, duration: '5m' },
+				{ target: 5000, duration: '5m' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.95'],
+			ws_hotkey_auth_rate: ['rate>0.95'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<3000', 'p(99)<7000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<10000', 'p(99)<15000'],
+			ws_hotkey_connect_fail_count: ['count<300'],
+			ws_hotkey_subscribe_fail_count: ['count<300'],
+		},
+	},
+
+	'redis-single-mixed-10k': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 500,
+			stages: [
+				{ target: 500, duration: '2m' },
+				{ target: 3000, duration: '4m' },
+				{ target: 7000, duration: '6m' },
+				{ target: 10000, duration: '8m' },
+				{ target: 10000, duration: '10m' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.90'],
+			ws_hotkey_auth_rate: ['rate>0.90'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<5000', 'p(99)<12000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
+			ws_hotkey_connect_fail_count: ['count<1500'],
+			ws_hotkey_subscribe_fail_count: ['count<1500'],
+		},
+	},
 };
 
 function parseInteger(rawValue, fallback, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -479,6 +549,12 @@ export function resolveHotkeyRuntimeOptions(wsStockPool) {
 	const churnRounds = parseInteger(__ENV.HOTKEY_CHURN_ROUNDS, 3, { min: 1, max: 30 });
 	const holdMs = parseInteger(__ENV.HOTKEY_HOLD_MS, 2_000, { min: 250, max: 30_000 });
 	const waitTimeoutMs = parseInteger(__ENV.HOTKEY_WAIT_TIMEOUT_MS, 8_000, { min: 1_000, max: 60_000 });
+	const sessionHoldMs = parseInteger(__ENV.HOTKEY_SESSION_HOLD_MS, 180_000, { min: 10_000, max: 1_800_000 });
+	const mixedTopicCount = parseInteger(__ENV.HOTKEY_MIXED_TOPIC_COUNT, 3, { min: 1, max: 50 });
+	const mixedMaxChurnCycles = parseInteger(__ENV.HOTKEY_MIXED_MAX_CHURN_CYCLES, 2, { min: 0, max: 100 });
+	const mixedChurnIntervalMs = parseInteger(__ENV.HOTKEY_MIXED_CHURN_INTERVAL_MS, 15_000, { min: 1_000, max: 600_000 });
+	const mixedHotRatio = Number(__ENV.HOTKEY_MIXED_HOT_RATIO || '0.5');
+	const mixedChurnProbability = Number(__ENV.HOTKEY_MIXED_CHURN_PROBABILITY || '0.1');
 
 	return {
 		scenarioMode,
@@ -487,5 +563,11 @@ export function resolveHotkeyRuntimeOptions(wsStockPool) {
 		churnRounds,
 		holdMs,
 		waitTimeoutMs,
+		sessionHoldMs,
+		mixedTopicCount,
+		mixedMaxChurnCycles,
+		mixedChurnIntervalMs,
+		mixedHotRatio: Number.isFinite(mixedHotRatio) ? Math.min(1, Math.max(0, mixedHotRatio)) : 0.5,
+		mixedChurnProbability: Number.isFinite(mixedChurnProbability) ? Math.min(1, Math.max(0, mixedChurnProbability)) : 0.1,
 	};
 }

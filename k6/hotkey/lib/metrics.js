@@ -15,3 +15,8 @@ export const wsHotkeyRejectedTopicCount = new Counter('ws_hotkey_rejected_topic_
 export const wsHotkeySnapshotMissCount = new Counter('ws_hotkey_snapshot_miss_count');
 export const wsHotkeyDisconnectCount = new Counter('ws_hotkey_disconnect_count');
 export const hotkeyCacheReadFailCount = new Counter('hotkey_cache_read_fail_count');
+
+export const wsHotkeyMixedSessionDuration = new Trend('ws_hotkey_mixed_session_duration_ms', true);
+export const wsHotkeyMixedEventCount = new Counter('ws_hotkey_mixed_event_count');
+export const wsHotkeyMixedChurnCycles = new Counter('ws_hotkey_mixed_churn_cycles');
+export const wsHotkeyMixedSubscribeRounds = new Counter('ws_hotkey_mixed_subscribe_rounds');
