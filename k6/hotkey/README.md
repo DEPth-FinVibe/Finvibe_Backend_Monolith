@@ -31,7 +31,10 @@
 - `lib/config.js`: redis-latency / subscribe-init / cache-read / redis-spike profile 및 threshold
 - `lib/metrics.js`: hotkey 진단용 메트릭
 - `scenarios/ws-hotkey-subscribe.js`: subscribe-init 집중/분산/churn 시나리오
+- `scenarios/ws-redis-mixed.js`: 장시간 연결 유지 + hot-key 집중 + 일부 churn 시나리오
 - `scenarios/http-hotkey-cache-read.js`: current-price cache 반복 조회 시나리오
+- `tools/redis_price_publisher.py`: Redis `market:price-updated` 직접 publish 스크립트
+- `REDIS_SINGLE_MIXED_RUNBOOK.md`: publisher + k6 + Grafana 실행 순서 문서
 - `.env.redis-spike-*`: read + websocket churn 혼합 spike 프로파일
 - `.env.redis-single-mixed-*`: 장시간 연결 유지형 websocket mixed 프로파일
 - `.env.hotkey-*`: subscribe-init 프로파일
@@ -143,6 +146,14 @@
 - 이 프로파일은 **웹소켓 클라이언트 부하만 k6가 생성**한다.
 - 실제 Redis Pub/Sub price event는 별도 publisher 또는 `TesterProvider`/mock-market 경로가 함께 돌아야 의미가 있다.
 - 즉, **시장 이벤트 공급이 동시에 없으면 hot fanout/redis ingress 관찰력이 약해진다.**
+
+Redis direct publish 방식이 필요하면 `tools/redis_price_publisher.py`를 같이 실행한다.
+
+- `single-hot`: hot stock 1개만 일정 rate로 publish
+- `zipf`: hot stock + 롱테일 분포
+- `burst`: 평시 낮은 rate + 특정 구간 spike
+
+실행 순서는 `REDIS_SINGLE_MIXED_RUNBOOK.md` 참고.
 
 ## Example Commands
 
