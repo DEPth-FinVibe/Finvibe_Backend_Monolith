@@ -23,7 +23,9 @@ def parse_args():
 	parser.add_argument("--password", default=env("REDIS_PASSWORD"))
 	parser.add_argument("--db", type=int, default=int(env("REDIS_DB", "0")))
 	parser.add_argument("--channel", default=env("REDIS_CHANNEL", "market:price-updated"))
-	parser.add_argument("--mode", choices=["single-hot", "zipf", "burst"], default=env("PUBLISH_MODE", "single-hot"))
+	parser.add_argument("--stock-mode", choices=["single-hot", "multi-stock"], default=env("PUBLISH_STOCK_MODE", "single-hot"))
+	parser.add_argument("--traffic-mode", choices=["steady", "burst"], default=env("PUBLISH_TRAFFIC_MODE", "steady"))
+	parser.add_argument("--mode", choices=["single-hot", "multi-stock", "zipf", "burst"], default=env("PUBLISH_MODE"))
 	parser.add_argument("--rate", type=float, default=float(env("PUBLISH_RATE", "1000")))
 	parser.add_argument("--duration-sec", type=int, default=int(env("PUBLISH_DURATION_SEC", "300")))
 	parser.add_argument("--hot-stock-id", type=int, default=int(env("HOT_STOCK_ID", "5930")))
@@ -37,7 +39,20 @@ def parse_args():
 	parser.add_argument("--start-price", type=float, default=float(env("PUBLISH_START_PRICE", "70000")))
 	parser.add_argument("--price-volatility", type=float, default=float(env("PUBLISH_PRICE_VOLATILITY", "25")))
 	parser.add_argument("--start-volume", type=int, default=int(env("PUBLISH_START_VOLUME", "1000")))
-	return parser.parse_args()
+	parser.add_argument("--pipeline-batch-size", type=int, default=int(env("PUBLISH_PIPELINE_BATCH_SIZE", "256")))
+	args = parser.parse_args()
+	legacy_mode = args.mode
+	if legacy_mode:
+		if legacy_mode == "single-hot":
+			args.stock_mode = "single-hot"
+			args.traffic_mode = "steady"
+		elif legacy_mode in ("multi-stock", "zipf"):
+			args.stock_mode = "multi-stock"
+			args.traffic_mode = "steady"
+		elif legacy_mode == "burst":
+			args.stock_mode = "multi-stock"
+			args.traffic_mode = "burst"
+	return args
 
 
 def encode_command(*parts):
@@ -119,23 +134,17 @@ def build_zipf_weights(stock_pool, skew):
 
 
 def choose_stock_id(args, stock_pool, zipf_cdf):
-	if args.mode == "single-hot":
+	if args.stock_mode == "single-hot":
 		return args.hot_stock_id
 
-	if args.mode == "zipf":
-		if random.random() < args.hot_ratio:
-			return args.hot_stock_id
-		r = random.random()
-		return stock_pool[min(len(stock_pool) - 1, bisect_left(zipf_cdf, r))]
-
-	if random.random() < max(0.3, args.hot_ratio):
+	if random.random() < args.hot_ratio:
 		return args.hot_stock_id
 	r = random.random()
 	return stock_pool[min(len(stock_pool) - 1, bisect_left(zipf_cdf, r))]
 
 
 def current_rate(args, elapsed_sec):
-	if args.mode != "burst":
+	if args.traffic_mode != "burst":
 		return args.rate
 	burst_end = args.burst_start_sec + args.burst_duration_sec
 	if args.burst_start_sec <= elapsed_sec < burst_end:
@@ -165,6 +174,19 @@ def build_payload(stock_id, prices, volumes, args):
 	}
 
 
+def publish_batch(sock, args, stock_pool, zipf_cdf, prices, volumes, batch_size):
+	commands = []
+	for _ in range(batch_size):
+		stock_id = choose_stock_id(args, stock_pool, zipf_cdf)
+		payload = build_payload(stock_id, prices, volumes, args)
+		serialized = json.dumps(payload, separators=(",", ":"))
+		commands.append(encode_command("PUBLISH", args.channel, serialized))
+
+	sock.sendall(b"".join(commands))
+	for _ in range(batch_size):
+		read_resp(sock)
+
+
 def publish_loop(sock, args, stock_pool):
 	zipf_cdf = build_zipf_weights(stock_pool, args.zipf_skew)
 	prices = {}
@@ -186,17 +208,15 @@ def publish_loop(sock, args, stock_pool):
 			time.sleep(0.001)
 			continue
 
-		stock_id = choose_stock_id(args, stock_pool, zipf_cdf)
-		payload = build_payload(stock_id, prices, volumes, args)
-		serialized = json.dumps(payload, separators=(",", ":"))
-		sock.sendall(encode_command("PUBLISH", args.channel, serialized))
-		read_resp(sock)
-		published += 1
+		remaining = expected - published
+		batch_size = min(max(1, args.pipeline_batch_size), remaining)
+		publish_batch(sock, args, stock_pool, zipf_cdf, prices, volumes, batch_size)
+		published += batch_size
 
 		if now >= next_report:
 			interval_count = published - last_report_published
 			print(
-				f"[publisher] elapsed={elapsed:7.2f}s mode={args.mode} current_rate={rate:.0f}/s published_total={published} published_last_sec={interval_count}",
+				f"[publisher] elapsed={elapsed:7.2f}s stock_mode={args.stock_mode} traffic_mode={args.traffic_mode} current_rate={rate:.0f}/s published_total={published} published_last_sec={interval_count}",
 				flush=True,
 			)
 			last_report_published = published
@@ -217,7 +237,7 @@ def main():
 			[
 				"[publisher] starting direct Redis price publisher",
 				f"[publisher] redis={args.host}:{args.port} db={args.db} channel={args.channel}",
-				f"[publisher] mode={args.mode} duration_sec={args.duration_sec} rate={args.rate}",
+				f"[publisher] stock_mode={args.stock_mode} traffic_mode={args.traffic_mode} duration_sec={args.duration_sec} rate={args.rate}",
 				f"[publisher] hot_stock_id={args.hot_stock_id} hot_ratio={args.hot_ratio} zipf_skew={args.zipf_skew}",
 				f"[publisher] burst_rate={args.burst_rate} burst_start_sec={args.burst_start_sec} burst_duration_sec={args.burst_duration_sec}",
 				f"[publisher] stock_pool_size={len(stock_pool)} seed={args.seed}",

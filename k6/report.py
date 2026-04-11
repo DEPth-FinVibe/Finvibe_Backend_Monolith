@@ -385,6 +385,10 @@ def is_redis_spike_profile(profile: str) -> bool:
     return profile.startswith("redis-spike-")
 
 
+def is_redis_single_mixed_profile(profile: str) -> bool:
+    return profile.startswith("redis-single-mixed-")
+
+
 def build_http_metrics_summary(data: dict) -> str:
     metrics = data.get("metrics", {})
     profile = data.get("profile", "unknown")
@@ -862,7 +866,151 @@ def build_redis_spike_metrics_summary(data: dict, server_metrics: dict | None = 
     return "\n".join(lines)
 
 
+def build_redis_single_mixed_metrics_summary(data: dict) -> str:
+    metrics = data.get("metrics", {})
+    profile = data.get("profile", "unknown")
+    base_url = data.get("baseUrl", "unknown")
+    tokens_loaded = data.get("tokensLoaded", 0)
+    ids_summary = data.get("idStatsSummary", "unknown")
+
+    connect_rate = extract_metric(metrics, "ws_hotkey_connect_rate")
+    auth_rate = extract_metric(metrics, "ws_hotkey_auth_rate")
+    connect_fail = extract_metric(metrics, "ws_hotkey_connect_fail_count")
+    subscribe_fail = extract_metric(metrics, "ws_hotkey_subscribe_fail_count")
+    disconnects = extract_metric(metrics, "ws_hotkey_disconnect_count")
+    subscribe_rounds = extract_metric(metrics, "ws_hotkey_mixed_subscribe_rounds")
+    mixed_event_count = extract_metric(metrics, "ws_hotkey_mixed_event_count")
+    subscribe_ack = extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}") or extract_metric(metrics, "ws_hotkey_subscribe_ack_latency_ms")
+    snapshot_latency = extract_metric(metrics, "ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}") or extract_metric(metrics, "ws_hotkey_initial_snapshot_latency_ms")
+    mixed_session_duration = extract_metric(metrics, "ws_hotkey_mixed_session_duration_ms{scenario_group:ws_redis_single_mixed}") or extract_metric(metrics, "ws_hotkey_mixed_session_duration_ms")
+    ws_connecting = extract_metric(metrics, "ws_connecting")
+
+    lines = []
+    lines.append("## 테스트 기본 정보")
+    lines.append(f"- 프로파일: {profile}")
+    lines.append(f"- 대상 서버: {base_url}")
+    lines.append(f"- 로드된 토큰 수: {tokens_loaded}")
+    lines.append(f"- 로드된 ID 통계: {ids_summary}")
+    lines.append("")
+
+    lines.append("## Mixed WebSocket 핵심 지표")
+    if connect_rate:
+        v = connect_rate.get("values", {})
+        lines.append(f"- 연결 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if auth_rate:
+        v = auth_rate.get("values", {})
+        lines.append(f"- 인증 성공률: {fmt_rate(v.get('rate'), as_percent=True)}")
+    if connect_fail:
+        v = connect_fail.get("values", {})
+        lines.append(f"- 연결 실패 수: {int(v.get('count', 0)):,}")
+    if subscribe_fail:
+        v = subscribe_fail.get("values", {})
+        lines.append(f"- subscribe 실패 수: {int(v.get('count', 0)):,}")
+    if disconnects:
+        v = disconnects.get("values", {})
+        lines.append(f"- disconnect 수: {int(v.get('count', 0)):,}")
+    if subscribe_rounds:
+        v = subscribe_rounds.get("values", {})
+        lines.append(f"- subscribe round 수: {int(v.get('count', 0)):,}")
+    if mixed_event_count:
+        v = mixed_event_count.get("values", {})
+        lines.append(f"- 수신 event 수: {int(v.get('count', 0)):,}")
+        lines.append(f"- 초당 event 수: {v.get('rate', 0):.2f}")
+    lines.append("")
+
+    lines.append("## Subscribe Ack 지연")
+    if subscribe_ack:
+        v = subscribe_ack.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p99: {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## Initial Snapshot 지연")
+    if snapshot_latency:
+        v = snapshot_latency.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p99: {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## 세션 유지 시간")
+    if mixed_session_duration:
+        v = mixed_session_duration.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p99: {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## 연결 수립 시간 (ws_connecting)")
+    if ws_connecting:
+        v = ws_connecting.get("values", {})
+        lines.append(f"- avg: {fmt_ms(v.get('avg'))}")
+        lines.append(f"- med: {fmt_ms(v.get('med'))}")
+        lines.append(f"- p95: {fmt_ms(v.get('p(95)'))}")
+        lines.append(f"- p99: {fmt_ms(v.get('p(99)'))}")
+        lines.append(f"- max: {fmt_ms(v.get('max'))}")
+    else:
+        lines.append("- 데이터 없음")
+    lines.append("")
+
+    lines.append("## Threshold 통과/실패 현황")
+    threshold_lines = threshold_status_lines(metrics)
+    lines.extend(threshold_lines or ["- threshold 데이터 없음"])
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def build_prompt(metrics_summary: str, profile: str, server_metrics: dict | None = None) -> str:
+    if is_redis_single_mixed_profile(profile):
+        return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Redis single-node mixed websocket 테스트 결과 데이터입니다.
+테스트 프로파일은 \"{profile}\"입니다.
+
+---
+{metrics_summary}
+---
+
+위 데이터를 바탕으로 한국어로 상세한 mixed websocket 부하테스트 분석 보고서를 마크다운 형식으로 작성해주세요.
+
+중요:
+- 이 테스트는 단일 Redis 서버 + listener 2대 + hot-key 집중 websocket 시나리오를 관찰하기 위한 것입니다.
+- 분석 대상은 websocket 연결/인증/subscribe/initial snapshot/session duration/event count 입니다.
+- HTTP REST API 성능 보고서처럼 해석하지 마세요.
+- `ws_hotkey_connect_rate`, `ws_hotkey_auth_rate`, `ws_hotkey_subscribe_fail_count`, `ws_hotkey_subscribe_ack_latency_ms`, `ws_hotkey_initial_snapshot_latency_ms`, `ws_hotkey_mixed_session_duration_ms`, `ws_hotkey_mixed_event_count`를 중심으로 해석하세요.
+- session duration threshold가 실패한 경우, 실제 테스트에서 의도적으로 session hold 시간을 짧게 잡았는지 여부를 해석에 반영하세요.
+- 이 시나리오는 Redis direct publisher와 함께 수행될 수 있으므로, 보고서에서 listener fanout 병목 / Redis ingress pressure 가능성을 함께 언급하세요.
+
+보고서에 반드시 포함해야 할 항목:
+1. **테스트 요약** - 프로파일, 목적, 전체 결과(합격/불합격)
+2. **핵심 지표 분석**
+   - 연결 성공률, 인증 성공률
+   - subscribe ack latency
+   - initial snapshot latency
+   - session duration
+   - event 수신량
+3. **Threshold 판정 결과** - 각 임계치 통과/실패 이유 설명
+4. **병목 및 위험 구간**
+   - websocket session queue / fanout 관점
+   - Redis ingress pressure 가능성
+5. **개선 권고사항** - 구체적이고 실행 가능한 3~5가지
+6. **종합 평가** - 단일 Redis + websocket mixed 테스트 관점의 한 줄 판정
+
+마크다운 헤더(#, ##, ###), 표를 적절히 활용해 가독성 높게 작성하세요.
+"""
+
     if is_redis_spike_profile(profile):
         return f"""당신은 백엔드 성능 엔지니어입니다. 아래는 Finvibe 서비스에 대한 k6 Redis mixed spike 테스트 결과 데이터입니다.
 테스트 프로파일은 \"{profile}\"입니다.
@@ -1103,7 +1251,9 @@ def main():
     server_metrics = build_server_metrics_context(data.get("baseUrl", "unknown")) if (is_hotkey_cache_profile(profile) or is_redis_spike_profile(profile)) else {}
 
     print("[2/4] 지표 데이터 가공 중...")
-    if is_redis_spike_profile(profile):
+    if is_redis_single_mixed_profile(profile):
+        metrics_summary = build_redis_single_mixed_metrics_summary(data)
+    elif is_redis_spike_profile(profile):
         metrics_summary = build_redis_spike_metrics_summary(data, server_metrics)
     elif is_hotkey_cache_profile(profile):
         metrics_summary = build_hotkey_cache_metrics_summary(data, server_metrics)

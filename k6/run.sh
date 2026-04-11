@@ -95,8 +95,10 @@ echo "1) REST API 테스트"
 echo "2) WebSocket 테스트  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "3) WebSocket 실시간 모니터링  (Mock Provider 필요: SPRING_PROFILES_ACTIVE=local,mock-market)"
 echo "4) Redis 부하 테스트  (Stage 1)"
+echo "5) Redis + WebSocket Mixed 테스트  (direct Redis publisher와 함께 권장)"
+echo "6) 현실형 증권 플랫폼 시나리오  (세션당 10/20/30종목)"
 echo "============================================================"
-read -p "테스트 종류 선택 (1~4): " test_type
+read -p "테스트 종류 선택 (1~6): " test_type
 
 case $test_type in
   1)
@@ -281,8 +283,62 @@ case $test_type in
         ;;
     esac
     ;;
+  5)
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  Redis + WebSocket Mixed 프로파일"
+    echo "------------------------------------------------------------"
+    echo "0) redis-single-mixed-smoke  │  2분   │ 100 WS 세션 유지 + mixed hotkey/churn"
+    echo "   direct Redis publisher와 함께 돌려 listener + Redis 조합 정상성을 확인"
+    echo ""
+    echo "1) redis-single-mixed-ramp   │ 15분   │ 200 → 1000 → 3000 → 5000 WS"
+    echo "   hot stock 집중 + 일부 churn 상태에서 listener/Redis 병목 이동을 관찰"
+    echo ""
+    echo "2) redis-single-mixed-10k    │ 30분   │ 500 → 3000 → 7000 → 10000 WS"
+    echo "   10k 유지형 mixed websocket 시나리오. direct Redis publisher와 함께 최종 검증용"
+    echo "------------------------------------------------------------"
+    echo "※ 이 메뉴는 direct Redis price publisher와 함께 실행하는 것을 권장"
+    echo "------------------------------------------------------------"
+    read -p "프로파일 선택 (0~2): " choice
+    case $choice in
+      0) ENV_FILE="k6/hotkey/.env.redis-single-mixed-smoke" ;;
+      1) ENV_FILE="k6/hotkey/.env.redis-single-mixed-ramp" ;;
+      2) ENV_FILE="k6/hotkey/.env.redis-single-mixed-10k" ;;
+      *)
+        echo "잘못된 선택입니다. 0~2 중 하나를 입력하세요."
+        exit 1
+        ;;
+    esac
+    ;;
+  6)
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "  현실형 증권 플랫폼 프로파일"
+    echo "------------------------------------------------------------"
+    echo "0) realistic-10  │ mixed-ramp │ 세션당 10종목, hot ratio 0.25"
+    echo "   현실적인 최소선. active user 이전 단계의 baseline 검증용"
+    echo ""
+    echo "1) realistic-20  │ mixed-ramp │ 세션당 20종목, hot ratio 0.25"
+    echo "   일반적인 active user 가정. Redis watcher / fanout 동시 압박용"
+    echo ""
+    echo "2) realistic-30  │ mixed-10k  │ 세션당 30종목, hot ratio 0.20"
+    echo "   heavy user 가정. 매우 강한 fanout + watcher pressure 검증용"
+    echo "------------------------------------------------------------"
+    echo "※ publisher는 multi-stock steady 5000/8000/12000 msg/s와 함께 실행 권장"
+    echo "------------------------------------------------------------"
+    read -p "프로파일 선택 (0~2): " choice
+    case $choice in
+      0) ENV_FILE="k6/hotkey/.env.redis-realistic-10" ;;
+      1) ENV_FILE="k6/hotkey/.env.redis-realistic-20" ;;
+      2) ENV_FILE="k6/hotkey/.env.redis-realistic-30" ;;
+      *)
+        echo "잘못된 선택입니다. 0~2 중 하나를 입력하세요."
+        exit 1
+        ;;
+    esac
+    ;;
   *)
-    echo "잘못된 선택입니다. 1~4 중 하나를 입력하세요."
+    echo "잘못된 선택입니다. 1~6 중 하나를 입력하세요."
     exit 1
     ;;
 esac
@@ -333,18 +389,21 @@ echo "==============================="
 echo "  k6 종료 (exit code: $K6_EXIT)"
 echo "==============================="
 
-# Gemini 보고서 생성
 if [ -f "$SUMMARY_FILE" ]; then
   if [ -z "$GEMINI_API_KEY" ]; then
     echo ""
-    echo "⚠️  GEMINI_API_KEY가 설정되지 않아 보고서 생성을 건너뜁니다."
-    echo "   보고서를 생성하려면 다음을 실행하세요:"
-    echo "   GEMINI_API_KEY=<your-key> $VENV_PYTHON k6/report.py $SUMMARY_FILE $PROFILE_NAME"
+    echo "❌ GEMINI_API_KEY가 설정되지 않아 markdown 보고서를 생성할 수 없습니다."
+    echo "   정책상 k6 테스트는 JSON summary 이후 AI markdown 보고서 생성까지 완료되어야 합니다."
+    echo "   다음 중 하나로 다시 실행하세요:"
+    echo "   1) export GEMINI_API_KEY=<your-key>"
+    echo "   2) .env 파일에 GEMINI_API_KEY 추가"
+    echo "   이후 재실행: bash k6/run.sh"
+    exit 1
   else
     echo ""
     if ! ensure_python_runtime "report"; then
-      echo "⚠️  Python 런타임 준비에 실패하여 보고서 생성을 건너뜁니다."
-      exit $K6_EXIT
+      echo "❌ Python 런타임 준비에 실패하여 markdown 보고서를 생성할 수 없습니다."
+      exit 1
     fi
 
     echo "📊 Gemini API로 보고서 생성 중... (python: $VENV_PYTHON)"
@@ -352,14 +411,16 @@ if [ -f "$SUMMARY_FILE" ]; then
     REPORT_EXIT=$?
     if [ $REPORT_EXIT -ne 0 ]; then
       echo ""
-      echo "⚠️  AI 보고서 생성에 실패했습니다. (exit code: $REPORT_EXIT)"
+      echo "❌ AI markdown 보고서 생성에 실패했습니다. (exit code: $REPORT_EXIT)"
       echo "   직접 재실행:"
       echo "   $VENV_PYTHON k6/report.py \"$SUMMARY_FILE\" \"$PROFILE_NAME\""
+      exit $REPORT_EXIT
     fi
   fi
 else
   echo ""
-  echo "⚠️  요약 파일을 찾을 수 없어 보고서 생성을 건너뜁니다: $SUMMARY_FILE"
+  echo "❌ 요약 JSON 파일을 찾을 수 없어 markdown 보고서를 생성할 수 없습니다: $SUMMARY_FILE"
+  exit 1
 fi
 
 exit $K6_EXIT
