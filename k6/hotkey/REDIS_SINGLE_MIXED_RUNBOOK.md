@@ -27,6 +27,11 @@
 - 파일: `../Finvibe-Websocket-Listener-main/docs/monitoring/grafana-redis-single-mixed-dashboard.json`
 - import guide: `../Finvibe-Websocket-Listener-main/docs/monitoring/redis-single-mixed-dashboard-import.md`
 
+### 4. AI markdown report
+
+- 파일: `k6/report.py`
+- 정책: k6 테스트는 JSON summary만으로 끝내지 않고, 반드시 AI markdown 보고서까지 생성해야 함
+
 ---
 
 ## 전제 조건
@@ -80,21 +85,23 @@ python3 k6/hotkey/tools/redis_price_publisher.py \
   --host 127.0.0.1 \
   --port 6379 \
   --channel market:price-updated \
-  --mode single-hot \
+  --stock-mode single-hot \
+  --traffic-mode steady \
   --hot-stock-id 5930 \
   --rate 1000 \
   --duration-sec 600 \
   --stock-pool-file ./k6/data/ids.json
 ```
 
-### 예시 B. zipf mixed
+### 예시 B. multi-stock steady
 
 ```bash
 python3 k6/hotkey/tools/redis_price_publisher.py \
   --host 127.0.0.1 \
   --port 6379 \
   --channel market:price-updated \
-  --mode zipf \
+  --stock-mode multi-stock \
+  --traffic-mode steady \
   --hot-stock-id 5930 \
   --hot-ratio 0.5 \
   --zipf-skew 1.1 \
@@ -103,14 +110,15 @@ python3 k6/hotkey/tools/redis_price_publisher.py \
   --stock-pool-file ./k6/data/ids.json
 ```
 
-### 예시 C. burst
+### 예시 C. multi-stock burst
 
 ```bash
 python3 k6/hotkey/tools/redis_price_publisher.py \
   --host 127.0.0.1 \
   --port 6379 \
   --channel market:price-updated \
-  --mode burst \
+  --stock-mode multi-stock \
+  --traffic-mode burst \
   --hot-stock-id 5930 \
   --rate 200 \
   --burst-rate 3000 \
@@ -142,6 +150,30 @@ HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
 HOTKEY_MIXED_MAX_CHURN_CYCLES=2 \
 SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-ramp.json \
 k6 run k6/hotkey/main.js
+```
+
+## Step 4. markdown 보고서 생성 확인
+
+`k6/run.sh`로 실행했다면 JSON summary 뒤에 markdown 보고서 생성까지 자동으로 이어져야 한다.
+
+정상이라면 `k6/hotkey/reports/` 아래에 아래 형태의 파일이 생긴다.
+
+```text
+report_<profile>_<timestamp>.md
+```
+
+만약 직접 `k6 run ...`으로 실행했다면, JSON 생성 후 아래를 수동 실행해야 한다.
+
+```bash
+python3 k6/report.py <summary_json_path> <profile_name>
+```
+
+예시:
+
+```bash
+python3 k6/report.py \
+  k6/hotkey/reports/redis-single-mixed-ramp.json \
+  redis-single-mixed-ramp
 ```
 
 ### 예시 B. 10k 유지
@@ -180,12 +212,12 @@ k6 run k6/hotkey/main.js
 
 ### 3차: 더 현실적인 분포
 
-- publisher: `zipf`, `rate=2000~3000`
+- publisher: `multi-stock`, `rate=2000~3000`
 - k6: `redis-single-mixed-10k`
 
 ### 4차: burst resilience
 
-- publisher: `burst`
+- publisher: `multi-stock + burst`
 - k6: `redis-single-mixed-10k`
 
 ---

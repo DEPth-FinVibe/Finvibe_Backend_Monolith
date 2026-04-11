@@ -149,9 +149,13 @@
 
 Redis direct publish 방식이 필요하면 `tools/redis_price_publisher.py`를 같이 실행한다.
 
-- `single-hot`: hot stock 1개만 일정 rate로 publish
-- `zipf`: hot stock + 롱테일 분포
-- `burst`: 평시 낮은 rate + 특정 구간 spike
+- `stock-mode=single-hot`: hot stock 1개만 publish
+- `stock-mode=multi-stock`: 여러 stockId에 분산 publish
+- `traffic-mode=steady`: 일정 rate 유지
+- `traffic-mode=burst`: 평시 낮은 rate + 특정 구간 spike
+
+하위 호환용으로 `--mode single-hot|multi-stock|zipf|burst`도 남아 있지만,
+앞으로는 `stock-mode` + `traffic-mode` 조합을 기본으로 사용한다.
 
 실행 순서는 `REDIS_SINGLE_MIXED_RUNBOOK.md` 참고.
 
