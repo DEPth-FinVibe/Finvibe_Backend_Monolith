@@ -213,6 +213,9 @@ public class UserDto {
 
         @Schema(description = "리프레시 토큰 만료 시각", example = "2024-02-01T00:00:00Z")
         private OffsetDateTime refreshExpiresAt;
+
+        @Schema(description = "토큰 패밀리 ID", example = "00000000-0000-0000-0000-000000000000")
+        private UUID tokenFamilyId;
     }
 
     @Getter
@@ -243,6 +246,43 @@ public class UserDto {
 
         @Schema(description = "리프레시 토큰 만료 시각", example = "2024-02-01T00:00:00Z")
         private OffsetDateTime refreshExpiresAt;
+
+        @Schema(description = "토큰 패밀리 ID", example = "00000000-0000-0000-0000-000000000000")
+        private UUID tokenFamilyId;
+    }
+
+    @Getter
+    @Builder
+    @NoArgsConstructor(access = AccessLevel.PROTECTED)
+    @AllArgsConstructor
+    @Schema(name = "SessionResponse", description = "로그인 기기 세션 응답")
+    public static class SessionResponse {
+        @Schema(description = "토큰 패밀리 ID", example = "00000000-0000-0000-0000-000000000000")
+        private UUID tokenFamilyId;
+
+        @Schema(description = "현재 요청 기기 여부", example = "true")
+        private boolean currentDevice;
+
+        @Schema(description = "브라우저 이름", example = "Chrome")
+        private String browserName;
+
+        @Schema(description = "운영체제 이름", example = "macOS")
+        private String osName;
+
+        @Schema(description = "위치", example = "Seoul, KR")
+        private String location;
+
+        @Schema(description = "마스킹된 IP 주소", example = "127.0.*.*")
+        private String ipAddress;
+
+        @Schema(description = "마지막 사용 시각", example = "2024-01-01T00:00:00Z")
+        private OffsetDateTime lastUsedAt;
+
+        @Schema(description = "생성 시각", example = "2024-01-01T00:00:00Z")
+        private OffsetDateTime createdAt;
+
+        @Schema(description = "세션 상태", example = "ACTIVE")
+        private String status;
     }
 
     @Getter

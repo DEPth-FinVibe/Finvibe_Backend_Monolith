@@ -1,9 +1,10 @@
 package depth.finvibe.boot.security;
 
+import depth.finvibe.modules.user.application.port.out.TokenResolver;
+import depth.finvibe.modules.user.domain.AuthTokenClaims;
+import depth.finvibe.modules.user.domain.enums.AuthTokenType;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Base64;
-import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
@@ -16,7 +17,6 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.ObjectMapper;
 
 @Component
 @RequiredArgsConstructor
@@ -24,10 +24,11 @@ public class JwtArgumentResolver implements HandlerMethodArgumentResolver {
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final String USER_UUID_CLAIM = "id";
-    private static final String ROLE_CLAIM = "role";
+    private static final String AUTHENTICATED_USER_ID_HEADER = "X-Authenticated-User-Id";
+    private static final String AUTHENTICATED_ROLE_HEADER = "X-Authenticated-Role";
+    private static final String TOKEN_FAMILY_ID_HEADER = "X-Token-Family-Id";
 
-    private final ObjectMapper objectMapper;
+    private final TokenResolver tokenResolver;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -42,50 +43,56 @@ public class JwtArgumentResolver implements HandlerMethodArgumentResolver {
             NativeWebRequest webRequest,
             @Nullable WebDataBinderFactory binderFactory
     ) throws Exception {
-        String authHeader = getAuthorizationHeader(webRequest);
+        HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
+        Requester requesterFromHeaders = resolveFromTrustedHeaders(request);
+        if (requesterFromHeaders != null) {
+            return requesterFromHeaders;
+        }
+
+        String authHeader = request.getHeader(AUTHORIZATION_HEADER);
         if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
         String token = authHeader.substring(BEARER_PREFIX.length());
-        String payload = decodePayload(token);
-        if (payload == null) {
+        AuthTokenClaims claims;
+        try {
+            claims = tokenResolver.parse(token);
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
+        }
+        if (claims.tokenType() != AuthTokenType.ACCESS) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
 
-        var claims = objectMapper.readValue(payload, Map.class);
-
         return new Requester(
-                parseUuid(claims.get(USER_UUID_CLAIM)),
-                parseRole(claims.get(ROLE_CLAIM))
+                claims.userId(),
+                claims.role(),
+                claims.tokenFamilyId()
         );
     }
 
-    private @Nullable String getAuthorizationHeader(NativeWebRequest webRequest) {
-        HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
-        return request.getHeader(AUTHORIZATION_HEADER);
-    }
-
-    private @Nullable String decodePayload(String token) {
-        String[] chunks = token.split("\\.");
-        if (chunks.length < 2) {
+    private @Nullable Requester resolveFromTrustedHeaders(@Nullable HttpServletRequest request) {
+        if (request == null) {
             return null;
         }
-        Base64.Decoder decoder = Base64.getUrlDecoder();
-        return new String(decoder.decode(chunks[1]));
-    }
 
-    private @Nullable UUID parseUuid(@Nullable Object value) {
-        if (value == null) {
+        String userIdHeader = request.getHeader(AUTHENTICATED_USER_ID_HEADER);
+        String roleHeader = request.getHeader(AUTHENTICATED_ROLE_HEADER);
+        if (userIdHeader == null || roleHeader == null) {
             return null;
         }
-        return UUID.fromString(value.toString());
-    }
 
-    private @Nullable UserRole parseRole(@Nullable Object value) {
-        if (value == null) {
-            return null;
+        UUID tokenFamilyId = null;
+        String tokenFamilyHeader = request.getHeader(TOKEN_FAMILY_ID_HEADER);
+        if (tokenFamilyHeader != null && !tokenFamilyHeader.isBlank()) {
+            tokenFamilyId = UUID.fromString(tokenFamilyHeader);
         }
-        return UserRole.valueOf(value.toString());
+
+        return new Requester(
+            UUID.fromString(userIdHeader),
+            UserRole.valueOf(roleHeader),
+            tokenFamilyId
+        );
     }
 }

@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class Requester {
     private UUID userId;
     private UserRole role;
+    private UUID tokenFamilyId;
 
     public UUID getUuid() {
         return userId;

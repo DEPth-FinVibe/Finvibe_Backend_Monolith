@@ -69,7 +69,7 @@ jwt:
   secret: ${JWT_SECRET:testsecret12312312313123123123testsecret12312312313123123123}
   issuer: ${JWT_ISSUER:finvibe-user}
   access-token-expiration: 3600000
-  refresh-token-expiration: 1209600000
+  refresh-token-expiration: 2592000000
 
 app:
   oauth2:

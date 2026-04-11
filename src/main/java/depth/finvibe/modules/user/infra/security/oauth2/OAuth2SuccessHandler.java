@@ -1,6 +1,7 @@
 package depth.finvibe.modules.user.infra.security.oauth2;
 
 import depth.finvibe.modules.user.application.port.in.AuthCommandUseCase;
+import depth.finvibe.modules.user.application.port.out.LoginContextResolver;
 import depth.finvibe.modules.user.domain.enums.AuthProvider;
 import depth.finvibe.modules.user.dto.UserDto;
 import jakarta.servlet.ServletException;
@@ -23,6 +24,7 @@ import java.util.Map;
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final AuthCommandUseCase authCommandUseCase;
+    private final LoginContextResolver loginContextResolver;
 
     @Value("${app.oauth2.base-url}")
     private String baseUrl;
@@ -44,7 +46,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .providerId(providerId)
                 .build();
 
-        UserDto.OAuthLoginResponse loginResponse = authCommandUseCase.oauthLogin(loginRequest);
+        UserDto.OAuthLoginResponse loginResponse = authCommandUseCase.oauthLogin(
+                loginRequest,
+                loginContextResolver.resolve(request)
+        );
 
         String targetUrl = determineTargetUrl(loginResponse, email);
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
