@@ -43,3 +43,4 @@ For PRs:
 - link related issues/tasks
 - list config/env var changes explicitly
 - confirm CI passes (`clean compileJava test`) before review
+- 모든 커밋은 한국어로 작성되어야 합니다.
