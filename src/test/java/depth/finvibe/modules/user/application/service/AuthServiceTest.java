@@ -227,7 +227,7 @@ class AuthServiceTest {
 		anotherFamily.rotate(hash("refresh-token-2"), Instant.now().plusSeconds(3600), Instant.now());
 
 		when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
-		when(tokenFamilyRepository.findAllByUserId(user.getId())).thenReturn(List.of(currentFamily, anotherFamily));
+		when(tokenFamilyRepository.findAvailableByUserId(user.getId())).thenReturn(List.of(currentFamily, anotherFamily));
 
 		List<UserDto.SessionResponse> responses = authService.getSessions(
 			new Requester(user.getId(), user.getRole(), currentFamily.getId())
