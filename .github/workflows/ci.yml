@@ -1,27 +1,83 @@
-name: CI
+name: CI - Build & Deploy (Auto)
 
 on:
-  pull_request:
+  push:
+    branches:
+      - main
 
 jobs:
-  build-test:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      # 1️⃣ Backend Repo Checkout
+      - name: Checkout backend repository
         uses: actions/checkout@v4
 
+      # 2️⃣ JDK 21 설정
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
           java-version: '21'
+          distribution: 'temurin'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      # 3️⃣ Gradle 캐시
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Compile and test
-        run: ./gradlew --no-daemon clean compileJava test
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-      - name: Build Docker image smoke check
-        run: docker build -t finvibe-backend-monolith:ci .
+      # 4️⃣ Gradle Build
+      - name: Build with Gradle
+        run: ./gradlew clean build --no-daemon
+
+      # 5️⃣ Docker Hub 로그인
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      # 6️⃣ 이미지 태그 (commit sha 7자리)
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      # 7️⃣ Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 8️⃣ Docker 이미지 빌드 & Push
+      - name: Build & Push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: 51taek/finvibe-monolith:${{ env.IMAGE_TAG }}
+          build-args: |
+            PROFILE=prod
+
+      # 9️⃣ manifest repo checkout
+      - name: Checkout manifest repo
+        uses: actions/checkout@v4
+        with:
+          repository: DEPth-FinVibe/Finvibe_Backend_Manifest
+          token: ${{ secrets.MANIFEST_REPO_TOKEN }}
+          path: manifest
+
+      # 🔟 deployment.yaml 이미지 태그 갱신
+      - name: Update image tag in manifest
+        run: |
+          cd manifest/backend
+          sed -i "s|image: .*|image: 51taek/finvibe-monolith:${{ env.IMAGE_TAG }}|" deployment.yaml
+
+      # 1️⃣1️⃣ manifest repo 커밋 & 푸시
+      - name: Commit & Push manifest
+        run: |
+          cd manifest
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -am "deploy(backend): ${{ env.IMAGE_TAG }}"
+          git push
