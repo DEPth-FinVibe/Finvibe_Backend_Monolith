@@ -18,8 +18,8 @@ jobs:
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'temurin'
+          java-version: "21"
+          distribution: "temurin"
 
       # 3️⃣ Gradle 캐시
       - name: Setup Gradle
@@ -55,7 +55,7 @@ jobs:
           file: deploy/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: 51taek/finvibe-monolith:${{ env.IMAGE_TAG }}
+          tags: cmh1448/finvibe-monolith:${{ env.IMAGE_TAG }}
           build-args: |
             PROFILE=prod
 
@@ -71,7 +71,7 @@ jobs:
       - name: Update image tag in manifest
         run: |
           cd manifest/backend
-          sed -i "s|image: .*|image: 51taek/finvibe-monolith:${{ env.IMAGE_TAG }}|" deployment.yaml
+          sed -i "s|image: .*|image: cmh1448/finvibe-monolith:${{ env.IMAGE_TAG }}|" deployment.yaml
 
       # 1️⃣1️⃣ manifest repo 커밋 & 푸시
       - name: Commit & Push manifest
