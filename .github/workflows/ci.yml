@@ -52,7 +52,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: deploy/Dockerfile
+          file: Dockerfile
           push: true
           platforms: linux/amd64
           tags: cmh1448/finvibe-monolith:${{ env.IMAGE_TAG }}
