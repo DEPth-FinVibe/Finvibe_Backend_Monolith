@@ -253,7 +253,7 @@ public class AuthService implements AuthCommandUseCase {
 		validateRefreshTokenOwner(requester.getUserId());
 		UUID currentTokenFamilyId = requester.getTokenFamilyId();
 
-		return tokenFamilyRepository.findAllByUserId(requester.getUserId()).stream()
+		return tokenFamilyRepository.findAvailableByUserId(requester.getUserId()).stream()
 			.map(tokenFamily -> toSessionResponse(tokenFamily, currentTokenFamilyId))
 			.toList();
 	}

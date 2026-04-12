@@ -12,4 +12,6 @@ public interface TokenFamilyRepository {
 	Optional<TokenFamily> findById(UUID tokenFamilyId);
 
 	List<TokenFamily> findAllByUserId(UUID userId);
+
+	List<TokenFamily> findAvailableByUserId(UUID userId);
 }

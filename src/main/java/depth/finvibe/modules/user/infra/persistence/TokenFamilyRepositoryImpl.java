@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 public class TokenFamilyRepositoryImpl implements TokenFamilyRepository {
 
 	private final JpaTokenFamilyRepository jpaTokenFamilyRepository;
+	private final TokenFamilyQueryRepository tokenFamilyQueryRepository;
 
 	@Override
 	public TokenFamily save(TokenFamily tokenFamily) {
@@ -29,5 +30,10 @@ public class TokenFamilyRepositoryImpl implements TokenFamilyRepository {
 	@Override
 	public List<TokenFamily> findAllByUserId(UUID userId) {
 		return jpaTokenFamilyRepository.findAllByUserIdOrderByLastUsedAtDescCreatedAtDesc(userId);
+	}
+
+	@Override
+	public List<TokenFamily> findAvailableByUserId(UUID userId) {
+		return tokenFamilyQueryRepository.findAvailableByUserId(userId);
 	}
 }
