@@ -3,7 +3,9 @@
 .gradle
 .idea
 bin
-build
+build/*
+!build/libs/
+!build/libs/*.jar
 infra
 out
 target

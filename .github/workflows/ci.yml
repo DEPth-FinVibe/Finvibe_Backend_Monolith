@@ -56,8 +56,6 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: cmh1448/finvibe-monolith:${{ env.IMAGE_TAG }}
-          build-args: |
-            PROFILE=prod
 
       # 9️⃣ manifest repo checkout
       - name: Checkout manifest repo
