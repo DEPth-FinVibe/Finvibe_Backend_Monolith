@@ -3,6 +3,7 @@ spring:
     import:
       - optional:classpath:application-kafka.yml
       - optional:classpath:application-oauth.yml
+      - optional:classpath:application-mock-market.yml
 
   datasource:
     url: ${DB_URL}
