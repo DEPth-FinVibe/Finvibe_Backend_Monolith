@@ -83,6 +83,7 @@ public class StaleCurrentPriceRecoveryService {
   private CurrentPriceUpdatedEvent toEvent(PriceCandleDto.Response candle) {
     return CurrentPriceUpdatedEvent.builder()
             .stockId(candle.getStockId())
+            .ts(System.currentTimeMillis())
             .at(candle.getAt())
             .open(candle.getOpen())
             .high(candle.getHigh())

@@ -196,6 +196,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 		return CurrentPriceUpdatedEvent.builder()
 				.stockId(stockId)
+				.ts(System.currentTimeMillis())
 				.at(LocalDateTime.now())
 				.open(close.subtract(spread))
 				.high(close.add(spread))

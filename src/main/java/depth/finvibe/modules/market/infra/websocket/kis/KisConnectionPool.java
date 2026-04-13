@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -289,6 +290,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
         return CurrentPriceUpdatedEvent.builder()
                 .stockId(stockId)
+                .ts(timestamp.atZone(ZoneId.of("Asia/Seoul")).toInstant().toEpochMilli())
                 .at(timestamp)
                 .open(toBigDecimal(response.getOpenStockPrice()))
                 .high(toBigDecimal(response.getHighStockPrice()))

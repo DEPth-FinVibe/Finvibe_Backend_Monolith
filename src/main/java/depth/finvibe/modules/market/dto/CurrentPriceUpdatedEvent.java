@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @Builder
 public class CurrentPriceUpdatedEvent {
     private Long stockId;
+    private Long ts;
     private LocalDateTime at;
     private BigDecimal open;
     private BigDecimal high;

@@ -108,6 +108,7 @@ def connect_redis(args):
 	if args.db:
 		sock.sendall(encode_command("SELECT", args.db))
 		read_resp(sock)
+	sock.settimeout(None)
 	return sock
 
 
