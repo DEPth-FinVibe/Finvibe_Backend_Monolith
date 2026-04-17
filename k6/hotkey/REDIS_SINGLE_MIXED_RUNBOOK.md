@@ -16,6 +16,7 @@
 
 - 파일: `k6/hotkey/main.js`
 - 프로파일: `redis-single-mixed-smoke`, `redis-single-mixed-ramp`, `redis-single-mixed-10k`
+- 현실형 20종목 steady-state 검증: `redis-single-mixed-5k-20x10m`
 
 ### 2. Redis direct publisher
 
@@ -149,6 +150,26 @@ HOTKEY_MIXED_CHURN_PROBABILITY=0.10 \
 HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
 HOTKEY_MIXED_MAX_CHURN_CYCLES=2 \
 SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-ramp.json \
+k6 run k6/hotkey/main.js
+```
+
+### 예시 A-2. realistic 20-topic / 5k
+
+```bash
+set -a
+. .env
+set +a
+
+HOTKEY_LOAD_PROFILE=redis-single-mixed-5k-20x10m \
+HOTKEY_SCENARIO=mixed \
+HOTKEY_STOCK_ID=5930 \
+HOTKEY_SESSION_HOLD_MS=300000 \
+HOTKEY_MIXED_TOPIC_COUNT=20 \
+HOTKEY_MIXED_HOT_RATIO=0.25 \
+HOTKEY_MIXED_CHURN_PROBABILITY=0 \
+HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
+HOTKEY_MIXED_MAX_CHURN_CYCLES=0 \
+SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-5k-20x10m.json \
 k6 run k6/hotkey/main.js
 ```
 

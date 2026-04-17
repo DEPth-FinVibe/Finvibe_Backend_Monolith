@@ -6,6 +6,31 @@ import { runWsHotkeySubscribeFlow } from './scenarios/ws-hotkey-subscribe.js';
 import { runWsRedisMixedFlow } from './scenarios/ws-redis-mixed.js';
 
 const profileName = hotkeyLoadProfileName();
+let issuedTokenCount = 0;
+
+function parsePreissuedTokens() {
+	const rawJson = __ENV.WS_PREISSUED_TOKENS_JSON;
+	if (rawJson && rawJson.trim()) {
+		try {
+			const parsed = JSON.parse(rawJson);
+			if (Array.isArray(parsed)) {
+				return parsed.map((token) => String(token || '').trim()).filter((token) => token.length > 0);
+			}
+		} catch (error) {
+			throw new Error(`WS_PREISSUED_TOKENS_JSON is not valid JSON array: ${error}`);
+		}
+	}
+
+	const csv = __ENV.WS_PREISSUED_TOKENS;
+	if (csv && csv.trim()) {
+		return csv
+			.split(',')
+			.map((token) => token.trim())
+			.filter((token) => token.length > 0);
+	}
+
+	return [];
+}
 
 function isCacheReadProfile() {
 	return profileName.startsWith('hotkey-cache-')
@@ -33,12 +58,14 @@ export function setup() {
 	const wsStockPool = pickWsStockPool();
 	const hotkeyOptions = resolveHotkeyRuntimeOptions(wsStockPool);
 	const requiresAuthBootstrap = !isCacheReadProfile();
-	const authTokens = requiresAuthBootstrap
-		? issueTokensFromCredentials(
+	let authTokens = parsePreissuedTokens();
+	if (authTokens.length === 0 && requiresAuthBootstrap) {
+		authTokens = issueTokensFromCredentials(
 			sharedRuntimeData.baseUrl,
 			sharedRuntimeData.credentials
-		)
-		: [];
+		);
+	}
+	issuedTokenCount = authTokens.length;
 	const targetStockIds = hotkeyOptions.scenarioMode === 'baseline'
 		? wsStockPool.slice(0, Math.min(hotkeyOptions.distributedTopicCount, wsStockPool.length)).map((id) => Number(id))
 		: [Number(hotkeyOptions.hotStockId)];
@@ -113,7 +140,7 @@ export function cacheRead(data) {
 }
 
 export function handleSummary(data) {
-	const tokensLoaded = sharedRuntimeData.credentials.length;
+	const tokensLoaded = issuedTokenCount;
 	const result = {
 		stdout: [
 			'',

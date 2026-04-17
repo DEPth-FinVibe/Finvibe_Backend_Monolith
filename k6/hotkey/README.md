@@ -116,6 +116,7 @@
 - `hotkey-cache-smoke`, `hotkey-cache-ramp`, `hotkey-cache-stress`
 - `redis-spike-smoke`, `redis-spike-ramp`, `redis-spike-stress`
 - `redis-single-mixed-smoke`, `redis-single-mixed-ramp`, `redis-single-mixed-10k`
+- `redis-single-mixed-5k-20x10m`: 5000 connections, 세션당 20종목, churn 없이 multikey steady-state 확인
 
 `hotkey-smoke`는 성능 상한 측정보다 **구독 흐름 정상성(connect/auth/subscribe/snapshot miss 없음)** 확인에 맞춘 sanity 프로파일이다.
 
@@ -140,6 +141,14 @@
 - Zipf형 hot stock 집중
 - 일부 subscribe / unsubscribe churn
 - renew와 fanout이 겹치는 구간의 지연 변화
+
+`redis-single-mixed-5k-20x10m`는 위 mixed 계열 중에서도 다음을 명시적으로 고정한다.
+
+- 5000 websocket connections
+- 세션당 20개 topic subscribe
+- hot ratio 0.25
+- churn 없음
+- 10분 동안 5000 steady-state 구간 유지가 아니라, 1m/2m/2m/3m ramp 후 2m hold로 총 10분 구성
 
 중요:
 

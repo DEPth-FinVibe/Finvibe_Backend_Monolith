@@ -478,6 +478,97 @@ const HOTKEY_LOAD_PROFILES = {
 			ws_hotkey_subscribe_fail_count: ['count<1500'],
 		},
 	},
+
+	'redis-single-mixed-10k-compact': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 500,
+			stages: [
+				{ target: 500, duration: '2m' },
+				{ target: 3000, duration: '3m' },
+				{ target: 7000, duration: '4m' },
+				{ target: 10000, duration: '4m' },
+				{ target: 10000, duration: '5m' },
+			],
+			gracefulRampDown: '30s',
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.90'],
+			ws_hotkey_auth_rate: ['rate>0.90'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<5000', 'p(99)<12000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
+			ws_hotkey_connect_fail_count: ['count<1500'],
+			ws_hotkey_subscribe_fail_count: ['count<1500'],
+		},
+	},
+
+	'redis-single-mixed-10k-10m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 500,
+			stages: [
+				{ target: 500, duration: '1m' },
+				{ target: 3000, duration: '2m' },
+				{ target: 7000, duration: '2m' },
+				{ target: 10000, duration: '3m' },
+				{ target: 10000, duration: '2m' },
+			],
+			gracefulRampDown: '30s',
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.90'],
+			ws_hotkey_auth_rate: ['rate>0.90'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<5000', 'p(99)<12000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
+			ws_hotkey_connect_fail_count: ['count<1500'],
+			ws_hotkey_subscribe_fail_count: ['count<1500'],
+		},
+	},
+	'redis-single-mixed-7k-10m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 500,
+			stages: [
+				{ target: 500, duration: '1m' },
+				{ target: 2000, duration: '2m' },
+				{ target: 4500, duration: '2m' },
+				{ target: 7000, duration: '3m' },
+				{ target: 7000, duration: '2m' },
+			],
+			gracefulRampDown: '30s',
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.90'],
+			ws_hotkey_auth_rate: ['rate>0.90'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<5000', 'p(99)<12000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
+			ws_hotkey_connect_fail_count: ['count<1000'],
+			ws_hotkey_subscribe_fail_count: ['count<1000'],
+		},
+	},
+
+	'redis-single-mixed-5k-20x10m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 200,
+			stages: [
+				{ target: 200, duration: '1m' },
+				{ target: 1000, duration: '2m' },
+				{ target: 3000, duration: '2m' },
+				{ target: 5000, duration: '3m' },
+				{ target: 5000, duration: '2m' },
+			],
+			gracefulRampDown: '30s',
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.92'],
+			ws_hotkey_auth_rate: ['rate>0.92'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<5000', 'p(99)<12000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
+			ws_hotkey_connect_fail_count: ['count<800'],
+			ws_hotkey_subscribe_fail_count: ['count<800'],
+		},
+	},
 };
 
 function parseInteger(rawValue, fallback, { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER } = {}) {
