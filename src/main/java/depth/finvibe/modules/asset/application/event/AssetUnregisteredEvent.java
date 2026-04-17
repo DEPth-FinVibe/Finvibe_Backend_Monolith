@@ -1,6 +1,7 @@
 package depth.finvibe.modules.asset.application.event;
 
 import java.math.BigDecimal;
+import java.util.UUID;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -11,12 +12,12 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AssetTransferredEvent {
-	private Long sourcePortfolioId;
-	private Long targetPortfolioId;
+public class AssetUnregisteredEvent {
+	private Long portfolioId;
 	private Long stockId;
-	private boolean merged;
-	private BigDecimal targetAmount;
-	private BigDecimal targetPurchasePriceAmount;
-	private String targetCurrency;
+	private UUID userId;
+	private BigDecimal remainingAmount;
+	private BigDecimal remainingPurchasePriceAmount;
+	private String currency;
+	private boolean fullyRemoved;
 }

@@ -12,6 +12,8 @@ import depth.finvibe.modules.asset.application.port.out.UserProfitRankingData;
 import depth.finvibe.modules.asset.application.port.out.UserProfitRankingRepository;
 import depth.finvibe.modules.asset.domain.UserProfitRanking;
 import depth.finvibe.modules.asset.domain.enums.UserProfitRankType;
+import depth.finvibe.modules.asset.infra.redis.UserProfitRankingRedisRepository;
+import depth.finvibe.modules.asset.infra.redis.UserProfitRankingRedisRepository.RankingEntry;
 import lombok.RequiredArgsConstructor;
 
 @Slf4j
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserProfitRankingRepositoryImpl implements UserProfitRankingRepository {
   private final UserProfitRankingJpaRepository jpaRepository;
+  private final UserProfitRankingRedisRepository rankingRedisRepository;
 
   @Override
   @Transactional
@@ -29,6 +32,7 @@ public class UserProfitRankingRepositoryImpl implements UserProfitRankingReposit
 
     if (rankings == null || rankings.isEmpty()) {
       jpaRepository.deleteByRankType(rankType);
+      syncToRedis(rankType, List.of());
       return;
     }
 
@@ -47,21 +51,35 @@ public class UserProfitRankingRepositoryImpl implements UserProfitRankingReposit
 
     // 3. Rank 부여 및 Entity 생성
     List<UserProfitRanking> entities = new ArrayList<>();
+    List<RankingEntry> redisEntries = new ArrayList<>();
     for (int i = 0; i < sortedRankings.size(); i++) {
       UserProfitRankingData data = sortedRankings.get(i);
+      int rank = i + 1;
       entities.add(UserProfitRanking.create(
         data.userId(),
         data.userNickname(),
         rankType,
         data.totalReturnRate(),
         data.totalProfitLoss(),
-        i + 1  // rank는 1부터 시작
+        rank
       ));
+      redisEntries.add(new RankingEntry(data.userId(), rank, data.totalReturnRate().doubleValue()));
     }
 
-    // 4. 배치 저장
+    // 4. 배치 저장 (DB)
     jpaRepository.saveAll(entities);
 
+    // 5. Redis ZSET 동기화
+    syncToRedis(rankType, redisEntries);
+
     log.info("Replaced all user profit rankings for rank type {}: {} entries saved.", rankType, entities.size());
+  }
+
+  private void syncToRedis(UserProfitRankType rankType, List<RankingEntry> entries) {
+    try {
+      rankingRedisRepository.replaceAll(rankType, entries);
+    } catch (Exception e) {
+      log.warn("Failed to sync ranking to Redis for rankType={}: {}", rankType, e.getMessage());
+    }
   }
 }

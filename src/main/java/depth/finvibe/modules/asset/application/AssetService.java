@@ -19,7 +19,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import depth.finvibe.modules.asset.application.event.AssetRegisteredEvent;
 import depth.finvibe.modules.asset.application.event.AssetTransferredEvent;
+import depth.finvibe.modules.asset.application.event.AssetUnregisteredEvent;
+import depth.finvibe.modules.asset.application.event.PortfolioCreatedEvent;
+import depth.finvibe.modules.asset.application.event.PortfolioDeletedEvent;
 import depth.finvibe.modules.asset.application.port.in.AssetCommandUseCase;
 import depth.finvibe.modules.asset.application.port.in.AssetQueryUseCase;
 import depth.finvibe.modules.asset.application.port.out.AssetRepository;
@@ -315,6 +319,20 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
         foundPortfolioGroup.register(toRegister, requesterUserId);
 
+        Asset registeredAsset = foundPortfolioGroup.getAssets().stream()
+                .filter(a -> a.getStockId().equals(request.getStockId()))
+                .findFirst()
+                .orElseThrow();
+
+        eventPublisher.publishEvent(AssetRegisteredEvent.builder()
+                .portfolioId(portfolioId)
+                .stockId(request.getStockId())
+                .userId(requesterUserId)
+                .amount(registeredAsset.getAmount())
+                .purchasePriceAmount(registeredAsset.getTotalPrice().getAmount())
+                .currency(registeredAsset.getTotalPrice().getCurrency().name())
+                .build());
+
         HoldingMetricsSnapshot afterSnapshot = getHoldingMetricsSnapshot(requesterUserId);
         publishHoldingMetricsIfChanged(requesterUserId, beforeSnapshot, afterSnapshot);
         topHoldingStockCacheRepository.evictByUserId(requesterUserId);
@@ -329,12 +347,39 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
         Money totalPrice = Money.of(request.getStockPrice(), request.getCurrency());
 
-        foundPortfolioGroup.unregister(
+        boolean fullyRemoved = foundPortfolioGroup.unregister(
                 request.getStockId(),
                 request.getAmount(),
                 totalPrice,
                 requesterUserId
-        ).ifPresent(assetRepository::deleteById);
+        ).map(deletedId -> {
+            assetRepository.deleteById(deletedId);
+            return true;
+        }).orElse(false);
+
+        BigDecimal remainingAmount = BigDecimal.ZERO;
+        BigDecimal remainingPurchasePrice = BigDecimal.ZERO;
+        String currency = request.getCurrency().name();
+
+        if (!fullyRemoved) {
+            Asset remainingAsset = foundPortfolioGroup.getAssets().stream()
+                    .filter(a -> a.getStockId().equals(request.getStockId()))
+                    .findFirst()
+                    .orElseThrow();
+            remainingAmount = remainingAsset.getAmount();
+            remainingPurchasePrice = remainingAsset.getTotalPrice().getAmount();
+            currency = remainingAsset.getTotalPrice().getCurrency().name();
+        }
+
+        eventPublisher.publishEvent(AssetUnregisteredEvent.builder()
+                .portfolioId(portfolioId)
+                .stockId(request.getStockId())
+                .userId(requesterUserId)
+                .remainingAmount(remainingAmount)
+                .remainingPurchasePriceAmount(remainingPurchasePrice)
+                .currency(currency)
+                .fullyRemoved(fullyRemoved)
+                .build());
 
         HoldingMetricsSnapshot afterSnapshot = getHoldingMetricsSnapshot(requesterUserId);
         publishHoldingMetricsIfChanged(requesterUserId, beforeSnapshot, afterSnapshot);
@@ -370,18 +415,24 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
         boolean merged = deletedAssetId.isPresent();
         deletedAssetId.ifPresent(assetRepository::deleteById);
 
+        Asset targetAsset = targetPortfolioGroup.getAssets().stream()
+                .filter(a -> a.getStockId().equals(stockId))
+                .findFirst()
+                .orElseThrow();
+
         HoldingMetricsSnapshot afterSnapshot = getHoldingMetricsSnapshot(requesterUserId);
         publishHoldingMetricsIfChanged(requesterUserId, beforeSnapshot, afterSnapshot);
         topHoldingStockCacheRepository.evictByUserId(requesterUserId);
 
-        // 이벤트 발행
-        AssetTransferredEvent event = AssetTransferredEvent.builder()
+        eventPublisher.publishEvent(AssetTransferredEvent.builder()
                 .sourcePortfolioId(sourcePortfolioId)
                 .targetPortfolioId(request.getTargetPortfolioId())
                 .stockId(stockId)
                 .merged(merged)
-                .build();
-        eventPublisher.publishEvent(event);
+                .targetAmount(targetAsset.getAmount())
+                .targetPurchasePriceAmount(targetAsset.getTotalPrice().getAmount())
+                .targetCurrency(targetAsset.getTotalPrice().getCurrency().name())
+                .build());
     }
 
     @Override
@@ -392,7 +443,12 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
                 requesterUserId,
                 request.getIconCode()
         );
-        portfolioGroupRepository.save(toSave);
+        PortfolioGroup saved = portfolioGroupRepository.save(toSave);
+
+        eventPublisher.publishEvent(PortfolioCreatedEvent.builder()
+                .portfolioId(saved.getId())
+                .userId(requesterUserId)
+                .build());
     }
 
     @Override
@@ -413,12 +469,23 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
         existing.ensureDeletable(requesterUserId);
 
+        List<Long> stockIds = existing.getAssets().stream()
+                .map(Asset::getStockId)
+                .toList();
+
         PortfolioGroup defaultGroup = findDefaultPortfolioGroup(requesterUserId);
 
         List<Long> mergedSourceAssetIds = existing.transferAssetsTo(defaultGroup);
         assetRepository.deleteAllById(mergedSourceAssetIds);
 
         portfolioGroupRepository.delete(existing);
+
+        eventPublisher.publishEvent(PortfolioDeletedEvent.builder()
+                .deletedPortfolioId(portfolioGroupId)
+                .defaultPortfolioId(defaultGroup.getId())
+                .userId(requesterUserId)
+                .stockIds(stockIds)
+                .build());
     }
 
     @Override
@@ -430,7 +497,12 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
             throw new DomainException(AssetErrorCode.DEFAULT_PORTFOLIO_GROUP_ALREADY_EXISTS);
         }
 
-        portfolioGroupRepository.save(toSave);
+        PortfolioGroup saved = portfolioGroupRepository.save(toSave);
+
+        eventPublisher.publishEvent(PortfolioCreatedEvent.builder()
+                .portfolioId(saved.getId())
+                .userId(targetUserId)
+                .build());
     }
 
     private PortfolioGroup findPortfolioGroupWithAssets(Long id) {

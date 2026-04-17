@@ -5,16 +5,19 @@ import depth.finvibe.modules.market.application.port.out.CurrentPriceEventPublis
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.HoldingStockRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
+import depth.finvibe.modules.market.application.port.out.StockPriceEventProducer;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.CurrentPrice;
 import depth.finvibe.modules.market.domain.CurrentStockWatcher;
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import depth.finvibe.common.error.DomainException;
+import depth.finvibe.common.investment.dto.StockPriceUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
@@ -27,6 +30,7 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
     private final CurrentStockWatcherRepository currentStockWatcherRepository;
     private final CurrentPriceRepository currentPriceRepository;
     private final CurrentPriceEventPublisher currentPriceEventPublisher;
+    private final StockPriceEventProducer stockPriceEventProducer;
 
     @Override
     public void registerWatchingStock(Long stockId, UUID userId) {
@@ -69,6 +73,12 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
 
         currentPriceRepository.upsertCurrentPrice(CurrentPrice.from(priceUpdate));
         currentPriceEventPublisher.publish(priceUpdate);
+
+        stockPriceEventProducer.publishStockPriceUpdated(StockPriceUpdatedEvent.builder()
+                .stockId(priceUpdate.getStockId())
+                .price(priceUpdate.getClose())
+                .updatedAt(priceUpdate.getAt() != null ? priceUpdate.getAt() : LocalDateTime.now())
+                .build());
     }
 
 
