@@ -7,7 +7,6 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import depth.finvibe.modules.asset.application.UserProfitSummaryRow;
 import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
@@ -61,26 +60,6 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     @Override
     public List<PortfolioGroup> findAllByStockIdsWithAssets(List<Long> stockIds) {
         return queryRepository.findAllByStockIdsWithAssets(stockIds);
-    }
-
-    @Override
-    public List<Long> findAffectedPortfolioIdsByStockIdsAfterId(List<Long> stockIds, Long lastPortfolioId, int limit) {
-        return queryRepository.findAffectedPortfolioIdsByStockIdsAfterId(stockIds, lastPortfolioId, limit);
-    }
-
-    @Override
-    public List<PortfolioGroup> findAllByIdsWithAssets(List<Long> portfolioIds) {
-        return queryRepository.findAllByIdsWithAssets(portfolioIds);
-    }
-
-    @Override
-    public List<UserProfitSummaryRow> findAllUserProfitSummaries() {
-        return queryRepository.findAllUserProfitSummaries();
-    }
-
-    @Override
-    public List<UUID> findUserIdsWithAssets() {
-        return queryRepository.findUserIdsWithAssets();
     }
 
     @Override

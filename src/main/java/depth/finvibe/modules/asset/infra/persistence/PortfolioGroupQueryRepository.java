@@ -9,7 +9,6 @@ import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import depth.finvibe.modules.asset.application.UserProfitSummaryRow;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 
@@ -66,60 +65,6 @@ public class PortfolioGroupQueryRepository {
                 .selectFrom(portfolioGroup)
                 .leftJoin(portfolioGroup.assets, asset).fetchJoin()
                 .where(asset.stockId.in(stockIds))
-                .distinct()
-                .fetch();
-    }
-
-    public List<Long> findAffectedPortfolioIdsByStockIdsAfterId(List<Long> stockIds, Long lastPortfolioId, int limit) {
-        if (stockIds == null || stockIds.isEmpty() || limit <= 0) {
-            return List.of();
-        }
-
-        long cursor = lastPortfolioId == null ? 0L : lastPortfolioId;
-        return queryFactory
-                .select(portfolioGroup.id)
-                .from(asset)
-                .join(asset.portfolioGroup, portfolioGroup)
-                .where(asset.stockId.in(stockIds)
-                        .and(portfolioGroup.id.gt(cursor)))
-                .groupBy(portfolioGroup.id)
-                .orderBy(portfolioGroup.id.asc())
-                .limit(limit)
-                .fetch();
-    }
-
-    public List<PortfolioGroup> findAllByIdsWithAssets(List<Long> portfolioIds) {
-        if (portfolioIds == null || portfolioIds.isEmpty()) {
-            return List.of();
-        }
-
-        return queryFactory
-                .selectFrom(portfolioGroup)
-                .leftJoin(portfolioGroup.assets, asset).fetchJoin()
-                .where(portfolioGroup.id.in(portfolioIds))
-                .orderBy(portfolioGroup.id.asc())
-                .distinct()
-                .fetch();
-    }
-
-    public List<UserProfitSummaryRow> findAllUserProfitSummaries() {
-        return queryFactory
-                .select(Projections.constructor(
-                        UserProfitSummaryRow.class,
-                        portfolioGroup.userId,
-                        portfolioGroup.valuation.totalCurrentValue.sum(),
-                        portfolioGroup.valuation.totalProfitLoss.sum()
-                ))
-                .from(portfolioGroup)
-                .groupBy(portfolioGroup.userId)
-                .fetch();
-    }
-
-    public List<UUID> findUserIdsWithAssets() {
-        return queryFactory
-                .select(portfolioGroup.userId)
-                .from(asset)
-                .join(asset.portfolioGroup, portfolioGroup)
                 .distinct()
                 .fetch();
     }

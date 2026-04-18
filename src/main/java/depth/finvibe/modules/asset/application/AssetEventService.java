@@ -14,12 +14,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import depth.finvibe.modules.asset.application.event.AssetTransferredEvent;
 import depth.finvibe.modules.asset.application.port.in.AssetCommandUseCase;
 import depth.finvibe.modules.asset.application.port.in.AssetEventUseCase;
-import depth.finvibe.modules.asset.application.port.in.ProfitCalculationUseCase;
 import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.domain.Currency;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
-import depth.finvibe.common.investment.dto.BatchPriceUpdatedEvent;
 import depth.finvibe.common.investment.dto.SignUpEvent;
 import depth.finvibe.common.investment.dto.TradeExecutedEvent;
 
@@ -28,7 +26,6 @@ import depth.finvibe.common.investment.dto.TradeExecutedEvent;
 @Slf4j
 public class AssetEventService implements AssetEventUseCase {
     private final AssetCommandUseCase commandUseCase;
-    private final ProfitCalculationUseCase profitCalculationService;
     private final PortfolioGroupRepository portfolioGroupRepository;
 
     @Transactional
@@ -53,15 +50,6 @@ public class AssetEventService implements AssetEventUseCase {
     public void handleSignUpEvent(SignUpEvent event) {
         UUID userId = UUID.fromString(event.getUserId());
         commandUseCase.createDefaultPortfolioGroup(userId);
-    }
-
-    @Async("taskExecutor")
-    public void handleBatchPriceUpdatedEvent(BatchPriceUpdatedEvent event) {
-        int updatedCount = event.getUpdatedStockIds() == null ? 0 : event.getUpdatedStockIds().size();
-        log.info("Received batch price updated event. executedAt={}, totalStockCount={}, updatedStockIdsCount={}",
-                event.getBatchExecutedAt(), event.getTotalStockCount(), updatedCount);
-        profitCalculationService.recalculateAllProfits(event.getUpdatedStockIds());
-        log.info("Completed profit recalculation for batch price update. updatedStockIdsCount={}", updatedCount);
     }
 
     private PortfolioGroupDto.RegisterAssetRequest createRegisterRequestFrom(TradeExecutedEvent event) {

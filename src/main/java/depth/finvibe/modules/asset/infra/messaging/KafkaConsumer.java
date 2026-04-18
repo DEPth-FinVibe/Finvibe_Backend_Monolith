@@ -7,7 +7,6 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.asset.application.port.in.AssetEventUseCase;
-import depth.finvibe.common.investment.dto.BatchPriceUpdatedEvent;
 import depth.finvibe.common.investment.dto.SignUpEvent;
 import depth.finvibe.common.investment.dto.TradeExecutedEvent;
 
@@ -41,15 +40,4 @@ public class KafkaConsumer {
         assetEventService.handleSignUpEvent(event);
     }
 
-    @KafkaListener(
-        topics = "market.batch-price-updated.v1",
-        groupId = "asset-group",
-        properties = {
-            "spring.json.value.default.type=depth.finvibe.common.investment.dto.BatchPriceUpdatedEvent"
-        }
-    )
-    public void consumeBatchPriceUpdatedEvent(ConsumerRecord<String, BatchPriceUpdatedEvent> record) {
-        BatchPriceUpdatedEvent event = record.value();
-        assetEventService.handleBatchPriceUpdatedEvent(event);
-    }
 }

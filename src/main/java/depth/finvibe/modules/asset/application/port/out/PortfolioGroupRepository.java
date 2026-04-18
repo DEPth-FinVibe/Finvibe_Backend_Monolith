@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import depth.finvibe.modules.asset.application.UserProfitSummaryRow;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 
@@ -26,14 +25,6 @@ public interface PortfolioGroupRepository {
     Optional<PortfolioGroup> findDefaultByUserId(UUID userId);
 
     List<PortfolioGroup> findAllByStockIdsWithAssets(List<Long> stockIds);
-
-    List<Long> findAffectedPortfolioIdsByStockIdsAfterId(List<Long> stockIds, Long lastPortfolioId, int limit);
-
-    List<PortfolioGroup> findAllByIdsWithAssets(List<Long> portfolioIds);
-
-    List<UserProfitSummaryRow> findAllUserProfitSummaries();
-
-    List<UUID> findUserIdsWithAssets();
 
     List<TopHoldingStockDto.TopHoldingStockResponse> findTopHoldingStocks(int limit);
 
