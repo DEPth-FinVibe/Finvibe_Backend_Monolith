@@ -457,6 +457,27 @@ const HOTKEY_LOAD_PROFILES = {
 		},
 	},
 
+	'redis-single-mixed-5m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 200,
+			stages: [
+				{ target: 200, duration: '1m' },
+				{ target: 1000, duration: '1m' },
+				{ target: 3000, duration: '90s' },
+				{ target: 5000, duration: '90s' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.95'],
+			ws_hotkey_auth_rate: ['rate>0.95'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<3000', 'p(99)<7000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<10000', 'p(99)<15000'],
+			ws_hotkey_connect_fail_count: ['count<300'],
+			ws_hotkey_subscribe_fail_count: ['count<300'],
+		},
+	},
+
 	'redis-single-mixed-10k': {
 		scenarios: buildMixedSubscribeScenario({
 			executor: 'ramping-vus',
@@ -567,6 +588,69 @@ const HOTKEY_LOAD_PROFILES = {
 			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<15000', 'p(99)<25000'],
 			ws_hotkey_connect_fail_count: ['count<800'],
 			ws_hotkey_subscribe_fail_count: ['count<800'],
+		},
+	},
+
+	'redis-single-mixed-realistic-5m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 200,
+			stages: [
+				{ target: 200, duration: '1m' },
+				{ target: 1000, duration: '1m' },
+				{ target: 3000, duration: '90s' },
+				{ target: 5000, duration: '90s' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.97'],
+			ws_hotkey_auth_rate: ['rate>0.97'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<2000', 'p(99)<5000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<7000', 'p(99)<12000'],
+			ws_hotkey_connect_fail_count: ['count<100'],
+			ws_hotkey_subscribe_fail_count: ['count<100'],
+		},
+	},
+
+	'redis-single-mixed-stress-5m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 300,
+			stages: [
+				{ target: 300, duration: '1m' },
+				{ target: 1500, duration: '1m' },
+				{ target: 3500, duration: '90s' },
+				{ target: 5000, duration: '90s' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.95'],
+			ws_hotkey_auth_rate: ['rate>0.95'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<3000', 'p(99)<7000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<10000', 'p(99)<15000'],
+			ws_hotkey_connect_fail_count: ['count<300'],
+			ws_hotkey_subscribe_fail_count: ['count<300'],
+		},
+	},
+
+	'redis-single-mixed-upperbound-5m': {
+		scenarios: buildMixedSubscribeScenario({
+			executor: 'ramping-vus',
+			startVUs: 500,
+			stages: [
+				{ target: 500, duration: '1m' },
+				{ target: 2000, duration: '1m' },
+				{ target: 4000, duration: '90s' },
+				{ target: 5000, duration: '90s' },
+			],
+		}),
+		thresholds: {
+			ws_hotkey_connect_rate: ['rate>0.92'],
+			ws_hotkey_auth_rate: ['rate>0.92'],
+			'ws_hotkey_subscribe_ack_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<4000', 'p(99)<9000'],
+			'ws_hotkey_initial_snapshot_latency_ms{scenario_group:ws_redis_single_mixed}': ['p(95)<12000', 'p(99)<18000'],
+			ws_hotkey_connect_fail_count: ['count<500'],
+			ws_hotkey_subscribe_fail_count: ['count<500'],
 		},
 	},
 };

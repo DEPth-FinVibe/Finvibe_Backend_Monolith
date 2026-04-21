@@ -173,6 +173,117 @@ SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-5k-20x10m.json \
 k6 run k6/hotkey/main.js
 ```
 
+### 예시 A-3. 운영형 5분 mixed (종목당 최대 1초 1업데이트)
+
+publisher:
+
+```bash
+python3 k6/hotkey/tools/redis_price_publisher.py \
+  --host 127.0.0.1 \
+  --port 6379 \
+  --password "$REDIS_PASSWORD" \
+  --channel market:price-updated \
+  --channel-partition-count 3 \
+  --stock-mode per-stock-steady \
+  --stock-limit 50 \
+  --duration-sec 360 \
+  --stock-pool-file ./k6/data/ids.json
+```
+
+k6:
+
+```bash
+set -a
+. .env
+set +a
+
+HOTKEY_LOAD_PROFILE=redis-single-mixed-realistic-5m \
+HOTKEY_SCENARIO=mixed \
+HOTKEY_STOCK_ID=5930 \
+HOTKEY_SESSION_HOLD_MS=300000 \
+HOTKEY_MIXED_TOPIC_COUNT=3 \
+HOTKEY_MIXED_HOT_RATIO=0.1 \
+HOTKEY_MIXED_CHURN_PROBABILITY=0.05 \
+HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
+HOTKEY_MIXED_MAX_CHURN_CYCLES=1 \
+SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-realistic-5m.json \
+k6 run k6/hotkey/main.js
+```
+
+> websocket-listener도 동일한 분할 수를 구독해야 하므로 `WS_PRICE_TOPIC_PARTITION_COUNT=3`를 함께 설정한다.
+
+### 예시 A-4. 운영형 stress 5분 (종목 수 증가)
+
+publisher:
+
+```bash
+python3 k6/hotkey/tools/redis_price_publisher.py \
+  --host 127.0.0.1 \
+  --port 6379 \
+  --password "$REDIS_PASSWORD" \
+  --channel market:price-updated \
+  --stock-mode per-stock-steady \
+  --stock-limit 100 \
+  --duration-sec 360 \
+  --stock-pool-file ./k6/data/ids.json
+```
+
+k6:
+
+```bash
+set -a
+. .env
+set +a
+
+HOTKEY_LOAD_PROFILE=redis-single-mixed-stress-5m \
+HOTKEY_SCENARIO=mixed \
+HOTKEY_STOCK_ID=5930 \
+HOTKEY_SESSION_HOLD_MS=300000 \
+HOTKEY_MIXED_TOPIC_COUNT=5 \
+HOTKEY_MIXED_HOT_RATIO=0.1 \
+HOTKEY_MIXED_CHURN_PROBABILITY=0.08 \
+HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
+HOTKEY_MIXED_MAX_CHURN_CYCLES=2 \
+SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-stress-5m.json \
+k6 run k6/hotkey/main.js
+```
+
+### 예시 A-5. 운영형 upper-bound 5분 (상위 한계 검증)
+
+publisher:
+
+```bash
+python3 k6/hotkey/tools/redis_price_publisher.py \
+  --host 127.0.0.1 \
+  --port 6379 \
+  --password "$REDIS_PASSWORD" \
+  --channel market:price-updated \
+  --stock-mode per-stock-steady \
+  --stock-limit 200 \
+  --duration-sec 360 \
+  --stock-pool-file ./k6/data/ids.json
+```
+
+k6:
+
+```bash
+set -a
+. .env
+set +a
+
+HOTKEY_LOAD_PROFILE=redis-single-mixed-upperbound-5m \
+HOTKEY_SCENARIO=mixed \
+HOTKEY_STOCK_ID=5930 \
+HOTKEY_SESSION_HOLD_MS=300000 \
+HOTKEY_MIXED_TOPIC_COUNT=5 \
+HOTKEY_MIXED_HOT_RATIO=0.05 \
+HOTKEY_MIXED_CHURN_PROBABILITY=0.10 \
+HOTKEY_MIXED_CHURN_INTERVAL_MS=30000 \
+HOTKEY_MIXED_MAX_CHURN_CYCLES=2 \
+SUMMARY_OUTPUT_FILE=./k6/hotkey/reports/redis-single-mixed-upperbound-5m.json \
+k6 run k6/hotkey/main.js
+```
+
 ## Step 4. markdown 보고서 생성 확인
 
 `k6/run.sh`로 실행했다면 JSON summary 뒤에 markdown 보고서 생성까지 자동으로 이어져야 한다.
@@ -221,22 +332,22 @@ k6 run k6/hotkey/main.js
 
 ## 추천 실험 순서
 
-### 1차: Redis가 먼저 아픈지 확인
+### 1차: 운영형 realistic
 
-- publisher: `single-hot`, `rate=1000`
-- k6: `redis-single-mixed-ramp`
+- publisher: `per-stock-steady`, `stock-limit=50` → 총 `50/s`
+- k6: `redis-single-mixed-realistic-5m`
 
-### 2차: hot key 강도 증가
+### 2차: 운영형 stress
 
-- publisher: `single-hot`, `rate=2000`, `rate=5000`
-- k6: `redis-single-mixed-ramp` 또는 `redis-single-mixed-10k`
+- publisher: `per-stock-steady`, `stock-limit=100` → 총 `100/s`
+- k6: `redis-single-mixed-stress-5m`
 
-### 3차: 더 현실적인 분포
+### 3차: 운영형 upper-bound
 
-- publisher: `multi-stock`, `rate=2000~3000`
-- k6: `redis-single-mixed-10k`
+- publisher: `per-stock-steady`, `stock-limit=200` → 총 `200/s`
+- k6: `redis-single-mixed-upperbound-5m`
 
-### 4차: burst resilience
+### 4차: 구조 검증 이후 burst resilience
 
 - publisher: `multi-stock + burst`
 - k6: `redis-single-mixed-10k`

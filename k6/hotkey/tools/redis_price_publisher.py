@@ -23,14 +23,16 @@ def parse_args():
 	parser.add_argument("--password", default=env("REDIS_PASSWORD"))
 	parser.add_argument("--db", type=int, default=int(env("REDIS_DB", "0")))
 	parser.add_argument("--channel", default=env("REDIS_CHANNEL", "market:price-updated"))
-	parser.add_argument("--stock-mode", choices=["single-hot", "multi-stock"], default=env("PUBLISH_STOCK_MODE", "single-hot"))
+	parser.add_argument("--channel-partition-count", type=int, default=int(env("REDIS_CHANNEL_PARTITION_COUNT", "1")))
+	parser.add_argument("--stock-mode", choices=["single-hot", "multi-stock", "per-stock-steady"], default=env("PUBLISH_STOCK_MODE", "single-hot"))
 	parser.add_argument("--traffic-mode", choices=["steady", "burst"], default=env("PUBLISH_TRAFFIC_MODE", "steady"))
-	parser.add_argument("--mode", choices=["single-hot", "multi-stock", "zipf", "burst"], default=env("PUBLISH_MODE"))
+	parser.add_argument("--mode", choices=["single-hot", "multi-stock", "zipf", "burst", "per-stock-steady"], default=env("PUBLISH_MODE"))
 	parser.add_argument("--rate", type=float, default=float(env("PUBLISH_RATE", "1000")))
 	parser.add_argument("--duration-sec", type=int, default=int(env("PUBLISH_DURATION_SEC", "300")))
 	parser.add_argument("--hot-stock-id", type=int, default=int(env("HOT_STOCK_ID", "5930")))
 	parser.add_argument("--hot-ratio", type=float, default=float(env("PUBLISH_HOT_RATIO", "0.5")))
 	parser.add_argument("--zipf-skew", type=float, default=float(env("PUBLISH_ZIPF_SKEW", "1.1")))
+	parser.add_argument("--stock-limit", type=int, default=int(env("PUBLISH_STOCK_LIMIT", "0")))
 	parser.add_argument("--burst-rate", type=float, default=float(env("PUBLISH_BURST_RATE", "3000")))
 	parser.add_argument("--burst-start-sec", type=int, default=int(env("PUBLISH_BURST_START_SEC", "60")))
 	parser.add_argument("--burst-duration-sec", type=int, default=int(env("PUBLISH_BURST_DURATION_SEC", "30")))
@@ -48,6 +50,9 @@ def parse_args():
 			args.traffic_mode = "steady"
 		elif legacy_mode in ("multi-stock", "zipf"):
 			args.stock_mode = "multi-stock"
+			args.traffic_mode = "steady"
+		elif legacy_mode == "per-stock-steady":
+			args.stock_mode = "per-stock-steady"
 			args.traffic_mode = "steady"
 		elif legacy_mode == "burst":
 			args.stock_mode = "multi-stock"
@@ -124,6 +129,21 @@ def load_stock_pool(path_value, hot_stock_id):
 	return [hot_stock_id]
 
 
+def resolve_channel(base_channel, stock_id, partition_count):
+	if partition_count <= 1:
+		return base_channel
+	return f"{base_channel}:{stock_id % partition_count}"
+
+
+def limit_stock_pool(stock_pool, stock_limit, hot_stock_id):
+	if stock_limit <= 0 or stock_limit >= len(stock_pool):
+		return stock_pool
+	limited = stock_pool[:stock_limit]
+	if hot_stock_id in stock_pool and hot_stock_id not in limited:
+		limited = [hot_stock_id] + limited[:-1]
+	return limited
+
+
 def build_zipf_weights(stock_pool, skew):
 	weights = []
 	total = 0.0
@@ -181,11 +201,63 @@ def publish_batch(sock, args, stock_pool, zipf_cdf, prices, volumes, batch_size)
 		stock_id = choose_stock_id(args, stock_pool, zipf_cdf)
 		payload = build_payload(stock_id, prices, volumes, args)
 		serialized = json.dumps(payload, separators=(",", ":"))
-		commands.append(encode_command("PUBLISH", args.channel, serialized))
+		channel = resolve_channel(args.channel, stock_id, args.channel_partition_count)
+		commands.append(encode_command("PUBLISH", channel, serialized))
 
 	sock.sendall(b"".join(commands))
 	for _ in range(batch_size):
 		read_resp(sock)
+
+
+def publish_selected_batch(sock, args, selected_stock_ids, prices, volumes):
+	commands = []
+	for stock_id in selected_stock_ids:
+		payload = build_payload(stock_id, prices, volumes, args)
+		serialized = json.dumps(payload, separators=(",", ":"))
+		channel = resolve_channel(args.channel, stock_id, args.channel_partition_count)
+		commands.append(encode_command("PUBLISH", channel, serialized))
+
+	if not commands:
+		return 0
+
+	sock.sendall(b"".join(commands))
+	for _ in commands:
+		read_resp(sock)
+	return len(commands)
+
+
+def publish_per_stock_steady_loop(sock, args, stock_pool):
+	prices = {}
+	volumes = {}
+	start = time.monotonic()
+	next_report = start + 1.0
+	published = 0
+	last_report_published = 0
+	next_tick = start
+
+	while True:
+		now = time.monotonic()
+		elapsed = now - start
+		if elapsed >= args.duration_sec:
+			break
+
+		if now < next_tick:
+			time.sleep(min(0.01, next_tick - now))
+			continue
+
+		published += publish_selected_batch(sock, args, stock_pool, prices, volumes)
+		next_tick += 1.0
+
+		if now >= next_report:
+			interval_count = published - last_report_published
+			print(
+				f"[publisher] elapsed={elapsed:7.2f}s stock_mode={args.stock_mode} traffic_mode={args.traffic_mode} current_rate={len(stock_pool):.0f}/s published_total={published} published_last_sec={interval_count}",
+				flush=True,
+			)
+			last_report_published = published
+			next_report += 1.0
+
+	return published
 
 
 def publish_loop(sock, args, stock_pool):
@@ -230,6 +302,7 @@ def main():
 	args = parse_args()
 	random.seed(args.seed)
 	stock_pool = load_stock_pool(args.stock_pool_file, args.hot_stock_id)
+	stock_pool = limit_stock_pool(stock_pool, args.stock_limit, args.hot_stock_id)
 	if args.hot_stock_id not in stock_pool:
 		stock_pool = [args.hot_stock_id] + stock_pool
 
@@ -238,7 +311,9 @@ def main():
 			[
 				"[publisher] starting direct Redis price publisher",
 				f"[publisher] redis={args.host}:{args.port} db={args.db} channel={args.channel}",
+				f"[publisher] channel_partition_count={args.channel_partition_count}",
 				f"[publisher] stock_mode={args.stock_mode} traffic_mode={args.traffic_mode} duration_sec={args.duration_sec} rate={args.rate}",
+				f"[publisher] stock_limit={args.stock_limit}",
 				f"[publisher] hot_stock_id={args.hot_stock_id} hot_ratio={args.hot_ratio} zipf_skew={args.zipf_skew}",
 				f"[publisher] burst_rate={args.burst_rate} burst_start_sec={args.burst_start_sec} burst_duration_sec={args.burst_duration_sec}",
 				f"[publisher] stock_pool_size={len(stock_pool)} seed={args.seed}",
@@ -249,7 +324,10 @@ def main():
 
 	try:
 		sock = connect_redis(args)
-		published = publish_loop(sock, args, stock_pool)
+		if args.stock_mode == "per-stock-steady":
+			published = publish_per_stock_steady_loop(sock, args, stock_pool)
+		else:
+			published = publish_loop(sock, args, stock_pool)
 		print(f"[publisher] completed published_total={published}", flush=True)
 		return 0
 	except KeyboardInterrupt:

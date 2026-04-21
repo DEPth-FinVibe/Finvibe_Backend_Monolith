@@ -33,7 +33,7 @@
 - `scenarios/ws-hotkey-subscribe.js`: subscribe-init 집중/분산/churn 시나리오
 - `scenarios/ws-redis-mixed.js`: 장시간 연결 유지 + hot-key 집중 + 일부 churn 시나리오
 - `scenarios/http-hotkey-cache-read.js`: current-price cache 반복 조회 시나리오
-- `tools/redis_price_publisher.py`: Redis `market:price-updated` 직접 publish 스크립트
+- `tools/redis_price_publisher.py`: Redis `market:price-updated[:partition]` 직접 publish 스크립트
 - `REDIS_SINGLE_MIXED_RUNBOOK.md`: publisher + k6 + Grafana 실행 순서 문서
 - `.env.redis-spike-*`: read + websocket churn 혼합 spike 프로파일
 - `.env.redis-single-mixed-*`: 장시간 연결 유지형 websocket mixed 프로파일
