@@ -24,6 +24,7 @@ def parse_args():
 	parser.add_argument("--db", type=int, default=int(env("REDIS_DB", "0")))
 	parser.add_argument("--channel", default=env("REDIS_CHANNEL", "market:price-updated"))
 	parser.add_argument("--channel-partition-count", type=int, default=int(env("REDIS_CHANNEL_PARTITION_COUNT", "1")))
+	parser.add_argument("--pubsub-mode", choices=["classic", "sharded"], default=env("REDIS_PUBSUB_MODE", "classic"))
 	parser.add_argument("--stock-mode", choices=["single-hot", "multi-stock", "per-stock-steady"], default=env("PUBLISH_STOCK_MODE", "single-hot"))
 	parser.add_argument("--traffic-mode", choices=["steady", "burst"], default=env("PUBLISH_TRAFFIC_MODE", "steady"))
 	parser.add_argument("--mode", choices=["single-hot", "multi-stock", "zipf", "burst", "per-stock-steady"], default=env("PUBLISH_MODE"))
@@ -135,6 +136,12 @@ def resolve_channel(base_channel, stock_id, partition_count):
 	return f"{base_channel}:{stock_id % partition_count}"
 
 
+def resolve_sharded_channel(base_channel, stock_id, partition_count):
+	if partition_count <= 1:
+		return base_channel
+	return f"{base_channel}:{{{stock_id % partition_count}}}"
+
+
 def limit_stock_pool(stock_pool, stock_limit, hot_stock_id):
 	if stock_limit <= 0 or stock_limit >= len(stock_pool):
 		return stock_pool
@@ -201,8 +208,9 @@ def publish_batch(sock, args, stock_pool, zipf_cdf, prices, volumes, batch_size)
 		stock_id = choose_stock_id(args, stock_pool, zipf_cdf)
 		payload = build_payload(stock_id, prices, volumes, args)
 		serialized = json.dumps(payload, separators=(",", ":"))
-		channel = resolve_channel(args.channel, stock_id, args.channel_partition_count)
-		commands.append(encode_command("PUBLISH", channel, serialized))
+		channel = resolve_sharded_channel(args.channel, stock_id, args.channel_partition_count) if args.pubsub_mode == "sharded" else resolve_channel(args.channel, stock_id, args.channel_partition_count)
+		command = "SPUBLISH" if args.pubsub_mode == "sharded" else "PUBLISH"
+		commands.append(encode_command(command, channel, serialized))
 
 	sock.sendall(b"".join(commands))
 	for _ in range(batch_size):
@@ -214,8 +222,9 @@ def publish_selected_batch(sock, args, selected_stock_ids, prices, volumes):
 	for stock_id in selected_stock_ids:
 		payload = build_payload(stock_id, prices, volumes, args)
 		serialized = json.dumps(payload, separators=(",", ":"))
-		channel = resolve_channel(args.channel, stock_id, args.channel_partition_count)
-		commands.append(encode_command("PUBLISH", channel, serialized))
+		channel = resolve_sharded_channel(args.channel, stock_id, args.channel_partition_count) if args.pubsub_mode == "sharded" else resolve_channel(args.channel, stock_id, args.channel_partition_count)
+		command = "SPUBLISH" if args.pubsub_mode == "sharded" else "PUBLISH"
+		commands.append(encode_command(command, channel, serialized))
 
 	if not commands:
 		return 0
@@ -312,6 +321,7 @@ def main():
 				"[publisher] starting direct Redis price publisher",
 				f"[publisher] redis={args.host}:{args.port} db={args.db} channel={args.channel}",
 				f"[publisher] channel_partition_count={args.channel_partition_count}",
+				f"[publisher] pubsub_mode={args.pubsub_mode}",
 				f"[publisher] stock_mode={args.stock_mode} traffic_mode={args.traffic_mode} duration_sec={args.duration_sec} rate={args.rate}",
 				f"[publisher] stock_limit={args.stock_limit}",
 				f"[publisher] hot_stock_id={args.hot_stock_id} hot_ratio={args.hot_ratio} zipf_skew={args.zipf_skew}",
