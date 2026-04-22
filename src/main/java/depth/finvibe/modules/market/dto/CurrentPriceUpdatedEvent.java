@@ -23,4 +23,5 @@ public class CurrentPriceUpdatedEvent {
     private BigDecimal prevDayChangePct;
     private BigDecimal volume;
     private BigDecimal value;
+    private Long publishedAt;
 }

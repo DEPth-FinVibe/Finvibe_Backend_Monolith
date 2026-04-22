@@ -72,6 +72,7 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
         }
 
         currentPriceRepository.upsertCurrentPrice(CurrentPrice.from(priceUpdate));
+        priceUpdate.setPublishedAt(System.currentTimeMillis());
         currentPriceEventPublisher.publish(priceUpdate);
 
         stockPriceEventProducer.publishStockPriceUpdated(StockPriceUpdatedEvent.builder()
