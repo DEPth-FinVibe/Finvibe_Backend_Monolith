@@ -126,11 +126,11 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
     }
 
     private String keyForStock(Long stockId) {
-        return KEY_PREFIX + stockId;
+        return KEY_PREFIX + "{stock:" + stockId + "}";
     }
 
     private String keyForUpdatedAt(Long stockId) {
-        return UPDATED_AT_KEY_PREFIX + stockId;
+        return UPDATED_AT_KEY_PREFIX + "{stock:" + stockId + "}";
     }
 
     private Stream<CurrentPrice> deserializeSafely(String value) {

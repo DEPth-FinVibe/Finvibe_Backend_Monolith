@@ -67,7 +67,7 @@ public class CurrentStockWatcherRepositoryImpl implements CurrentStockWatcherRep
 
     @Override
     public List<Long> findActiveStockIds() {
-        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "*");
+        Set<String> keys = redisTemplate.keys(KEY_PREFIX + "{stock:*}");
         if (keys == null || keys.isEmpty()) {
             return List.of();
         }
@@ -76,7 +76,7 @@ public class CurrentStockWatcherRepositoryImpl implements CurrentStockWatcherRep
             if (key == null || !key.startsWith(KEY_PREFIX)) {
                 continue;
             }
-            String rawId = key.substring(KEY_PREFIX.length());
+            String rawId = extractStockId(key);
             try {
                 stockIds.add(Long.parseLong(rawId));
             } catch (NumberFormatException ex) {
@@ -87,6 +87,18 @@ public class CurrentStockWatcherRepositoryImpl implements CurrentStockWatcherRep
     }
 
     private String keyForStock(Long stockId) {
-        return KEY_PREFIX + stockId;
+        return KEY_PREFIX + "{stock:" + stockId + "}";
+    }
+
+    private String extractStockId(String key) {
+        int start = key.indexOf("{stock:");
+        if (start < 0) {
+            return key.substring(KEY_PREFIX.length());
+        }
+        int end = key.indexOf('}', start);
+        if (end < 0) {
+            return key.substring(KEY_PREFIX.length());
+        }
+        return key.substring(start + 7, end);
     }
 }

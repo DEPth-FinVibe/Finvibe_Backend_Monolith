@@ -81,6 +81,6 @@ public class SubscriptionOwnershipManager {
   }
 
   private String ownerKey(Long stockId) {
-    return OWNER_KEY_PREFIX + stockId;
+    return OWNER_KEY_PREFIX + "{stock:" + stockId + "}";
   }
 }

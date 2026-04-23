@@ -28,7 +28,7 @@ public class StockSubscriptionLockManager {
      * @return Lock 획득 성공 여부
      */
     public boolean tryAcquireLock(Long stockId) {
-        String lockKey = LOCK_PREFIX + stockId;
+        String lockKey = lockKey(stockId);
         RLock lock = redissonClient.getLock(lockKey);
 
         try {
@@ -52,7 +52,7 @@ public class StockSubscriptionLockManager {
      * @param stockId 종목 ID
      */
     public void releaseLock(Long stockId) {
-        String lockKey = LOCK_PREFIX + stockId;
+        String lockKey = lockKey(stockId);
         RLock lock = redissonClient.getLock(lockKey);
 
         try {
@@ -74,5 +74,9 @@ public class StockSubscriptionLockManager {
         // Redisson은 현재 스레드가 보유한 Lock 목록을 직접 조회하는 API를 제공하지 않으므로,
         // 이 메서드는 호출자가 명시적으로 관리하는 방식으로 구현되어야 합니다.
         // 따라서 Scheduler에서 직접 관리하도록 수정합니다.
+    }
+
+    private String lockKey(Long stockId) {
+        return LOCK_PREFIX + "{stock:" + stockId + "}";
     }
 }
