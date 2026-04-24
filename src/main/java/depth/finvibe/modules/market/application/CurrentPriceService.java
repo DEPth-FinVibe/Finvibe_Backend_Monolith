@@ -17,8 +17,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -31,6 +33,7 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
     private final CurrentPriceRepository currentPriceRepository;
     private final CurrentPriceEventPublisher currentPriceEventPublisher;
     private final StockPriceEventProducer stockPriceEventProducer;
+    private final ConcurrentHashMap<Long, BigDecimal> lastPublishedPrices = new ConcurrentHashMap<>();
 
     @Override
     public void registerWatchingStock(Long stockId, UUID userId) {
@@ -75,11 +78,17 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
         priceUpdate.setPublishedAt(System.currentTimeMillis());
         currentPriceEventPublisher.publish(priceUpdate);
 
-        stockPriceEventProducer.publishStockPriceUpdated(StockPriceUpdatedEvent.builder()
-                .stockId(priceUpdate.getStockId())
-                .price(priceUpdate.getClose())
-                .updatedAt(priceUpdate.getAt() != null ? priceUpdate.getAt() : LocalDateTime.now())
-                .build());
+        BigDecimal newPrice = priceUpdate.getClose();
+        BigDecimal prevPrice = lastPublishedPrices.get(priceUpdate.getStockId());
+
+        if (prevPrice == null || prevPrice.compareTo(newPrice) != 0) {
+            lastPublishedPrices.put(priceUpdate.getStockId(), newPrice);
+            stockPriceEventProducer.publishStockPriceUpdated(StockPriceUpdatedEvent.builder()
+                    .stockId(priceUpdate.getStockId())
+                    .price(newPrice)
+                    .updatedAt(priceUpdate.getAt() != null ? priceUpdate.getAt() : LocalDateTime.now())
+                    .build());
+        }
     }
 
 
