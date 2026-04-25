@@ -1,0 +1,20 @@
+market:
+  provider: mock
+  mock:
+    emit-interval-ms: 100
+    stocks-per-tick: 0
+    publish-threads: 8
+    publish-queue-capacity: 2048
+
+spring:
+  kafka:
+    listener:
+      auto-startup: false
+
+kis:
+  allocator:
+    required: false
+
+logging:
+  level:
+    depth.finvibe.modules.market.infra.websocket.mock: warn
