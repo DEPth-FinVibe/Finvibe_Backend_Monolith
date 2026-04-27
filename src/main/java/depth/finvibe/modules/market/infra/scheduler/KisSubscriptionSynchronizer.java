@@ -17,6 +17,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,7 @@ import depth.finvibe.common.investment.lock.LockAcquisitionException;
  */
 @Slf4j
 @Component
+@Profile("!loadtest")
 @RequiredArgsConstructor
 public class KisSubscriptionSynchronizer {
     private static final int MAX_SUBSCRIPTIONS_PER_SESSION = 41;
