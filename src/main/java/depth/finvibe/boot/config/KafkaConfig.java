@@ -38,8 +38,9 @@ public class KafkaConfig {
         configProps.put(ProducerConfig.RETRIES_CONFIG, Integer.MAX_VALUE);
         configProps.put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, 5);
         configProps.put(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, 120_000);
-        configProps.put(ProducerConfig.LINGER_MS_CONFIG, 20);
+        configProps.put(ProducerConfig.LINGER_MS_CONFIG, 100);
         configProps.put(ProducerConfig.BATCH_SIZE_CONFIG, 32_768);
+        configProps.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "lz4");
 
         DefaultKafkaProducerFactory<String, Object> factory = new DefaultKafkaProducerFactory<>(configProps);
         factory.addListener(new MicrometerProducerListener<>(meterRegistry));

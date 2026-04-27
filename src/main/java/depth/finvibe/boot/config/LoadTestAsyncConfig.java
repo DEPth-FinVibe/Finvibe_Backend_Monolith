@@ -20,6 +20,7 @@ public class LoadTestAsyncConfig {
 		executor.setMaxPoolSize(32);
 		executor.setQueueCapacity(4096);
 		executor.setThreadNamePrefix("loadtest-async-");
+		executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
 		executor.initialize();
 		return executor;
 	}
