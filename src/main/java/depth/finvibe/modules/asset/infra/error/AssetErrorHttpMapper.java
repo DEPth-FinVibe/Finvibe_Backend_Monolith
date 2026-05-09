@@ -21,7 +21,6 @@ public class AssetErrorHttpMapper implements DomainErrorHttpMapper {
         return switch (assetCode) {
             case CANNOT_SELL_NON_EXISTENT_ASSET,
                  INVALID_PORTFOLIO_GROUP_PARAMS,
-                 INVALID_PORTFOLIO_CHART_DATE_RANGE,
                  SAME_PORTFOLIO_GROUP_TRANSFER_NOT_ALLOWED,
                  CANNOT_MODIFY_DEFAULT_PORTFOLIO_GROUP,
                  CANNOT_DELETE_DEFAULT_PORTFOLIO_GROUP,

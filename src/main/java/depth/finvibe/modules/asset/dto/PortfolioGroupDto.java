@@ -12,7 +12,6 @@ import lombok.NoArgsConstructor;
 import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.Currency;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
-import depth.finvibe.modules.asset.domain.PortfolioValuation;
 
 public class PortfolioGroupDto {
 
@@ -30,30 +29,20 @@ public class PortfolioGroupDto {
         private String iconCode;
         @Schema(description = "투자원금", example = "1000000")
         private BigDecimal totalPurchaseAmount;
-        @Schema(description = "현재 평가금액", example = "1100000")
-        private BigDecimal totalCurrentValue;
-        @Schema(description = "수익률(%)", example = "10.00")
-        private BigDecimal totalReturnRate;
+        @Schema(description = "총 보유금액(매입금액 기준)", example = "1000000")
+        private BigDecimal totalHoldingAmount;
 
         public static PortfolioGroupResponse from(PortfolioGroup portfolioGroup) {
-            PortfolioValuation valuation = portfolioGroup.getValuation();
-            BigDecimal currentValue = BigDecimal.ZERO;
-            BigDecimal purchaseAmount = BigDecimal.ZERO;
-            BigDecimal returnRate = BigDecimal.ZERO;
-
-            if (valuation != null) {
-                currentValue = valuation.getTotalCurrentValue();
-                purchaseAmount = currentValue.subtract(valuation.getTotalProfitLoss());
-                returnRate = valuation.getTotalReturnRate();
-            }
+            BigDecimal purchaseAmount = portfolioGroup.getAssets().stream()
+                    .map(asset -> asset.getTotalPrice().getAmount())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             return PortfolioGroupResponse.builder()
                     .id(portfolioGroup.getId())
                     .name(portfolioGroup.getName())
                     .iconCode(portfolioGroup.getIconCode())
                     .totalPurchaseAmount(purchaseAmount)
-                    .totalCurrentValue(currentValue)
-                    .totalReturnRate(returnRate)
+                    .totalHoldingAmount(purchaseAmount)
                     .build();
         }
     }
@@ -147,7 +136,7 @@ public class PortfolioGroupDto {
     public static class AssetAllocationResponse {
         @Schema(description = "현금 금액", example = "3500000")
         private BigDecimal cashAmount;
-        @Schema(description = "주식 금액(현재 평가금액 기준)", example = "7600000")
+        @Schema(description = "주식 금액(매입금액 기준)", example = "7600000")
         private BigDecimal stockAmount;
         @Schema(description = "총 자산 금액", example = "11100000")
         private BigDecimal totalAmount;
@@ -155,48 +144,6 @@ public class PortfolioGroupDto {
         private BigDecimal changeAmount;
         @Schema(description = "기준금액(10000000) 대비 증감률(%)", example = "11.00")
         private BigDecimal changeRate;
-    }
-
-    @AllArgsConstructor
-    @NoArgsConstructor
-    @Data
-    @Builder
-    @Schema(name = "PortfolioComparisonResponse", description = "포트폴리오 비교 응답")
-    public static class PortfolioComparisonResponse {
-        @Schema(description = "포트폴리오 이름", example = "성장형")
-        private String name;
-        @Schema(description = "총 자산 금액(현재 평가금액)", example = "1250000")
-        private BigDecimal totalAssetAmount;
-        @Schema(description = "수익률(%)", example = "12.50")
-        private BigDecimal returnRate;
-        @Schema(description = "실현 수익(현재 구현: valuation.totalProfitLoss)", example = "140000")
-        private BigDecimal realizedProfit;
-
-        public static PortfolioComparisonResponse from(PortfolioGroup portfolioGroup) {
-            PortfolioValuation valuation = portfolioGroup.getValuation();
-            BigDecimal totalAssetAmount = BigDecimal.ZERO;
-            BigDecimal returnRate = BigDecimal.ZERO;
-            BigDecimal realizedProfit = BigDecimal.ZERO;
-
-            if (valuation != null) {
-                totalAssetAmount = valuation.getTotalCurrentValue() != null
-                        ? valuation.getTotalCurrentValue()
-                        : BigDecimal.ZERO;
-                returnRate = valuation.getTotalReturnRate() != null
-                        ? valuation.getTotalReturnRate()
-                        : BigDecimal.ZERO;
-                realizedProfit = valuation.getTotalProfitLoss() != null
-                        ? valuation.getTotalProfitLoss()
-                        : BigDecimal.ZERO;
-            }
-
-            return PortfolioComparisonResponse.builder()
-                    .name(portfolioGroup.getName())
-                    .totalAssetAmount(totalAssetAmount)
-                    .returnRate(returnRate)
-                    .realizedProfit(realizedProfit)
-                    .build();
-        }
     }
 
     @AllArgsConstructor

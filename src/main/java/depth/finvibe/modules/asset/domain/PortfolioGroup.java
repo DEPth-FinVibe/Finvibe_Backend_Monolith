@@ -6,11 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import jakarta.persistence.AttributeOverride;
-import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.CascadeType;
-import jakarta.persistence.Column;
-import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -56,15 +52,6 @@ public class PortfolioGroup extends TimeStampedBaseEntity {
     @OneToMany(mappedBy = "portfolioGroup", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @Builder.Default
     private List<Asset> assets = new ArrayList<>();
-
-    @Embedded
-    @AttributeOverrides({
-        @AttributeOverride(name = "totalCurrentValue", column = @Column(name = "total_current_value")),
-        @AttributeOverride(name = "totalProfitLoss", column = @Column(name = "total_profit_loss")),
-        @AttributeOverride(name = "totalReturnRate", column = @Column(name = "total_return_rate")),
-        @AttributeOverride(name = "calculatedAt", column = @Column(name = "portfolio_valuation_calculated_at"))
-    })
-    private PortfolioValuation valuation;
 
     public static PortfolioGroup create(String name, UUID userId, String iconCode) {
         if(name == null || name.isBlank() || userId == null) {
@@ -219,24 +206,4 @@ public class PortfolioGroup extends TimeStampedBaseEntity {
         return Optional.empty();
     }
 
-    public void recalculateValuation() {
-        List<Asset> valuedAssets = assets.stream()
-                .filter(asset -> asset.getValuation() != null)
-                .toList();
-
-        if (valuedAssets.isEmpty()) {
-            this.valuation = PortfolioValuation.empty();
-            return;
-        }
-
-        BigDecimal totalPurchaseAmount = valuedAssets.stream()
-                .map(asset -> asset.getTotalPrice().getAmount())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        List<AssetValuation> assetValuations = valuedAssets.stream()
-                .map(Asset::getValuation)
-                .toList();
-
-        this.valuation = PortfolioValuation.aggregate(assetValuations, totalPurchaseAmount);
-    }
 }

@@ -14,9 +14,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import depth.finvibe.modules.asset.application.event.AssetTransferredEvent;
 import depth.finvibe.modules.asset.application.port.in.AssetCommandUseCase;
 import depth.finvibe.modules.asset.application.port.in.AssetEventUseCase;
-import depth.finvibe.modules.asset.application.port.out.PortfolioGroupRepository;
 import depth.finvibe.modules.asset.domain.Currency;
-import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
 import depth.finvibe.common.investment.dto.SignUpEvent;
 import depth.finvibe.common.investment.dto.TradeExecutedEvent;
@@ -26,7 +24,6 @@ import depth.finvibe.common.investment.dto.TradeExecutedEvent;
 @Slf4j
 public class AssetEventService implements AssetEventUseCase {
     private final AssetCommandUseCase commandUseCase;
-    private final PortfolioGroupRepository portfolioGroupRepository;
 
     @Transactional
     public void handleTradeExecutedEvent(TradeExecutedEvent event) {
@@ -77,17 +74,5 @@ public class AssetEventService implements AssetEventUseCase {
     public void handleAssetTransferredEvent(AssetTransferredEvent event) {
         log.info("Handling asset transferred event. sourcePortfolioId={}, targetPortfolioId={}, stockId={}, merged={}",
                 event.getSourcePortfolioId(), event.getTargetPortfolioId(), event.getStockId(), event.isMerged());
-
-        try {
-            portfolioGroupRepository.findByIdWithAssets(event.getSourcePortfolioId())
-                    .ifPresent(PortfolioGroup::recalculateValuation);
-            portfolioGroupRepository.findByIdWithAssets(event.getTargetPortfolioId())
-                    .ifPresent(PortfolioGroup::recalculateValuation);
-            log.info("Successfully recalculated valuations for source and target portfolios.");
-        } catch (Exception e) {
-            log.error("Failed to recalculate valuation after asset transfer. sourcePortfolioId={}, targetPortfolioId={}",
-                    event.getSourcePortfolioId(), event.getTargetPortfolioId(), e);
-            // 실패해도 예외를 던지지 않음 - 다음 배치에서 재계산됨
-        }
     }
 }
