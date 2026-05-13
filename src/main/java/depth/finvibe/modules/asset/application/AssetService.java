@@ -17,6 +17,7 @@ import depth.finvibe.modules.asset.application.event.AssetTransferredEvent;
 import depth.finvibe.modules.asset.application.event.AssetUnregisteredEvent;
 import depth.finvibe.modules.asset.application.event.PortfolioCreatedEvent;
 import depth.finvibe.modules.asset.application.event.PortfolioDeletedEvent;
+import depth.finvibe.modules.asset.application.event.PortfolioUpdatedEvent;
 import depth.finvibe.modules.asset.application.port.in.AssetCommandUseCase;
 import depth.finvibe.modules.asset.application.port.in.AssetQueryUseCase;
 import depth.finvibe.modules.asset.application.port.out.AssetRepository;
@@ -308,6 +309,11 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
                 request.getName(),
                 request.getIconCode()
         );
+
+        eventPublisher.publishEvent(PortfolioUpdatedEvent.builder()
+                .portfolioId(portfolioGroupId)
+                .userId(requesterUserId)
+                .build());
     }
 
     @Override
