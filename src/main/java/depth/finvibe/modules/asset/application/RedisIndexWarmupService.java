@@ -15,8 +15,8 @@ import depth.finvibe.modules.asset.domain.Asset;
 import depth.finvibe.modules.asset.domain.PortfolioGroup;
 import depth.finvibe.modules.asset.infra.redis.PortfolioAssetSnapshotRedisRepository;
 import depth.finvibe.modules.asset.infra.redis.PortfolioAssetSnapshotRedisRepository.AssetSnapshot;
-import depth.finvibe.modules.asset.infra.redis.PortfolioOwnerRedisRepository;
 import depth.finvibe.modules.asset.infra.redis.StockHoldingIndexRedisRepository;
+import depth.finvibe.modules.asset.infra.redis.PortfolioStateRedisRepository;
 
 /**
  * 가격 이벤트 도착 시 해당 종목의 Redis 인덱스가 없으면 DB에서 lazy load.
@@ -29,7 +29,7 @@ public class RedisIndexWarmupService {
 	private final PortfolioGroupRepository portfolioGroupRepository;
 	private final StockHoldingIndexRedisRepository stockHoldingIndexRedisRepository;
 	private final PortfolioAssetSnapshotRedisRepository portfolioAssetSnapshotRedisRepository;
-	private final PortfolioOwnerRedisRepository portfolioOwnerRedisRepository;
+	private final PortfolioStateRedisRepository portfolioStateRedisRepository;
 
 	/**
 	 * 특정 종목의 Redis 인덱스가 없으면 DB에서 조회하여 Redis에 적재한다.
@@ -52,7 +52,7 @@ public class RedisIndexWarmupService {
 		stockHoldingIndexRedisRepository.replacePortfolios(stockId, portfolioIds);
 
 		for (PortfolioGroup portfolio : portfolios) {
-			portfolioOwnerRedisRepository.set(portfolio.getId(), portfolio.getUserId());
+			portfolioStateRedisRepository.setOwner(portfolio.getId(), portfolio.getUserId());
 
 			for (Asset asset : portfolio.getAssets()) {
 				if (asset.getStockId().equals(stockId)) {
@@ -90,7 +90,7 @@ public class RedisIndexWarmupService {
 		}
 
 		for (PortfolioGroup portfolio : allPortfolios) {
-			portfolioOwnerRedisRepository.set(portfolio.getId(), portfolio.getUserId());
+			portfolioStateRedisRepository.setOwner(portfolio.getId(), portfolio.getUserId());
 
 			Map<Long, AssetSnapshot> snapshots = portfolio.getAssets().stream()
 					.collect(Collectors.toMap(

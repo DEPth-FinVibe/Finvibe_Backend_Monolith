@@ -13,8 +13,8 @@ import depth.finvibe.modules.asset.application.event.AssetTransferredEvent;
 import depth.finvibe.modules.asset.application.event.PortfolioCreatedEvent;
 import depth.finvibe.modules.asset.application.event.PortfolioDeletedEvent;
 import depth.finvibe.modules.asset.infra.redis.PortfolioAssetSnapshotRedisRepository;
-import depth.finvibe.modules.asset.infra.redis.PortfolioOwnerRedisRepository;
 import depth.finvibe.modules.asset.infra.redis.StockHoldingIndexRedisRepository;
+import depth.finvibe.modules.asset.infra.redis.PortfolioStateRedisRepository;
 
 @Slf4j
 @Service
@@ -23,7 +23,7 @@ public class RedisIndexSyncService {
 
 	private final StockHoldingIndexRedisRepository stockHoldingIndexRedisRepository;
 	private final PortfolioAssetSnapshotRedisRepository portfolioAssetSnapshotRedisRepository;
-	private final PortfolioOwnerRedisRepository portfolioOwnerRedisRepository;
+	private final PortfolioStateRedisRepository portfolioStateRedisRepository;
 
 	@Async
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -39,7 +39,7 @@ public class RedisIndexSyncService {
 					event.getCurrency()
 			);
 
-			portfolioOwnerRedisRepository.set(event.getPortfolioId(), event.getUserId());
+			portfolioStateRedisRepository.setOwner(event.getPortfolioId(), event.getUserId());
 
 			log.debug("Redis index synced for asset registered: portfolioId={}, stockId={}",
 					event.getPortfolioId(), event.getStockId());
@@ -102,7 +102,7 @@ public class RedisIndexSyncService {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void handlePortfolioCreated(PortfolioCreatedEvent event) {
 		try {
-			portfolioOwnerRedisRepository.set(event.getPortfolioId(), event.getUserId());
+			portfolioStateRedisRepository.setOwner(event.getPortfolioId(), event.getUserId());
 
 			log.debug("Redis index synced for portfolio created: portfolioId={}, userId={}",
 					event.getPortfolioId(), event.getUserId());
@@ -122,7 +122,7 @@ public class RedisIndexSyncService {
 			}
 
 			portfolioAssetSnapshotRedisRepository.deleteAll(event.getDeletedPortfolioId());
-			portfolioOwnerRedisRepository.delete(event.getDeletedPortfolioId());
+			portfolioStateRedisRepository.deleteOwner(event.getDeletedPortfolioId());
 
 			log.debug("Redis index synced for portfolio deleted: deletedId={}, defaultId={}",
 					event.getDeletedPortfolioId(), event.getDefaultPortfolioId());
