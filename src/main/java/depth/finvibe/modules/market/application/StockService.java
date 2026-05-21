@@ -15,6 +15,7 @@ import depth.finvibe.modules.market.application.port.in.StockCommandUseCase;
 import depth.finvibe.modules.market.application.port.out.CategoryRepository;
 import depth.finvibe.modules.market.application.port.out.RealMarketClient;
 import depth.finvibe.modules.market.application.port.out.StockRankingRepository;
+import depth.finvibe.modules.market.application.port.out.StockMasterClient;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.application.port.out.StockThemeRepository;
 import depth.finvibe.modules.market.domain.Category;
@@ -34,12 +35,13 @@ public class StockService implements StockCommandUseCase {
     private final CategoryRepository categoryRepository;
     private final StockThemeRepository stockThemeRepository;
     private final RealMarketClient realMarketClient;
+    private final StockMasterClient stockMasterClient;
     private final StockRankingRepository stockRankingRepository;
     private final TransactionTemplate transactionTemplate;
 
     @Override
     public void bulkUpsertStocks() {
-        List<StockDto.RealMarketStockResponse> stocksInKOSPI = realMarketClient.fetchStocksInRealMarket();
+        List<StockDto.RealMarketStockResponse> stocksInKOSPI = stockMasterClient.fetchStocks();
 
         transactionTemplate.executeWithoutResult(status -> {
             List<Stock> stocksToUpsert = convertToStocksFrom(stocksInKOSPI);
