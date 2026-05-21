@@ -50,6 +50,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -82,9 +83,11 @@ class AuthServiceTest {
 	private TemporaryTokenResolver temporaryTokenResolver;
 
 	private AuthService authService;
+	private long nextUserId;
 
 	@BeforeEach
 	void setUp() {
+		nextUserId = 1L;
 		authService = new AuthService(
 			userRepository,
 			userEventPublisher,
@@ -243,7 +246,7 @@ class AuthServiceTest {
 	private User createUser(String loginId, String password) {
 		when(passwordEncoder.encode(password)).thenReturn("encoded-" + password);
 		PasswordHash passwordHash = PasswordHash.create(password, passwordEncoder);
-		return User.create(
+		User user = User.create(
 			new LoginId(loginId),
 			passwordHash,
 			PersonalDetails.of(
@@ -254,6 +257,8 @@ class AuthServiceTest {
 				new Email("user@example.com")
 			)
 		);
+		ReflectionTestUtils.setField(user, "internalUserId", nextUserId++);
+		return user;
 	}
 
 	private UserDto.TokenResponse tokenResponse(UUID tokenFamilyId, String refreshToken) {
