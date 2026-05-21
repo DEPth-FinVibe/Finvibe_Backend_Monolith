@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
  * 종목 → 포트폴리오 역방향 인덱스.
  * 특정 종목을 보유한 포트폴리오 ID 목록을 Redis SET으로 관리한다.
  *
- * Key: stock:holding:{stockId}:portfolios
+ * Key: stock:{stockId}:portfolios
  * Type: SET
  * Members: portfolioId (Long → String)
  */
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Repository;
 @RequiredArgsConstructor
 public class StockHoldingIndexRedisRepository {
 
-	private static final String KEY_PREFIX = "stock:holding:";
+	private static final String KEY_PREFIX = "stock:";
 	private static final String KEY_SUFFIX = ":portfolios";
 
 	private final StringRedisTemplate redisTemplate;

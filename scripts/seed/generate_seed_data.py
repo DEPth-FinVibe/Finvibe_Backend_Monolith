@@ -47,23 +47,23 @@ except ImportError:
 COURSES = 10
 LESSONS_PER_COURSE = 5
 PERSONAL_CHALLENGES = 20
-PORTFOLIOS_PER_USER = 3
-ASSETS_PER_PORTFOLIO = 4
-TRADES_PER_USER = 40
-INTEREST_STOCKS_PER_USER = 10
-USERS_PER_SQUAD = 1000
-XP_AWARDS_PER_USER = 5
-BADGES_PER_USER_AVG = 2
-USER_METRIC_FRACTION = 0.10
-CHALLENGE_COMPLETION_RATE = 0.30
-COURSE_PROGRESS_RATE = 0.40
-LESSON_COMPLETE_RATE = 0.60
-DISCUSSIONS_PER_NEWS = 3
-COMMENTS_PER_DISCUSSION = 3
-DISCUSSION_LIKES_PER = 30
-COMMENT_LIKES_PER = 10
-NEWS_LIKES_PER = 50
-XP_RANKING_TOP_N = 200
+PORTFOLIOS_PER_USER = 2
+ASSETS_PER_PORTFOLIO = 3
+TRADES_PER_USER = 10
+INTEREST_STOCKS_PER_USER = 5
+USERS_PER_SQUAD = 500
+XP_AWARDS_PER_USER = 4
+BADGES_PER_USER_AVG = 1
+USER_METRIC_FRACTION = 0.20
+CHALLENGE_COMPLETION_RATE = 0.25
+COURSE_PROGRESS_RATE = 0.30
+LESSON_COMPLETE_RATE = 0.40
+DISCUSSIONS_PER_NEWS = 2
+COMMENTS_PER_DISCUSSION = 2
+DISCUSSION_LIKES_PER = 10
+COMMENT_LIKES_PER = 5
+NEWS_LIKES_PER = 20
+XP_RANKING_TOP_N = 100
 
 BADGES = [
     "FIRST_PROFIT",
@@ -452,10 +452,6 @@ class PortfolioGroupGenerator(RowGenerator):
                     f"Portfolio {p + 1}",
                     self.rng.choice(icon_codes),
                     is_default,
-                    "0.00",
-                    "0.00",
-                    "0.00",
-                    null(None),
                     now_s,
                     now_s,
                 )
@@ -479,9 +475,6 @@ class AssetGenerator(RowGenerator):
                 amount = round(self.rng.uniform(1, 100), 2)
                 price = self.rng.randint(1000, 500_000)
                 total_price = round(amount * price, 2)
-                cur_val = round(total_price * self.rng.uniform(0.8, 1.5), 2)
-                profit = round(cur_val - total_price, 2)
-                ret_rate = round((profit / total_price) * 100, 4) if total_price else 0
                 yield (
                     pg_id,
                     uid,
@@ -489,11 +482,7 @@ class AssetGenerator(RowGenerator):
                     stock_name[sid],
                     amount,
                     total_price,
-                    "KRW",
-                    cur_val,
-                    profit,
-                    ret_rate,
-                    now_s,
+                    1, # Currency.KRW ordinal
                     now_s,
                     now_s,
                 )
@@ -658,9 +647,7 @@ LOAD_SQL_TEMPLATES = {
         CHARACTER SET utf8mb4
         FIELDS TERMINATED BY '\t'
         LINES TERMINATED BY '\n'
-        (user_id, name, icon_code, is_default,
-         total_current_value, total_profit_loss, total_return_rate,
-         portfolio_valuation_calculated_at, created_at, last_modified_at)
+        (user_id, name, icon_code, is_default, created_at, last_modified_at)
     """,
     "asset": """
         LOAD DATA LOCAL INFILE '__FILE__'
@@ -669,9 +656,7 @@ LOAD_SQL_TEMPLATES = {
         FIELDS TERMINATED BY '\t'
         LINES TERMINATED BY '\n'
         (portfolio_group_id, user_id, stock_id, name, amount,
-         total_price_amount, total_price_currency,
-         current_value, profit_loss, return_rate, valuation_calculated_at,
-         created_at, last_modified_at)
+         total_price_amount, total_price_currency, created_at, last_modified_at)
     """,
     "trade": """
         LOAD DATA LOCAL INFILE '__FILE__'

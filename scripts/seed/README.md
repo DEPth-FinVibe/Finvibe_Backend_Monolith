@@ -6,8 +6,8 @@
 
 ```bash
 python3 scripts/seed/generate_users_csv.py \
-  --rows 1000000 \
-  --output data/users_1000000.csv \
+  --rows 200000 \
+  --output data/users_200000.csv \
   --seed 42
 ```
 
@@ -25,7 +25,7 @@ SHOW COLUMNS FROM users LIKE 'id';
 ### CHAR/VARCHAR UUID
 
 ```bash
-sed "s|__CSV_PATH__|$(pwd)/data/users_1000000.csv|g" \
+sed "s|__CSV_PATH__|$(pwd)/data/users_200000.csv|g" \
   scripts/seed/load_users_char_uuid.sql \
   | mysql --local-infile=1 -u finvibe -p finvibe
 ```
@@ -33,7 +33,7 @@ sed "s|__CSV_PATH__|$(pwd)/data/users_1000000.csv|g" \
 ### BINARY UUID
 
 ```bash
-sed "s|__CSV_PATH__|$(pwd)/data/users_1000000.csv|g" \
+sed "s|__CSV_PATH__|$(pwd)/data/users_200000.csv|g" \
   scripts/seed/load_users_binary_uuid.sql \
   | mysql --local-infile=1 -u finvibe -p finvibe
 ```
@@ -152,27 +152,27 @@ PHASE 5: Ranking (user_xp 의존)
 
 `generate_seed_data.py` 상단의 상수를 수정:
 
-| 상수 | 기본값 | 100만 유저 기준 예상량 |
+| 상수 | 기본값 | 20만 유저 기준 예상량 |
 |------|--------|------------------------|
 | `COURSES` | 10 | 10개 |
 | `LESSONS_PER_COURSE` | 5 | 50개 |
 | `PERSONAL_CHALLENGES` | 20 | 20개 |
-| `PORTFOLIOS_PER_USER` | 3 | 300만 행 |
-| `ASSETS_PER_PORTFOLIO` | 4 | 1,200만 행 |
-| `TRADES_PER_USER` | 40 | 4,000만 행 |
-| `INTEREST_STOCKS_PER_USER` | 10 | 1,000만 행 |
-| `USERS_PER_SQUAD` | 1000 | 스쿼드당 1,000명 |
-| `XP_AWARDS_PER_USER` | 5 | 500만 행 |
-| `BADGES_PER_USER_AVG` | 2 | 200만 행 |
-| `USER_METRIC_FRACTION` | 0.10 | 30만 행 |
-| `CHALLENGE_COMPLETION_RATE` | 0.30 | 600만 행 |
-| `COURSE_PROGRESS_RATE` | 0.40 | 40만 행 |
-| `LESSON_COMPLETE_RATE` | 0.60 | 3,000만 행 |
-| `DISCUSSIONS_PER_NEWS` | 3 | news 수 × 3 |
-| `COMMENTS_PER_DISCUSSION` | 3 | 토론 수 × 3 |
-| `DISCUSSION_LIKES_PER` | 30 | 토론 수 × 30 |
-| `COMMENT_LIKES_PER` | 10 | 댓글 수 × 10 |
-| `NEWS_LIKES_PER` | 50 | news 수 × 50 |
+| `PORTFOLIOS_PER_USER` | 2 | 40만 행 |
+| `ASSETS_PER_PORTFOLIO` | 3 | 120만 행 |
+| `TRADES_PER_USER` | 10 | 200만 행 |
+| `INTEREST_STOCKS_PER_USER` | 5 | 100만 행 |
+| `USERS_PER_SQUAD` | 500 | 스쿼드당 500명 |
+| `XP_AWARDS_PER_USER` | 4 | 80만 행 |
+| `BADGES_PER_USER_AVG` | 1 | 20만 행 |
+| `USER_METRIC_FRACTION` | 0.20 | 약 12만 행 |
+| `CHALLENGE_COMPLETION_RATE` | 0.25 | 100만 행 |
+| `COURSE_PROGRESS_RATE` | 0.30 | 60만 행 |
+| `LESSON_COMPLETE_RATE` | 0.40 | 400만 행 |
+| `DISCUSSIONS_PER_NEWS` | 2 | news 수 × 2 |
+| `COMMENTS_PER_DISCUSSION` | 2 | 토론 수 × 2 |
+| `DISCUSSION_LIKES_PER` | 10 | 토론 수 × 10 |
+| `COMMENT_LIKES_PER` | 5 | 댓글 수 × 5 |
+| `NEWS_LIKES_PER` | 20 | news 수 × 20 |
 
 ## 성능 벤치마크
 
@@ -182,16 +182,16 @@ PHASE 5: Ranking (user_xp 의존)
 - DB: MariaDB 10.6 (로컬)
 - Network: localhost
 
-**100만 유저 기준:**
+**20만 유저 기준:**
 
 | 테이블 | 예상 행 수 | 생성 시간 | 로드 시간 |
 |--------|------------|-----------|-----------|
-| interest_stock | 1,000만 | ~2분 | ~1분 |
-| portfolio_group | 300만 | ~1분 | ~30초 |
-| asset | 1,200만 | ~4분 | ~2분 |
-| trade | 4,000만 | ~8분 | ~4분 |
-| **전체** | **~1억** | **~20분** | **~10분** |
-| **총 소요** | - | **~30분** | (기존: 1~2시간) |
+| interest_stock | 100만 | ~10초 | ~5초 |
+| portfolio_group | 40만 | ~5초 | ~3초 |
+| asset | 120만 | ~12초 | ~6초 |
+| trade | 200만 | ~20초 | ~10초 |
+| **전체** | **~1,000만 미만** | **~1분 30초** | **~45초** |
+| **총 소요** | - | **~2분 30초** | (기존 100만 기준: ~30분) |
 
 ## 주의사항
 
