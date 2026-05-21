@@ -29,7 +29,7 @@ public class XpDto {
     @Schema(description = "사용자 경험치 정보")
     public static class Response {
         @Schema(description = "사용자 UUID")
-        private UUID userId;
+        private Long userId;
         @Schema(description = "닉네임")
         private String nickname;
         @Schema(description = "누적 경험치")
@@ -84,7 +84,7 @@ public class XpDto {
     @Schema(description = "전체 사용자 XP 랭킹")
     public static class UserRankingResponse {
         @Schema(description = "사용자 UUID")
-        private UUID userId;
+        private Long userId;
         @Schema(description = "닉네임")
         private String nickname;
         @Schema(description = "순위")

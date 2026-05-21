@@ -7,6 +7,6 @@ import depth.finvibe.modules.wallet.domain.Wallet;
 
 public interface WalletRepository {
     Wallet save(Wallet wallet);
-    Optional<Wallet> findByUserId(UUID userId);
-    boolean existsByUserId(UUID userId);
+    Optional<Wallet> findByUserId(Long userId);
+    boolean existsByUserId(Long userId);
 }

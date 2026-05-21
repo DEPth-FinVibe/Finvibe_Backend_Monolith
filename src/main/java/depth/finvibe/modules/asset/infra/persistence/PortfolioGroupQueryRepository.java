@@ -30,7 +30,7 @@ public class PortfolioGroupQueryRepository {
         );
     }
 
-    public Optional<PortfolioGroup> findDefaultByUserId(UUID userId) {
+    public Optional<PortfolioGroup> findDefaultByUserId(Long userId) {
         return Optional.ofNullable(
                 queryFactory
                         .selectFrom(portfolioGroup)
@@ -48,7 +48,7 @@ public class PortfolioGroupQueryRepository {
                 .fetch();
     }
 
-    public List<PortfolioGroup> findAllByUserIdWithAssets(UUID userId) {
+    public List<PortfolioGroup> findAllByUserIdWithAssets(Long userId) {
         if (userId == null) {
             return List.of();
         }
@@ -87,7 +87,7 @@ public class PortfolioGroupQueryRepository {
                 .fetch();
     }
 
-    public boolean existDefaultByUserId(UUID userId) {
+    public boolean existDefaultByUserId(Long userId) {
         return queryFactory
                 .selectFrom(portfolioGroup)
                 .where(portfolioGroup.userId.eq(userId).and(portfolioGroup.isDefault.eq(true)))

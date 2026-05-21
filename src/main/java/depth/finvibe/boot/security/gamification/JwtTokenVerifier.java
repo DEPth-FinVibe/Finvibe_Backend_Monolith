@@ -51,7 +51,7 @@ public class JwtTokenVerifier {
     Map<String, Object> claims = readJson(payloadJson);
     validateExpiration(claims.get(EXP_CLAIM));
 
-    UUID userId = parseUuid(claims.get(USER_UUID_CLAIM));
+    Long userId = parseUuid(claims.get(USER_UUID_CLAIM));
     UserRole role = parseRole(claims.get(ROLE_CLAIM));
     if (userId == null) {
       throw new JwtVerificationException("Missing user id.");
@@ -92,11 +92,11 @@ public class JwtTokenVerifier {
     }
   }
 
-  private UUID parseUuid(Object value) {
+  private Long parseUuid(Object value) {
     if (value == null) {
       return null;
     }
-    return UUID.fromString(value.toString());
+    return Long.valueOf(value.toString());
   }
 
   private UserRole parseRole(Object value) {
@@ -106,7 +106,7 @@ public class JwtTokenVerifier {
     return UserRole.valueOf(value.toString());
   }
 
-  public record VerifiedToken(UUID userId, UserRole role) {}
+  public record VerifiedToken(Long userId, UserRole role) {}
 
   public static class JwtVerificationException extends RuntimeException {
     public JwtVerificationException(String message) {

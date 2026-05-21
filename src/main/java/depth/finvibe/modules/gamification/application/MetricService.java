@@ -39,7 +39,7 @@ public class MetricService implements MetricCommandUseCase {
 
     @Override
     @Transactional
-    public void updateUserMetric(UserMetricType metricType, UUID userId, Double delta, Instant occurredAt) {
+    public void updateUserMetric(UserMetricType metricType, Long userId, Double delta, Instant occurredAt) {
         if (metricType == null) {
             throw new DomainException(GamificationErrorCode.INVALID_METRIC_TYPE);
         }
@@ -71,7 +71,7 @@ public class MetricService implements MetricCommandUseCase {
         metricRepository.deleteAllByCollectPeriod(CollectPeriod.WEEKLY);
     }
 
-    private void updateLoginStreak(UUID userId, Instant occurredAt) {
+    private void updateLoginStreak(Long userId, Instant occurredAt) {
         if (occurredAt == null) {
             return;
         }
@@ -95,7 +95,7 @@ public class MetricService implements MetricCommandUseCase {
         evaluateBadgeByMetric(userId, UserMetricType.LOGIN_STREAK_DAYS, nextStreak);
     }
 
-    private LocalDate getLastLoginDate(UUID userId) {
+    private LocalDate getLastLoginDate(Long userId) {
         return metricRepository.findByUserIdAndType(userId, UserMetricType.LAST_LOGIN_DATETIME, CollectPeriod.ALLTIME)
                 .map(UserMetric::getValue)
                 .filter(value -> value != null)
@@ -103,13 +103,13 @@ public class MetricService implements MetricCommandUseCase {
                 .orElse(null);
     }
 
-    private double getMetricValue(UUID userId, UserMetricType metricType, CollectPeriod collectPeriod) {
+    private double getMetricValue(Long userId, UserMetricType metricType, CollectPeriod collectPeriod) {
         return metricRepository.findByUserIdAndType(userId, metricType, collectPeriod)
                 .map(UserMetric::getValue)
                 .orElse(0.0);
     }
 
-    private void updateWeeklyMetric(UUID userId, UserMetricType metricType, double increase) {
+    private void updateWeeklyMetric(Long userId, UserMetricType metricType, double increase) {
         if (!isWeeklyMetric(metricType) || increase == 0.0) {
             return;
         }
@@ -123,7 +123,7 @@ public class MetricService implements MetricCommandUseCase {
                 .build());
     }
 
-    private void saveMetric(UUID userId, UserMetricType metricType, CollectPeriod collectPeriod, double value) {
+    private void saveMetric(Long userId, UserMetricType metricType, CollectPeriod collectPeriod, double value) {
         metricRepository.save(UserMetric.builder()
                 .userId(userId)
                 .type(metricType)
@@ -142,7 +142,7 @@ public class MetricService implements MetricCommandUseCase {
                 || metricType == UserMetricType.HOLDING_STOCK_COUNT;
     }
 
-    private void evaluateBadgeByMetric(UUID userId, UserMetricType metricType, double value) {
+    private void evaluateBadgeByMetric(Long userId, UserMetricType metricType, double value) {
         if (metricType == UserMetricType.AI_CONTENT_COMPLETE_COUNT && value >= KNOWLEDGE_SEEKER_TARGET) {
             grantBadgeIfAbsent(userId, Badge.KNOWLEDGE_SEEKER);
         }
@@ -160,7 +160,7 @@ public class MetricService implements MetricCommandUseCase {
         }
     }
 
-    private void grantBadgeIfAbsent(UUID userId, Badge badge) {
+    private void grantBadgeIfAbsent(Long userId, Badge badge) {
         BadgeOwnership ownership = BadgeOwnership.of(badge, userId);
         if (badgeOwnershipRepository.isExist(ownership)) {
             return;

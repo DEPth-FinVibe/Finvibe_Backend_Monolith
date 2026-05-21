@@ -20,7 +20,7 @@ public class Wallet extends TimeStampedBaseEntity {
     private Long id;
 
     @Column(nullable = false)
-    private UUID userId;
+    private Long userId;
 
     @Embedded
     private Money balance;
@@ -33,7 +33,7 @@ public class Wallet extends TimeStampedBaseEntity {
         this.balance = this.balance.minus(amount);
     }
 
-    public static Wallet create(UUID userId) {
+    public static Wallet create(Long userId) {
         return new Wallet(null, userId, new Money(WALLET_INITIAL_BALANCE));
     }
 }

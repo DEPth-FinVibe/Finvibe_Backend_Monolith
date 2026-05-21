@@ -23,11 +23,11 @@ public interface MetricJpaRepository extends JpaRepository<UserMetric, UserMetri
             CollectPeriod collectPeriod,
             Pageable pageable);
 
-    Optional<UserMetric> findByUserIdAndTypeAndCollectPeriod(UUID userId, UserMetricType type, CollectPeriod collectPeriod);
+    Optional<UserMetric> findByUserIdAndTypeAndCollectPeriod(Long userId, UserMetricType type, CollectPeriod collectPeriod);
 
-    List<UserMetric> findByUserId(UUID userId);
+    List<UserMetric> findByUserId(Long userId);
 
-    List<UserMetric> findByUserIdAndTypeInAndCollectPeriod(UUID userId, List<UserMetricType> types, CollectPeriod collectPeriod);
+    List<UserMetric> findByUserIdAndTypeInAndCollectPeriod(Long userId, List<UserMetricType> types, CollectPeriod collectPeriod);
 
     void deleteByCollectPeriod(CollectPeriod collectPeriod);
 }

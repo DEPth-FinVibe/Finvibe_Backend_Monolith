@@ -26,7 +26,7 @@ public class StudyTradeServiceClientImpl implements TradeServiceClient {
     @Override
     public List<TradeDto.TradeHistoryResponse> getUserTradeHistories(String userId, LocalDate fromDate, LocalDate toDate) {
         try {
-            UUID parsedUserId = UUID.fromString(userId);
+            Long parsedUserId = Long.valueOf(userId);
             return objectMapper.convertValue(
                     tradeQueryUseCase.findTradesByDateRange(parsedUserId, fromDate, toDate),
                     RESPONSE_TYPE

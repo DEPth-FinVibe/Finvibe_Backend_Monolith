@@ -22,7 +22,7 @@ public class TokenFamilyQueryRepository {
 
     private final JPAQueryFactory queryFactory;
 
-    public List<TokenFamily> findAvailableByUserId(UUID userId) {
+    public List<TokenFamily> findAvailableByUserId(Long userId) {
         return queryFactory.selectFrom(tokenFamily)
             .where(
                 tokenFamily.userId.eq(userId),

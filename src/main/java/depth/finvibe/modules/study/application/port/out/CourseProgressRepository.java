@@ -8,5 +8,5 @@ import depth.finvibe.modules.study.domain.CourseProgress;
 public interface CourseProgressRepository {
     CourseProgress save(CourseProgress courseProgress);
     Optional<CourseProgress> findByCourseUserIdKey(String courseUserIdKey);
-    Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, UUID userId);
+    Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, Long userId);
 }

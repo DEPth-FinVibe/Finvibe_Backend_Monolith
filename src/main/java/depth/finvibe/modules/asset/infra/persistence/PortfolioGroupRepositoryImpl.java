@@ -38,12 +38,12 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     }
 
     @Override
-    public List<PortfolioGroup> findAllByUserId(UUID userId) {
+    public List<PortfolioGroup> findAllByUserId(Long userId) {
         return jpaRepository.findAllByUserId(userId);
     }
 
     @Override
-    public List<PortfolioGroup> findAllByUserIdWithAssets(UUID userId) {
+    public List<PortfolioGroup> findAllByUserIdWithAssets(Long userId) {
         return queryRepository.findAllByUserIdWithAssets(userId);
     }
 
@@ -53,7 +53,7 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     }
 
     @Override
-    public Optional<PortfolioGroup> findDefaultByUserId(UUID userId) {
+    public Optional<PortfolioGroup> findDefaultByUserId(Long userId) {
         return queryRepository.findDefaultByUserId(userId);
     }
 
@@ -68,12 +68,12 @@ public class PortfolioGroupRepositoryImpl implements PortfolioGroupRepository {
     }
 
     @Override
-    public boolean existDefaultByUserId(UUID userId) {
+    public boolean existDefaultByUserId(Long userId) {
         return queryRepository.existDefaultByUserId(userId);
     }
 
     @Override
-    public boolean existsByIdAndUserId(Long portfolioId, UUID userId) {
+    public boolean existsByIdAndUserId(Long portfolioId, Long userId) {
         return jpaRepository.existsByIdAndUserId(portfolioId, userId);
     }
 

@@ -7,7 +7,7 @@ import java.util.UUID;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 
 public interface TokenProvider {
-    UserDto.TokenResponse generateToken(UUID userId, UserRole role, UUID tokenFamilyId);
+    UserDto.TokenResponse generateToken(Long userId, UserRole role, UUID tokenFamilyId);
 
-    UserDto.TokenRefreshResponse refreshToken(UUID userId, UserRole role, UUID tokenFamilyId);
+    UserDto.TokenRefreshResponse refreshToken(Long userId, UserRole role, UUID tokenFamilyId);
 }

@@ -36,7 +36,7 @@ public class Discussion extends TimeStampedBaseEntity {
     private Long newsId;
 
     @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    private Long userId;
 
     @Column(nullable = false, length = 2000)
     private String content;
@@ -49,7 +49,7 @@ public class Discussion extends TimeStampedBaseEntity {
     @OneToMany(mappedBy = "discussion", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DiscussionComment> comments = new ArrayList<>();
 
-    public static Discussion create(Long newsId, UUID userId, String content) {
+    public static Discussion create(Long newsId, Long userId, String content) {
         return Discussion.builder()
                 .newsId(newsId)
                 .userId(userId)

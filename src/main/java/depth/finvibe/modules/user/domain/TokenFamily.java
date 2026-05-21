@@ -36,7 +36,7 @@ public class TokenFamily extends TimeStampedBaseEntity {
 	private UUID id = UUID.randomUUID();
 
 	@Column(name = "user_id", nullable = false)
-	private UUID userId;
+	private Long userId;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
@@ -66,7 +66,7 @@ public class TokenFamily extends TimeStampedBaseEntity {
 	@Column(name = "user_agent", length = 1000)
 	private String userAgent;
 
-	public static TokenFamily create(UUID userId, LoginContext loginContext, Instant now) {
+	public static TokenFamily create(Long userId, LoginContext loginContext, Instant now) {
 		return TokenFamily.builder()
 			.id(UUID.randomUUID())
 			.userId(userId)
@@ -103,7 +103,7 @@ public class TokenFamily extends TimeStampedBaseEntity {
 		this.currentRefreshTokenHash = null;
 	}
 
-	public boolean isAccessibleBy(UUID userId) {
+	public boolean isAccessibleBy(Long userId) {
 		return this.userId.equals(userId);
 	}
 }

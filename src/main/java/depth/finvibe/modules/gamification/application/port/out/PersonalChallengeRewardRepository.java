@@ -9,5 +9,5 @@ import depth.finvibe.modules.gamification.domain.vo.Period;
 public interface PersonalChallengeRewardRepository {
     void saveAll(List<PersonalChallengeReward> rewards);
 
-    List<PersonalChallengeReward> findAllByUserIdAndPeriod(UUID userId, Period period);
+    List<PersonalChallengeReward> findAllByUserIdAndPeriod(Long userId, Period period);
 }

@@ -8,10 +8,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import depth.finvibe.modules.gamification.domain.UserXp;
 
-public interface UserXpJpaRepository extends JpaRepository<UserXp, UUID> {
-    Optional<UserXp> findByUserId(UUID userId);
+public interface UserXpJpaRepository extends JpaRepository<UserXp, Long> {
+    Optional<UserXp> findByUserId(Long userId);
 
-    List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<UUID> userIds);
+    List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<Long> userIds);
 
-    List<UserXp> findAllByUserIdIn(List<UUID> userIds);
+    List<UserXp> findAllByUserIdIn(List<Long> userIds);
 }

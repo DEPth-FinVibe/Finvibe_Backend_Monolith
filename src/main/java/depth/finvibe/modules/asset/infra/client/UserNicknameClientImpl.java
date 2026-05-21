@@ -20,8 +20,8 @@ public class UserNicknameClientImpl implements UserNicknameClient {
     private final UserQueryUseCase userQueryUseCase;
 
     @Override
-    public Map<UUID, String> getUserNicknamesByIds(Collection<UUID> userIds) {
-        List<UUID> ids = new ArrayList<>(userIds);
+    public Map<Long, String> getUserNicknamesByIds(Collection<Long> userIds) {
+        List<Long> ids = new ArrayList<>(userIds);
 
         log.debug("[UserNicknameClientImpl] 닉네임 조회 요청 수신 - 요청 userIds 개수: {}, userIds: {}", ids.size(), ids);
 
@@ -30,7 +30,7 @@ public class UserNicknameClientImpl implements UserNicknameClient {
             return Map.of();
         }
 
-        Map<UUID, String> nicknames = userQueryUseCase.getNicknames(ids);
+        Map<Long, String> nicknames = userQueryUseCase.getNicknames(ids);
 
         log.debug("[UserNicknameClientImpl] 닉네임 조회 응답 성공 - 요청 userIds 개수: {}, 응답 결과 개수: {}",
                 ids.size(), nicknames.size());

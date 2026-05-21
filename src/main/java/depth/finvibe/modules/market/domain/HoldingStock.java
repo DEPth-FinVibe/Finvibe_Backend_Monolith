@@ -34,9 +34,9 @@ public class HoldingStock {
     private Long stockId;
 
     @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    private Long userId;
 
-    public static HoldingStock create(Long stockId, UUID userId) {
+    public static HoldingStock create(Long stockId, Long userId) {
         return HoldingStock.builder()
                 .stockId(stockId)
                 .userId(userId)

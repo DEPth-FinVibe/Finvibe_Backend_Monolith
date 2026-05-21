@@ -15,5 +15,5 @@ public interface MetricEventCommandUseCase {
      * @param delta 증분 값
      * @param occurredAt 이벤트 발생 시각(UTC)
      */
-    void updateUserMetricByEventType(MetricEventType eventType, UUID userId, Double delta, Instant occurredAt);
+    void updateUserMetricByEventType(MetricEventType eventType, Long userId, Double delta, Instant occurredAt);
 }

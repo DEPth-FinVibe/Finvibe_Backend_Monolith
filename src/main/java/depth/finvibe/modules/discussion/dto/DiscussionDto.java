@@ -36,7 +36,7 @@ public class DiscussionDto {
     @Getter
     public static class Response {
         private final Long id;
-        private final UUID userId;
+        private final Long userId;
         private final String content;
         private final Long newsId;
         private final long likeCount;
@@ -59,7 +59,7 @@ public class DiscussionDto {
     @Getter
     public static class CommentResponse {
         private final Long id;
-        private final UUID userId;
+        private final Long userId;
         private final String content;
         private final boolean isEdited;
         private final long likeCount;

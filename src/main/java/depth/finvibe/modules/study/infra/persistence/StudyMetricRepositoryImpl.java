@@ -15,7 +15,7 @@ public class StudyMetricRepositoryImpl implements StudyMetricRepository {
     private final StudyMetricJpaRepository studyMetricJpaRepository;
 
     @Override
-    public Optional<StudyMetric> findByUserId(UUID userId) {
+    public Optional<StudyMetric> findByUserId(Long userId) {
         return studyMetricJpaRepository.findById(userId);
     }
 

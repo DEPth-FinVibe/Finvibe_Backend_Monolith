@@ -7,5 +7,5 @@ public interface NewsCommandUseCase {
 
     void syncAllDiscussionCounts();
 
-    void toggleNewsLike(Long newsId, UUID userId);
+    void toggleNewsLike(Long newsId, Long userId);
 }

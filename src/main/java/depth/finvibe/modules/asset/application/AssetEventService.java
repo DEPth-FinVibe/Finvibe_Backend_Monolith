@@ -29,7 +29,7 @@ public class AssetEventService implements AssetEventUseCase {
     public void handleTradeExecutedEvent(TradeExecutedEvent event) {
 
         Long portfolioId = event.getPortfolioId();
-        UUID userId = UUID.fromString(event.getUserId());
+        Long userId = Long.valueOf(event.getUserId());
 
         if (event.getType().equals("BUY")) {
             PortfolioGroupDto.RegisterAssetRequest request = createRegisterRequestFrom(event);
@@ -45,7 +45,7 @@ public class AssetEventService implements AssetEventUseCase {
 
     @Transactional
     public void handleSignUpEvent(SignUpEvent event) {
-        UUID userId = UUID.fromString(event.getUserId());
+        Long userId = Long.valueOf(event.getUserId());
         commandUseCase.createDefaultPortfolioGroup(userId);
     }
 

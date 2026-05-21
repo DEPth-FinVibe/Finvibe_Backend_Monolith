@@ -5,5 +5,5 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface UserNicknameClient {
-    Map<UUID, String> getUserNicknamesByIds(Collection<UUID> userIds);
+    Map<Long, String> getUserNicknamesByIds(Collection<Long> userIds);
 }

@@ -21,7 +21,7 @@ public class MetricEventService implements MetricEventCommandUseCase {
     private final MetricCommandUseCase metricCommandUseCase;
 
     @Override
-    public void updateUserMetricByEventType(MetricEventType eventType, UUID userId, Double delta, Instant occurredAt) {
+    public void updateUserMetricByEventType(MetricEventType eventType, Long userId, Double delta, Instant occurredAt) {
         if (eventType == null) {
             throw new DomainException(GamificationErrorCode.INVALID_METRIC_TYPE);
         }

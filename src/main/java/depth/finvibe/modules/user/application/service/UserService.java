@@ -81,7 +81,7 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
 
     @Override
     @Transactional
-    public UserDto.UserResponse getMe(UUID userId) {
+    public UserDto.UserResponse getMe(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
 
@@ -96,7 +96,7 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
     /**
      * 당일 첫 로그인인지 확인하고 메트릭 이벤트를 발행합니다.
      */
-    private void checkAndPublishDailyLogin(UUID userId) {
+    private void checkAndPublishDailyLogin(Long userId) {
         boolean isFirstLoginToday = dailyLoginChecker.checkAndMarkDailyLogin(userId);
 
         if (isFirstLoginToday) {
@@ -139,7 +139,7 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
 
     @Override
     @Transactional
-    public void withdraw(UUID userId) {
+    public void withdraw(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
 
@@ -148,7 +148,7 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserDto.FavoriteStockResponse> getFavoriteStocks(UUID userId) {
+    public List<UserDto.FavoriteStockResponse> getFavoriteStocks(Long userId) {
         return interestStockRepository.findAllByUserId(userId).stream()
                 .map(UserDto.FavoriteStockResponse::from)
                 .collect(Collectors.toList());
@@ -177,20 +177,20 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public String getNickname(UUID userId) {
+    public String getNickname(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
         return user.getPersonalDetails().getNickname();
     }
 
     @Override
-    public Map<UUID, String> getNicknames(Collection<UUID> userIds) {
+    public Map<Long, String> getNicknames(Collection<Long> userIds) {
         return userRepository.findNicknamesByIds(userIds);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public UserDto.MemberProfileResponse getMemberProfile(UUID userId) {
+    public UserDto.MemberProfileResponse getMemberProfile(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
 
@@ -269,7 +269,7 @@ public class UserService implements UserCommandUseCase, UserQueryUseCase {
         }
     }
 
-    private void checkStockIsAlreadyAdded(UUID userId, Long stockId) {
+    private void checkStockIsAlreadyAdded(Long userId, Long stockId) {
         if (interestStockRepository.findByUserIdAndStockId(userId, stockId).isPresent()) {
             throw new DomainException(UserErrorCode.INTEREST_STOCK_ALREADY_EXISTS);
         }

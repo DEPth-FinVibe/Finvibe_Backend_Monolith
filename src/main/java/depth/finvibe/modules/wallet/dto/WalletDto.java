@@ -21,7 +21,7 @@ public class WalletDto {
         @Schema(description = "지갑 ID", example = "1")
         private Long walletId;
         @Schema(description = "사용자 ID", example = "00000000-0000-0000-0000-000000000000")
-        private UUID userId;
+        private Long userId;
         @Schema(description = "잔액", example = "100000")
         private Long balance;
 

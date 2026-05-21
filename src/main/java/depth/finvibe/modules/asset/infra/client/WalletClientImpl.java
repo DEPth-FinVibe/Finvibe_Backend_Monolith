@@ -14,7 +14,7 @@ public class WalletClientImpl implements WalletClient {
     private final WalletQueryUseCase walletQueryUseCase;
 
     @Override
-    public WalletDto.WalletResponse getWalletByUserId(UUID userId) {
+    public WalletDto.WalletResponse getWalletByUserId(Long userId) {
         return walletQueryUseCase.getWalletByUserId(userId);
     }
 }

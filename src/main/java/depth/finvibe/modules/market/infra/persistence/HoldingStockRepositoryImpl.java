@@ -17,14 +17,14 @@ public class HoldingStockRepositoryImpl implements HoldingStockRepository {
 
     @Override
     @Transactional
-    public void registerHoldingStock(Long stockId, UUID userId) {
+    public void registerHoldingStock(Long stockId, Long userId) {
         jpaRepository.findByStockIdAndUserId(stockId, userId)
                 .orElseGet(() -> jpaRepository.save(HoldingStock.create(stockId, userId)));
     }
 
     @Override
     @Transactional
-    public void unregisterHoldingStock(Long stockId, UUID userId) {
+    public void unregisterHoldingStock(Long stockId, Long userId) {
         jpaRepository.findByStockIdAndUserId(stockId, userId)
                 .ifPresent(jpaRepository::delete);
     }

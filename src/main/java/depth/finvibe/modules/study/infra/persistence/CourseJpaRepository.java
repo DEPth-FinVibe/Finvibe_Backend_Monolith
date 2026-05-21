@@ -9,5 +9,5 @@ import depth.finvibe.modules.study.domain.Course;
 
 public interface CourseJpaRepository extends JpaRepository<Course, Long> {
     boolean existsByIsGlobalTrue();
-    List<Course> findByOwnerOrIsGlobalTrue(UUID owner);
+    List<Course> findByOwnerOrIsGlobalTrue(Long owner);
 }

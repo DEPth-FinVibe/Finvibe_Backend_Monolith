@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import depth.finvibe.modules.market.application.port.in.StockCommandUseCase;
 import depth.finvibe.modules.market.application.port.out.CategoryRepository;
@@ -35,15 +35,16 @@ public class StockService implements StockCommandUseCase {
     private final StockThemeRepository stockThemeRepository;
     private final RealMarketClient realMarketClient;
     private final StockRankingRepository stockRankingRepository;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public void bulkUpsertStocks() {
         List<StockDto.RealMarketStockResponse> stocksInKOSPI = realMarketClient.fetchStocksInRealMarket();
 
-        List<Stock> stocksToUpsert = convertToStocksFrom(stocksInKOSPI);
-
-        stockRepository.bulkUpsertStocks(stocksToUpsert);
+        transactionTemplate.executeWithoutResult(status -> {
+            List<Stock> stocksToUpsert = convertToStocksFrom(stocksInKOSPI);
+            stockRepository.bulkUpsertStocks(stocksToUpsert);
+        });
     }
 
     private List<Stock> convertToStocksFrom(List<StockDto.RealMarketStockResponse> stocksInKOSPI) {
@@ -84,10 +85,13 @@ public class StockService implements StockCommandUseCase {
     }
 
     @Override
-    @Transactional
     public void renewStockCharts() {
         List<StockDto.RankingResponse> rankingResponses = realMarketClient.fetchStockRankings();
 
+        transactionTemplate.executeWithoutResult(status -> renewStockCharts(rankingResponses));
+    }
+
+    private void renewStockCharts(List<StockDto.RankingResponse> rankingResponses) {
         List<String> symbols = rankingResponses.stream()
                 .map(StockDto.RankingResponse::getSymbol)
                 .toList();

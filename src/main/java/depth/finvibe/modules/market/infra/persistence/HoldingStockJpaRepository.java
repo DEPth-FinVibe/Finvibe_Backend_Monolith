@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import depth.finvibe.modules.market.domain.HoldingStock;
 
 public interface HoldingStockJpaRepository extends JpaRepository<HoldingStock, Long> {
-    Optional<HoldingStock> findByStockIdAndUserId(Long stockId, UUID userId);
+    Optional<HoldingStock> findByStockIdAndUserId(Long stockId, Long userId);
     
     @Query("SELECT DISTINCT h.stockId FROM HoldingStock h")
     List<Long> findAllDistinctStockIds();

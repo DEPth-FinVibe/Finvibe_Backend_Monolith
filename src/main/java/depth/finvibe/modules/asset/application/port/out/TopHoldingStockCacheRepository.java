@@ -6,9 +6,9 @@ import java.util.UUID;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 
 public interface TopHoldingStockCacheRepository {
-    Optional<TopHoldingStockDto.TopHoldingStockListResponse> find(UUID userId);
+    Optional<TopHoldingStockDto.TopHoldingStockListResponse> find(Long userId);
 
-    void save(UUID userId, TopHoldingStockDto.TopHoldingStockListResponse response);
+    void save(Long userId, TopHoldingStockDto.TopHoldingStockListResponse response);
 
-    void evictByUserId(UUID userId);
+    void evictByUserId(Long userId);
 }

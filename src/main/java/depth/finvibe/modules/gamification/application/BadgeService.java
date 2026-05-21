@@ -20,7 +20,7 @@ public class BadgeService implements BadgeCommandUseCase {
 
     @Override
     @Transactional
-    public void grantBadgeToUser(UUID userId, Badge badge) {
+    public void grantBadgeToUser(Long userId, Badge badge) {
         BadgeOwnership toSave = BadgeOwnership.of(badge, userId);
 
         checkBadgeIsAlreadyExist(toSave);

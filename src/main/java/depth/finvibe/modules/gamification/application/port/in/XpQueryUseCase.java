@@ -12,7 +12,7 @@ public interface XpQueryUseCase {
      * @param userId 사용자 ID
      * @return XP 정보 응답 DTO
      */
-    XpDto.Response getUserXp(UUID userId);
+    XpDto.Response getUserXp(Long userId);
 
     /**
      * 스쿼드 XP 랭킹을 조회합니다.
@@ -29,7 +29,7 @@ public interface XpQueryUseCase {
      * @param userId 요청한 사용자 ID (사용자가 속한 스쿼드 기준)
      * @return 기여도 랭킹 목록
      */
-    List<XpDto.ContributionRankingResponse> getSquadContributionRanking(UUID userId);
+    List<XpDto.ContributionRankingResponse> getSquadContributionRanking(Long userId);
 
     /**
      * 전체 사용자 XP 랭킹을 조회합니다.

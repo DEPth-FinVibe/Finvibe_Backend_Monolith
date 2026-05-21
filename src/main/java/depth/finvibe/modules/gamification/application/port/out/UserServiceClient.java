@@ -6,7 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserServiceClient {
-    Optional<String> getNickname(UUID userId);
+    Optional<String> getNickname(Long userId);
 
-    Map<UUID, String> getNicknamesByIds(Collection<UUID> userIds);
+    Map<Long, String> getNicknamesByIds(Collection<Long> userIds);
 }

@@ -19,7 +19,7 @@ import depth.finvibe.common.gamification.domain.TimeStampedBaseEntity;
 @Getter
 public class UserXp extends TimeStampedBaseEntity {
     @Id
-    private UUID userId;
+    private Long userId;
 
     private String nickname;
 
@@ -47,7 +47,7 @@ public class UserXp extends TimeStampedBaseEntity {
         this.level = (int) (this.totalXp / 1000) + 1;
     }
 
-    public static UserXp of(UUID userId, String nickname) {
+    public static UserXp of(Long userId, String nickname) {
         return UserXp.builder()
                 .userId(userId)
                 .nickname(nickname)

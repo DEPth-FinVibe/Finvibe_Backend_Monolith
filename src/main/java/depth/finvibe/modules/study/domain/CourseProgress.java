@@ -29,7 +29,7 @@ public class CourseProgress extends TimeStampedBaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     private Course course;
 
-    private UUID userId;
+    private Long userId;
 
     private Integer completedLessonCount;
 
@@ -39,7 +39,7 @@ public class CourseProgress extends TimeStampedBaseEntity {
     @Getter(value = AccessLevel.PROTECTED)
     private String courseUserIdKey;
 
-    public static CourseProgress of(Course course, UUID userId, int totalLessonCount, int completedLessonCount) {
+    public static CourseProgress of(Course course, Long userId, int totalLessonCount, int completedLessonCount) {
         return CourseProgress.builder()
                 .course(course)
                 .userId(userId)
@@ -49,7 +49,7 @@ public class CourseProgress extends TimeStampedBaseEntity {
                 .build();
     }
 
-    public static String generateCourseUserIdKey(Long courseId, UUID userId) {
+    public static String generateCourseUserIdKey(Long courseId, Long userId) {
         return courseId + "_" + userId.toString();
     }
 

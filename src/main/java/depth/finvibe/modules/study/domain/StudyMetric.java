@@ -17,7 +17,7 @@ import java.util.UUID;
 @SuperBuilder
 public class StudyMetric {
     @Id
-    private UUID userId;
+    private Long userId;
 
     private Long xpEarned;
 
@@ -25,7 +25,7 @@ public class StudyMetric {
 
     private Instant lastPingAt;
 
-    public static StudyMetric of(UUID userId) {
+    public static StudyMetric of(Long userId) {
         return StudyMetric.builder()
                 .userId(userId)
                 .xpEarned(0L)

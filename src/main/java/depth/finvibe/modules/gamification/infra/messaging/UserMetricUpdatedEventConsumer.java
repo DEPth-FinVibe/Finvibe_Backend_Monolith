@@ -36,7 +36,7 @@ public class UserMetricUpdatedEventConsumer {
         }
 
         try {
-            UUID userId = UUID.fromString(event.getUserId());
+            Long userId = Long.valueOf(event.getUserId());
             metricEventCommandUseCase.updateUserMetricByEventType(
                     event.getEventType(),
                     userId,

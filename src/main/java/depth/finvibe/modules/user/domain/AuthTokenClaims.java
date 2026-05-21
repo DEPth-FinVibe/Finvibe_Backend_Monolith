@@ -7,7 +7,7 @@ import depth.finvibe.modules.user.domain.enums.AuthTokenType;
 import depth.finvibe.modules.user.domain.enums.UserRole;
 
 public record AuthTokenClaims(
-	UUID userId,
+	Long userId,
 	UserRole role,
 	UUID tokenFamilyId,
 	AuthTokenType tokenType,

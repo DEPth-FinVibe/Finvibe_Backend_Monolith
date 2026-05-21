@@ -1,7 +1,6 @@
 package depth.finvibe.boot.config;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -22,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class LoadTestInitializer implements ApplicationRunner {
 
-	private static final UUID LOAD_TEST_WATCHER = UUID.fromString("00000000-0000-0000-0000-000000000000");
+	private static final Long LOAD_TEST_WATCHER = 0L;
 
 	private final StockRepository stockRepository;
 	private final CurrentStockWatcherRepository watcherRepository;

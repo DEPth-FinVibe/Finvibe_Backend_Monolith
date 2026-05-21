@@ -10,17 +10,17 @@ import depth.finvibe.modules.gamification.domain.enums.UserMetricType;
 import depth.finvibe.modules.gamification.domain.vo.Period;
 
 public interface MetricRepository {
-    List<UUID> findUsersAchieved(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue);
+    List<Long> findUsersAchieved(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue);
 
-    List<UUID> findTopUsersByMetric(UserMetricType metricType, CollectPeriod collectPeriod, int limit);
+    List<Long> findTopUsersByMetric(UserMetricType metricType, CollectPeriod collectPeriod, int limit);
 
-    List<UUID> findUsersAchievedInPeriod(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue, Period period);
+    List<Long> findUsersAchievedInPeriod(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue, Period period);
 
-    Optional<UserMetric> findByUserIdAndType(UUID userId, UserMetricType type, CollectPeriod collectPeriod);
+    Optional<UserMetric> findByUserIdAndType(Long userId, UserMetricType type, CollectPeriod collectPeriod);
 
-    List<UserMetric> findAllByUserId(UUID userId);
+    List<UserMetric> findAllByUserId(Long userId);
 
-    List<UserMetric> findAllByUserIdAndTypes(UUID userId, List<UserMetricType> types, CollectPeriod collectPeriod);
+    List<UserMetric> findAllByUserIdAndTypes(Long userId, List<UserMetricType> types, CollectPeriod collectPeriod);
 
     UserMetric save(UserMetric userMetric);
 

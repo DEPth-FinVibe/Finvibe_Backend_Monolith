@@ -20,7 +20,7 @@ public class MarketEventService implements MarketEventUseCase {
 
     public void handleStockHoldingChangedEvent(StockHoldingChangedEvent event) {
         Long stockId = event.getStockId();
-        UUID userId = event.getUserId();
+        Long userId = event.getUserId();
         Boolean isHolding = event.getIsHolding();
 
         //TODO: 보유종목 갱신

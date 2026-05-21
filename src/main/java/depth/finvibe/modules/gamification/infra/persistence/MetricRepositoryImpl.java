@@ -20,14 +20,14 @@ public class MetricRepositoryImpl implements MetricRepository {
     private final MetricJpaRepository metricJpaRepository;
 
     @Override
-    public List<UUID> findUsersAchieved(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue) {
+    public List<Long> findUsersAchieved(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue) {
         return metricJpaRepository.findByTypeAndCollectPeriodAndValueGreaterThanEqual(metricType, collectPeriod, targetValue).stream()
                 .map(UserMetric::getUserId)
                 .toList();
     }
 
     @Override
-    public List<UUID> findTopUsersByMetric(UserMetricType metricType, CollectPeriod collectPeriod, int limit) {
+    public List<Long> findTopUsersByMetric(UserMetricType metricType, CollectPeriod collectPeriod, int limit) {
         return metricJpaRepository.findByTypeAndCollectPeriodOrderByValueDesc(
                         metricType,
                         collectPeriod,
@@ -38,22 +38,22 @@ public class MetricRepositoryImpl implements MetricRepository {
     }
 
     @Override
-    public List<UUID> findUsersAchievedInPeriod(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue, Period period) {
+    public List<Long> findUsersAchievedInPeriod(UserMetricType metricType, CollectPeriod collectPeriod, Double targetValue, Period period) {
         return findUsersAchieved(metricType, collectPeriod, targetValue);
     }
 
     @Override
-    public Optional<UserMetric> findByUserIdAndType(UUID userId, UserMetricType type, CollectPeriod collectPeriod) {
+    public Optional<UserMetric> findByUserIdAndType(Long userId, UserMetricType type, CollectPeriod collectPeriod) {
         return metricJpaRepository.findByUserIdAndTypeAndCollectPeriod(userId, type, collectPeriod);
     }
 
     @Override
-    public List<UserMetric> findAllByUserId(UUID userId) {
+    public List<UserMetric> findAllByUserId(Long userId) {
         return metricJpaRepository.findByUserId(userId);
     }
 
     @Override
-    public List<UserMetric> findAllByUserIdAndTypes(UUID userId, List<UserMetricType> types, CollectPeriod collectPeriod) {
+    public List<UserMetric> findAllByUserIdAndTypes(Long userId, List<UserMetricType> types, CollectPeriod collectPeriod) {
         return metricJpaRepository.findByUserIdAndTypeInAndCollectPeriod(userId, types, collectPeriod);
     }
 

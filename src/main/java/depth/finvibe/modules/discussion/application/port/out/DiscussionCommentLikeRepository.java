@@ -16,5 +16,5 @@ public interface DiscussionCommentLikeRepository {
 
     void delete(DiscussionCommentLike like);
 
-    Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, UUID userId);
+    Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, Long userId);
 }

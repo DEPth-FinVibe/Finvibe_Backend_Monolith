@@ -23,7 +23,7 @@ public class UserKafkaProducer implements UserEventPublisher {
     private static final String USER_METRIC_TOPIC = "gamification.update-user-metric.v1";
 
     @Override
-    public void publishUserSignUpEvent(UUID userId) {
+    public void publishUserSignUpEvent(Long userId) {
         log.info("Publishing user signup event for userId: {}", userId);
 
         SignUpEvent signUpEvent = createSignUpEvent(userId);
@@ -31,34 +31,34 @@ public class UserKafkaProducer implements UserEventPublisher {
     }
 
     @Override
-    public void publishUserSignInEvent(UUID userId) {
+    public void publishUserSignInEvent(Long userId) {
         log.info("Publishing user signin event for userId: {}", userId);
 
         SignInEvent signInEvent = createSignInEvent(userId);
         kafkaTemplate.send(USER_SIGNIN_TOPIC, userId.toString(), signInEvent);
     }
 
-    private SignUpEvent createSignUpEvent(UUID userId) {
+    private SignUpEvent createSignUpEvent(Long userId) {
         return SignUpEvent.builder()
                 .userId(userId.toString())
                 .build();
     }
 
-    private SignInEvent createSignInEvent(UUID userId) {
+    private SignInEvent createSignInEvent(Long userId) {
         return SignInEvent.builder()
                 .userId(userId.toString())
                 .build();
     }
 
     @Override
-    public void publishUserMetricEvent(UUID userId, String eventType, Double delta, Instant occurredAt) {
+    public void publishUserMetricEvent(Long userId, String eventType, Double delta, Instant occurredAt) {
         log.info("Publishing user metric event for userId: {}, eventType: {}", userId, eventType);
 
         UserMetricUpdatedEvent metricEvent = createUserMetricEvent(userId, eventType, delta, occurredAt);
         kafkaTemplate.send(USER_METRIC_TOPIC, userId.toString(), metricEvent);
     }
 
-    private UserMetricUpdatedEvent createUserMetricEvent(UUID userId, String eventType, Double delta, Instant occurredAt) {
+    private UserMetricUpdatedEvent createUserMetricEvent(Long userId, String eventType, Double delta, Instant occurredAt) {
         return UserMetricUpdatedEvent.builder()
                 .userId(userId.toString())
                 .eventType(eventType)

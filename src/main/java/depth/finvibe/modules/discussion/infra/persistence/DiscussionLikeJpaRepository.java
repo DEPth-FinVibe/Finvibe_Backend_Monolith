@@ -11,5 +11,5 @@ public interface DiscussionLikeJpaRepository extends JpaRepository<DiscussionLik
 
     void deleteByDiscussionId(Long discussionId);
 
-    Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, UUID userId);
+    Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, Long userId);
 }

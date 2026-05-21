@@ -9,7 +9,7 @@ import depth.finvibe.modules.study.domain.LessonComplete;
 public interface LessonCompleteRepository {
     LessonComplete save(LessonComplete lessonComplete);
     boolean existsByLessonUserIdKey(String lessonUserIdKey);
-    long countByLessonCourseIdAndUserId(Long courseId, UUID userId);
-    List<Long> findLessonIdsByUserIdAndCourseId(UUID userId, Long courseId);
-    List<LessonComplete> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end);
+    long countByLessonCourseIdAndUserId(Long courseId, Long userId);
+    List<Long> findLessonIdsByUserIdAndCourseId(Long userId, Long courseId);
+    List<LessonComplete> findByUserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
 }

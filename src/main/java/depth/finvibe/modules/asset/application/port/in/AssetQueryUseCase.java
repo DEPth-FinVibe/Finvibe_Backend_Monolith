@@ -7,10 +7,10 @@ import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
 import depth.finvibe.modules.asset.dto.TopHoldingStockDto;
 
 public interface AssetQueryUseCase {
-    List<PortfolioGroupDto.AssetResponse> getAssetsByPortfolio(Long portfolioId, UUID requesterUserId);
-    List<PortfolioGroupDto.PortfolioGroupResponse> getPortfoliosByUser(UUID userId);
-    boolean isExistPortfolio(Long portfolioId, UUID userId);
-    boolean hasSufficientStockAmount(Long portfolioId, UUID userId, Long stockId, Double amount);
-    TopHoldingStockDto.TopHoldingStockListResponse getTopHoldingStocks(UUID userId);
-    PortfolioGroupDto.AssetAllocationResponse getAssetAllocation(UUID requesterUserId);
+    List<PortfolioGroupDto.AssetResponse> getAssetsByPortfolio(Long portfolioId, Long requesterUserId);
+    List<PortfolioGroupDto.PortfolioGroupResponse> getPortfoliosByUser(Long userId);
+    boolean isExistPortfolio(Long portfolioId, Long userId);
+    boolean hasSufficientStockAmount(Long portfolioId, Long userId, Long stockId, Double amount);
+    TopHoldingStockDto.TopHoldingStockListResponse getTopHoldingStocks(Long userId);
+    PortfolioGroupDto.AssetAllocationResponse getAssetAllocation(Long requesterUserId);
 }

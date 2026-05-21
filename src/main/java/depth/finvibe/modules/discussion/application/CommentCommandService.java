@@ -30,7 +30,7 @@ public class CommentCommandService implements CommentCommandUseCase {
     private final UserMetricEventPort userMetricEventPort;
 
     @Override
-    public DiscussionDto.CommentResponse addComment(Long discussionId, UUID userId, String content) {
+    public DiscussionDto.CommentResponse addComment(Long discussionId, Long userId, String content) {
         Discussion discussion = discussionRepository.findById(discussionId)
                 .orElseThrow(() -> new DomainException(DiscussionErrorCode.DISCUSSION_NOT_FOUND));
 
@@ -46,7 +46,7 @@ public class CommentCommandService implements CommentCommandUseCase {
     }
 
     @Override
-    public DiscussionDto.CommentResponse updateComment(Long commentId, UUID userId, String content) {
+    public DiscussionDto.CommentResponse updateComment(Long commentId, Long userId, String content) {
         DiscussionComment comment = discussionCommentRepository.findById(commentId)
                 .orElseThrow(() -> new DomainException(DiscussionErrorCode.DISCUSSION_NOT_FOUND));
 
@@ -61,7 +61,7 @@ public class CommentCommandService implements CommentCommandUseCase {
     }
 
     @Override
-    public void deleteComment(Long commentId, UUID userId) {
+    public void deleteComment(Long commentId, Long userId) {
         DiscussionComment comment = discussionCommentRepository.findById(commentId)
                 .orElseThrow(() -> new DomainException(DiscussionErrorCode.DISCUSSION_NOT_FOUND));
 
@@ -74,7 +74,7 @@ public class CommentCommandService implements CommentCommandUseCase {
     }
 
     @Override
-    public void toggleCommentLike(Long commentId, UUID userId) {
+    public void toggleCommentLike(Long commentId, Long userId) {
         discussionCommentLikeRepository.findByCommentIdAndUserId(commentId, userId)
                 .ifPresentOrElse(
                         discussionCommentLikeRepository::delete,

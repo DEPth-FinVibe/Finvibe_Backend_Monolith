@@ -28,12 +28,12 @@ public class TokenFamilyRepositoryImpl implements TokenFamilyRepository {
 	}
 
 	@Override
-	public List<TokenFamily> findAllByUserId(UUID userId) {
+	public List<TokenFamily> findAllByUserId(Long userId) {
 		return jpaTokenFamilyRepository.findAllByUserIdOrderByLastUsedAtDescCreatedAtDesc(userId);
 	}
 
 	@Override
-	public List<TokenFamily> findAvailableByUserId(UUID userId) {
+	public List<TokenFamily> findAvailableByUserId(Long userId) {
 		return tokenFamilyQueryRepository.findAvailableByUserId(userId);
 	}
 }

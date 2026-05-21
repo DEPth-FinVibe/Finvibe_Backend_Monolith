@@ -14,5 +14,5 @@ public interface DiscussionLikeRepository {
 
     void delete(DiscussionLike like);
 
-    Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, UUID userId);
+    Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, Long userId);
 }

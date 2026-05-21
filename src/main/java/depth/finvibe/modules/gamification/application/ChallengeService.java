@@ -92,7 +92,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
 
     private void rewardUsersByChallenge(PersonalChallenge personalChallenge) {
         ChallengeCondition condition = personalChallenge.getCondition();
-        List<UUID> achievedUserIds = getWeeklyAchievedUsers(condition.getMetricType(), condition.getTargetValue());
+        List<Long> achievedUserIds = getWeeklyAchievedUsers(condition.getMetricType(), condition.getTargetValue());
 
         List<PersonalChallengeReward> toSave = achievedUserIds.stream()
                 .map(userId -> toPersonalChallengeReward(personalChallenge, userId))
@@ -106,7 +106,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
 
 
 
-    private void rewardXpToEachUsers(PersonalChallenge personalChallenge, List<UUID> achievedUserIds) {
+    private void rewardXpToEachUsers(PersonalChallenge personalChallenge, List<Long> achievedUserIds) {
         achievedUserIds.forEach(userId -> publishXpRewardEvent(
                 userId,
                 String.format("[%s] 챌린지 보상", personalChallenge.getTitle()),
@@ -114,7 +114,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
         ));
     }
 
-    private void publishXpRewardEvent(UUID userId, String reason, Long rewardXp) {
+    private void publishXpRewardEvent(Long userId, String reason, Long rewardXp) {
         // 어플리케이션 내부 이벤트 발행 (트랜잭션 내)
         applicationEventPublisher.publishEvent(
                 XpRewardEvent.of(
@@ -140,7 +140,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
         userMetricUpdatedEventPublisher.publishUserMetricUpdatedEvent(event);
     }
 
-    private static PersonalChallengeReward toPersonalChallengeReward(PersonalChallenge personalChallenge, UUID userId) {
+    private static PersonalChallengeReward toPersonalChallengeReward(PersonalChallenge personalChallenge, Long userId) {
         return PersonalChallengeReward.of(
                 personalChallenge.getId(),
                 userId,
@@ -153,7 +153,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
     @Transactional
     public void rewardWeeklyChallenges() {
         // 주말 거래 토너먼트: 현재 수익률 상위 10명
-        List<UUID> weekendTournamentUsers = metricRepository.findTopUsersByMetric(
+        List<Long> weekendTournamentUsers = metricRepository.findTopUsersByMetric(
                 UserMetricType.CURRENT_RETURN_RATE,
                 CollectPeriod.ALLTIME,
                 10
@@ -161,14 +161,14 @@ public class ChallengeService implements ChallengeCommandUseCase {
         rewardWeeklyEventUsers(WeeklyEventType.WEEKEND_TRADING_TOURNAMENT, weekendTournamentUsers, 1000L);
 
         // 챌린지 이벤트: 지난 주 챌린지 3개 이상 달성한 유저
-        List<UUID> challengeEventUsers = getWeeklyAchievedUsers(
+        List<Long> challengeEventUsers = getWeeklyAchievedUsers(
                 UserMetricType.CHALLENGE_COMPLETION_COUNT,
                 3.0
         );
         rewardWeeklyEventUsers(WeeklyEventType.CHALLENGE_EVENT, challengeEventUsers, 50L);
     }
 
-    private List<UUID> getWeeklyAchievedUsers(UserMetricType metricType, Double targetValue) {
+    private List<Long> getWeeklyAchievedUsers(UserMetricType metricType, Double targetValue) {
         if (metricType == null) {
             return List.of();
         }
@@ -184,7 +184,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
         return metricType != null && metricType.isWeeklyCollect();
     }
 
-    private void rewardWeeklyEventUsers(WeeklyEventType eventType, List<UUID> userIds, Long rewardXp) {
+    private void rewardWeeklyEventUsers(WeeklyEventType eventType, List<Long> userIds, Long rewardXp) {
         if (userIds == null || userIds.isEmpty()) {
             return;
         }
@@ -193,7 +193,7 @@ public class ChallengeService implements ChallengeCommandUseCase {
         userIds.forEach(userId -> publishXpRewardEvent(userId, reason, rewardXp));
     }
 
-    private void publishChallengeCompletedEvents(List<UUID> achievedUserIds) {
+    private void publishChallengeCompletedEvents(List<Long> achievedUserIds) {
         if (achievedUserIds == null || achievedUserIds.isEmpty()) {
             return;
         }

@@ -13,13 +13,17 @@ import java.util.UUID;
 public interface UserRepository {
     User save(User user);
 
-    Optional<User> findById(UUID id);
+    Optional<User> findById(Long id);
+
+    Optional<User> findByExternalUserId(UUID externalUserId);
+
+    Optional<User> findByInternalUserId(Long internalUserId);
 
     Optional<User> findByLoginId(LoginId loginId);
 
     Optional<User> findByOauthInfo(OAuthInfo oauthInfo);
 
-    Map<UUID, String> findNicknamesByIds(Collection<UUID> ids);
+    Map<Long, String> findNicknamesByIds(Collection<Long> ids);
 
     boolean existsByEmail(Email email);
 

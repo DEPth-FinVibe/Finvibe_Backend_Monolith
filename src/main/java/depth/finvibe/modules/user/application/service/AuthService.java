@@ -186,7 +186,7 @@ public class AuthService implements AuthCommandUseCase {
 		return issueTokens(user, loginContext);
 	}
 
-	private void publishUserSignUpEventSafely(UUID userId) {
+	private void publishUserSignUpEventSafely(Long userId) {
 		try {
 			userEventPublisher.publishUserSignUpEvent(userId);
 		} catch (Exception ex) {
@@ -194,7 +194,7 @@ public class AuthService implements AuthCommandUseCase {
 		}
 	}
 
-	private void publishUserSignInEventSafely(UUID userId) {
+	private void publishUserSignInEventSafely(Long userId) {
 		try {
 			userEventPublisher.publishUserSignInEvent(userId);
 		} catch (Exception ex) {
@@ -260,7 +260,7 @@ public class AuthService implements AuthCommandUseCase {
 
 	@Override
 	@Transactional
-	public void logoutSession(UUID userId, UUID tokenFamilyId) {
+	public void logoutSession(Long userId, UUID tokenFamilyId) {
 		TokenFamily tokenFamily = getOwnedTokenFamily(userId, tokenFamilyId);
 		validateRefreshTokenOwner(userId);
 
@@ -300,7 +300,7 @@ public class AuthService implements AuthCommandUseCase {
 		return tokenFamily;
 	}
 
-	private TokenFamily getOwnedTokenFamily(UUID userId, UUID tokenFamilyId) {
+	private TokenFamily getOwnedTokenFamily(Long userId, UUID tokenFamilyId) {
 		TokenFamily tokenFamily = tokenFamilyRepository.findById(tokenFamilyId)
 			.orElseThrow(() -> new DomainException(UserErrorCode.TOKEN_FAMILY_NOT_FOUND));
 		if (!tokenFamily.isAccessibleBy(userId)) {
@@ -315,7 +315,7 @@ public class AuthService implements AuthCommandUseCase {
 		}
 	}
 
-	private void validateRefreshTokenOwner(UUID userId) {
+	private void validateRefreshTokenOwner(Long userId) {
 		User user = userRepository.findById(userId)
 			.orElseThrow(() -> new DomainException(UserErrorCode.USER_NOT_FOUND));
 		user.validateActive();

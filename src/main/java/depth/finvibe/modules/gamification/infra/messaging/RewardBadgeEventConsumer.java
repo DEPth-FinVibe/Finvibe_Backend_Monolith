@@ -37,7 +37,7 @@ public class RewardBadgeEventConsumer {
         }
 
         try {
-            UUID userId = UUID.fromString(event.getUserId());
+            Long userId = Long.valueOf(event.getUserId());
             Badge badge = Badge.valueOf(event.getBadgeCode());
             badgeCommandUseCase.grantBadgeToUser(userId, badge);
         } catch (IllegalArgumentException ex) {

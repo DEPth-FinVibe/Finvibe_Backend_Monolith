@@ -35,7 +35,7 @@ public class DiscussionCommandService implements DiscussionCommandUseCase {
     private final UserMetricEventPort userMetricEventPort;
 
     @Override
-    public DiscussionDto.Response addDiscussion(Long newsId, UUID userId, String content) {
+    public DiscussionDto.Response addDiscussion(Long newsId, Long userId, String content) {
         // DB 분리 환경에서는 newsId의 유효성 검증을 직접 하지 않거나 별도 통신(REST/gRPC)을 사용함.
         // 여기서는 newsId를 그대로 저장하고 이벤트를 발행하는 것에 집중.
         Discussion discussion = Discussion.create(newsId, userId, content);
@@ -54,7 +54,7 @@ public class DiscussionCommandService implements DiscussionCommandUseCase {
     }
 
     @Override
-    public DiscussionDto.Response updateDiscussion(Long discussionId, UUID userId, String content) {
+    public DiscussionDto.Response updateDiscussion(Long discussionId, Long userId, String content) {
         Discussion discussion = discussionRepository.findById(discussionId)
                 .orElseThrow(() -> new DomainException(DiscussionErrorCode.DISCUSSION_NOT_FOUND));
 
@@ -70,7 +70,7 @@ public class DiscussionCommandService implements DiscussionCommandUseCase {
     }
 
     @Override
-    public void deleteDiscussion(Long discussionId, UUID userId) {
+    public void deleteDiscussion(Long discussionId, Long userId) {
         Discussion discussion = discussionRepository.findById(discussionId)
                 .orElseThrow(() -> new DomainException(DiscussionErrorCode.DISCUSSION_NOT_FOUND));
 
@@ -91,7 +91,7 @@ public class DiscussionCommandService implements DiscussionCommandUseCase {
     }
 
     @Override
-    public void toggleDiscussionLike(Long discussionId, UUID userId) {
+    public void toggleDiscussionLike(Long discussionId, Long userId) {
         discussionLikeRepository.findByDiscussionIdAndUserId(discussionId, userId)
                 .ifPresentOrElse(
                         existingLike -> {

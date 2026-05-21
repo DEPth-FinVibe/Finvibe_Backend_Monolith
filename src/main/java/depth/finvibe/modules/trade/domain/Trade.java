@@ -35,13 +35,13 @@ public class Trade extends TimeStampedBaseEntity{
 
     private Long portfolioId;
 
-    private UUID userId;
+    private Long userId;
 
     private TransactionType transactionType;
 
     private TradeType tradeType;
 
-    public static Trade create(Long stockId, Double amount, Long price, Long portfolioId, UUID userId,
+    public static Trade create(Long stockId, Double amount, Long price, Long portfolioId, Long userId,
                                TransactionType transactionType, TradeType tradeType, String stockName) {
         return Trade.builder()
                 .stockId(stockId)

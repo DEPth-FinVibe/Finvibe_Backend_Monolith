@@ -31,17 +31,17 @@ public class UserXpRepositoryImpl implements UserXpRepository {
     }
 
     @Override
-    public Optional<UserXp> findByUserId(UUID userId) {
+    public Optional<UserXp> findByUserId(Long userId) {
         return userXpJpaRepository.findByUserId(userId);
     }
 
     @Override
-    public List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<UUID> userIds) {
+    public List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<Long> userIds) {
         return userXpJpaRepository.findAllByUserIdInOrderByWeeklyXpDesc(userIds);
     }
 
     @Override
-    public List<UserXp> findAllByUserIdIn(List<UUID> userIds) {
+    public List<UserXp> findAllByUserIdIn(List<Long> userIds) {
         return userXpJpaRepository.findAllByUserIdIn(userIds);
     }
 }

@@ -19,13 +19,13 @@ public class LessonComplete extends TimeStampedBaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     private Lesson lesson;
 
-    private UUID userId;
+    private Long userId;
 
     @Column(unique = true)
     @Getter(value = AccessLevel.PROTECTED)
     private String lessonUserIdKey;
 
-    public static LessonComplete of(Lesson lesson, UUID userId) {
+    public static LessonComplete of(Lesson lesson, Long userId) {
         return LessonComplete.builder()
                 .lesson(lesson)
                 .userId(userId)
@@ -33,7 +33,7 @@ public class LessonComplete extends TimeStampedBaseEntity {
                 .build();
     }
 
-    public static String generateLessonUserIdKey(Long lessonId, UUID userId) {
+    public static String generateLessonUserIdKey(Long lessonId, Long userId) {
         return lessonId + "_" + userId.toString();
     }
 }

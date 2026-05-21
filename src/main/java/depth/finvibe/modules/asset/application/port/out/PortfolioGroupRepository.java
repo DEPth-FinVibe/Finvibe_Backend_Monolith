@@ -16,13 +16,13 @@ public interface PortfolioGroupRepository {
 
     Optional<PortfolioGroup> findByIdWithAssets(Long id);
 
-    List<PortfolioGroup> findAllByUserId(UUID userId);
+    List<PortfolioGroup> findAllByUserId(Long userId);
 
-    List<PortfolioGroup> findAllByUserIdWithAssets(UUID userId);
+    List<PortfolioGroup> findAllByUserIdWithAssets(Long userId);
 
     List<PortfolioGroup> findAllWithAssets();
 
-    Optional<PortfolioGroup> findDefaultByUserId(UUID userId);
+    Optional<PortfolioGroup> findDefaultByUserId(Long userId);
 
     List<PortfolioGroup> findAllByStockIdsWithAssets(List<Long> stockIds);
 
@@ -30,7 +30,7 @@ public interface PortfolioGroupRepository {
 
     void delete(PortfolioGroup existing);
 
-    boolean existDefaultByUserId(UUID userId);
+    boolean existDefaultByUserId(Long userId);
 
-    boolean existsByIdAndUserId(Long portfolioId, UUID userId);
+    boolean existsByIdAndUserId(Long portfolioId, Long userId);
 }

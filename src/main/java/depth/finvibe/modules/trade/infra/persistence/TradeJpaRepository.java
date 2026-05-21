@@ -13,11 +13,11 @@ import java.util.UUID;
 public interface TradeJpaRepository extends JpaRepository<Trade, Long> {
     @Query("select distinct t.stockId from Trade t where t.userId = :userId and t.tradeType = :tradeType")
     List<Long> findDistinctStockIdsByUserIdAndTradeType(
-            @Param("userId") UUID userId,
+            @Param("userId") Long userId,
             @Param("tradeType") TradeType tradeType
     );
 
     List<Trade> findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(
-            UUID userId, LocalDateTime start, LocalDateTime end
+            Long userId, LocalDateTime start, LocalDateTime end
     );
 }

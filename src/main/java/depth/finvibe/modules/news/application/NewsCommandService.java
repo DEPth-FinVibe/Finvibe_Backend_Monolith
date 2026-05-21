@@ -111,7 +111,7 @@ public class NewsCommandService implements NewsCommandUseCase {
     }
 
     @Override
-    public void toggleNewsLike(Long newsId, UUID userId) {
+    public void toggleNewsLike(Long newsId, Long userId) {
         newsLikeRepository.findByNewsIdAndUserId(newsId, userId)
                 .ifPresentOrElse(existingLike -> {
                             newsLikeRepository.delete(existingLike);

@@ -13,5 +13,5 @@ public interface DiscussionCommentLikeJpaRepository extends JpaRepository<Discus
 
     void deleteByCommentDiscussionId(Long discussionId);
 
-    Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, UUID userId);
+    Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, Long userId);
 }

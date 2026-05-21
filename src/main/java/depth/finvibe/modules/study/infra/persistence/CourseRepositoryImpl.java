@@ -26,7 +26,7 @@ public class CourseRepositoryImpl implements CourseRepository {
     }
 
     @Override
-    public List<Course> findByOwnerOrIsGlobalTrue(UUID owner) {
+    public List<Course> findByOwnerOrIsGlobalTrue(Long owner) {
         return courseJpaRepository.findByOwnerOrIsGlobalTrue(owner);
     }
 

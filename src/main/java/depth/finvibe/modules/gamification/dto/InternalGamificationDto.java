@@ -19,7 +19,7 @@ public class InternalGamificationDto {
     @Schema(description = "유저 게이미피케이션 요약 정보")
     public static class UserSummaryResponse {
         @Schema(description = "사용자 UUID")
-        private UUID userId;
+        private Long userId;
         @Schema(description = "보유 뱃지 목록")
         private List<OwnedBadge> badges;
         @Schema(description = "주간 XP 랭킹 순위")

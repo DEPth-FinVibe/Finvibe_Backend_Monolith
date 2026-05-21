@@ -21,17 +21,17 @@ public class InterestStockRepositoryImpl implements InterestStockRepository {
     }
 
     @Override
-    public void deleteByUserIdAndStockId(UUID userId, Long stockId) {
+    public void deleteByUserIdAndStockId(Long userId, Long stockId) {
         jpaInterestStockRepository.deleteByUserIdAndStockId(userId, stockId);
     }
 
     @Override
-    public List<InterestStock> findAllByUserId(UUID userId) {
+    public List<InterestStock> findAllByUserId(Long userId) {
         return jpaInterestStockRepository.findAllByUserId(userId);
     }
 
     @Override
-    public Optional<InterestStock> findByUserIdAndStockId(UUID userId, Long stockId) {
+    public Optional<InterestStock> findByUserIdAndStockId(Long userId, Long stockId) {
         return jpaInterestStockRepository.findByUserIdAndStockId(userId, stockId);
     }
 }

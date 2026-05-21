@@ -9,9 +9,9 @@ import java.util.UUID;
 public interface TradeQueryUseCase {
     TradeDto.TradeResponse findTrade(Long tradeId);
 
-    List<Long> findReservedStockIds(UUID userId);
+    List<Long> findReservedStockIds(Long userId);
 
-    List<TradeDto.TradeHistoryResponse> findTradesByMonth(UUID userId, int year, int month);
+    List<TradeDto.TradeHistoryResponse> findTradesByMonth(Long userId, int year, int month);
 
-    List<TradeDto.TradeHistoryResponse> findTradesByDateRange(UUID userId, LocalDate fromDate, LocalDate toDate);
+    List<TradeDto.TradeHistoryResponse> findTradesByDateRange(Long userId, LocalDate fromDate, LocalDate toDate);
 }

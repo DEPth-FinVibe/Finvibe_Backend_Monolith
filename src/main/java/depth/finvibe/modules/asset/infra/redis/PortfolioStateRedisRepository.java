@@ -14,7 +14,7 @@ public class PortfolioStateRedisRepository {
 
 	private final StringRedisTemplate redisTemplate;
 
-	public void setOwner(Long portfolioId, UUID userId) {
+	public void setOwner(Long portfolioId, Long userId) {
 		redisTemplate.opsForHash().put(key(portfolioId), OWNER_FIELD, userId.toString());
 	}
 

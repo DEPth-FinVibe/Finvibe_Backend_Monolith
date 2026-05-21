@@ -16,5 +16,5 @@ import lombok.NoArgsConstructor;
 public class BadgeOwnershipId implements Serializable {
     private Badge badge;
 
-    private UUID ownerId;
+    private Long ownerId;
 }

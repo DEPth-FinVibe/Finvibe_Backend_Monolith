@@ -10,7 +10,7 @@ public interface UserXpRepository {
     void save(UserXp userXp);
     void saveAll(List<UserXp> userXps);
     List<UserXp> findAll();
-    Optional<UserXp> findByUserId(UUID userId);
-    List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<UUID> userIds);
-    List<UserXp> findAllByUserIdIn(List<UUID> userIds);
+    Optional<UserXp> findByUserId(Long userId);
+    List<UserXp> findAllByUserIdInOrderByWeeklyXpDesc(List<Long> userIds);
+    List<UserXp> findAllByUserIdIn(List<Long> userIds);
 }

@@ -17,7 +17,7 @@ import java.util.UUID;
 @SuperBuilder
 public class AiStudyRecommend extends TimeStampedBaseEntity {
     @Id
-    private UUID userId;
+    private Long userId;
 
     @Lob
     private String content;

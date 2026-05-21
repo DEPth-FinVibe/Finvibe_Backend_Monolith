@@ -22,5 +22,5 @@ public interface AuthCommandUseCase {
 
     List<UserDto.SessionResponse> getSessions(Requester requester);
 
-    void logoutSession(UUID userId, UUID tokenFamilyId);
+    void logoutSession(Long userId, UUID tokenFamilyId);
 }

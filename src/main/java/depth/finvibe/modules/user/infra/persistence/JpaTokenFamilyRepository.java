@@ -8,5 +8,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import depth.finvibe.modules.user.domain.TokenFamily;
 
 public interface JpaTokenFamilyRepository extends JpaRepository<TokenFamily, UUID> {
-	List<TokenFamily> findAllByUserIdOrderByLastUsedAtDescCreatedAtDesc(UUID userId);
+	List<TokenFamily> findAllByUserIdOrderByLastUsedAtDescCreatedAtDesc(Long userId);
 }

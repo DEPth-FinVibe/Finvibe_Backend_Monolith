@@ -11,7 +11,7 @@ public interface CourseRepository {
 
     boolean existsByIsGlobalTrue();
 
-    List<Course> findByOwnerOrIsGlobalTrue(UUID owner);
+    List<Course> findByOwnerOrIsGlobalTrue(Long owner);
 
     Optional<Course> findById(Long id);
 }

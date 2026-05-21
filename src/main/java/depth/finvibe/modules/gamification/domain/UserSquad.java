@@ -18,7 +18,7 @@ import depth.finvibe.common.gamification.domain.TimeStampedBaseEntity;
 @Getter
 public class UserSquad extends TimeStampedBaseEntity {
     @Id
-    private UUID userId;
+    private Long userId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "squad_id")

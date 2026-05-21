@@ -19,12 +19,12 @@ public class WalletRepositoryImpl implements WalletRepository {
     }
 
     @Override
-    public Optional<Wallet> findByUserId(UUID userId) {
+    public Optional<Wallet> findByUserId(Long userId) {
         return jpaRepository.findByUserId(userId);
     }
 
     @Override
-    public boolean existsByUserId(UUID userId) {
+    public boolean existsByUserId(Long userId) {
         return jpaRepository.existsByUserId(userId);
     }
 }

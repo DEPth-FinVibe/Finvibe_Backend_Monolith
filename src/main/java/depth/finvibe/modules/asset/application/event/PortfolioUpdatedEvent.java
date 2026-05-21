@@ -13,5 +13,5 @@ import java.util.UUID;
 @AllArgsConstructor
 public class PortfolioUpdatedEvent {
     private Long portfolioId;
-    private UUID userId;
+    private Long userId;
 }

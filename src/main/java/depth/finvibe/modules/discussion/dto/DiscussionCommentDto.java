@@ -20,7 +20,7 @@ public class DiscussionCommentDto {
     @Getter
     public static class Response {
         private final Long id;
-        private final UUID userId;
+        private final Long userId;
         private final String content;
         private final boolean isEdited;
         private final long likeCount;

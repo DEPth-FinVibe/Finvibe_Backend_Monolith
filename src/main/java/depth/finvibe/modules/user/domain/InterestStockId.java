@@ -13,6 +13,6 @@ import java.util.UUID;
 @AllArgsConstructor
 @EqualsAndHashCode
 public class InterestStockId implements Serializable {
-    private UUID userId;
+    private Long userId;
     private Long stockId;
 }

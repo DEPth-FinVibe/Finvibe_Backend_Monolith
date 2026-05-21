@@ -13,7 +13,7 @@ public interface TradeRepository {
     Trade save(Trade trade);
     Optional<Trade> findById(Long tradeId);
 
-    List<Long> findDistinctStockIdsByUserIdAndTradeType(UUID userId, TradeType tradeType);
+    List<Long> findDistinctStockIdsByUserIdAndTradeType(Long userId, TradeType tradeType);
 
-    List<Trade> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end);
+    List<Trade> findByUserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
 }

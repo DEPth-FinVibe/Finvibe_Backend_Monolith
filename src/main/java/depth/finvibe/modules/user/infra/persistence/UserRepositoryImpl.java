@@ -26,8 +26,18 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
-    public Optional<User> findById(UUID id) {
+    public Optional<User> findById(Long id) {
         return jpaUserRepository.findById(id);
+    }
+
+    @Override
+    public Optional<User> findByExternalUserId(UUID externalUserId) {
+        return jpaUserRepository.findByExternalUserId(externalUserId);
+    }
+
+    @Override
+    public Optional<User> findByInternalUserId(Long internalUserId) {
+        return jpaUserRepository.findByInternalUserId(internalUserId);
     }
 
     @Override
@@ -41,13 +51,13 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
-    public Map<UUID, String> findNicknamesByIds(Collection<UUID> ids) {
+    public Map<Long, String> findNicknamesByIds(Collection<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Map.of();
         }
 
-        Map<UUID, String> nicknames = new LinkedHashMap<>();
-        for (User user : jpaUserRepository.findAllByIdIn(ids)) {
+        Map<Long, String> nicknames = new LinkedHashMap<>();
+        for (User user : jpaUserRepository.findAllByInternalUserIdIn(ids)) {
             if (user.getId() != null && user.getPersonalDetails() != null) {
                 nicknames.put(user.getId(), user.getPersonalDetails().getNickname());
             }

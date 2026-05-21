@@ -33,5 +33,5 @@ public interface UserXpRankingSnapshotJpaRepository extends JpaRepository<UserXp
     Optional<UserXpRankingSnapshot> findByPeriodTypeAndPeriodStartDateAndUserId(
             RankingPeriod periodType,
             LocalDate periodStartDate,
-            UUID userId);
+            Long userId);
 }

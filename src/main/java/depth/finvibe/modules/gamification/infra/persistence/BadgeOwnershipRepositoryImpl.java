@@ -31,7 +31,7 @@ public class BadgeOwnershipRepositoryImpl implements BadgeOwnershipRepository {
     }
 
     @Override
-    public List<BadgeOwnership> findByUserId(UUID userId) {
+    public List<BadgeOwnership> findByUserId(Long userId) {
         return badgeOwnershipJpaRepository.findByOwnerId(userId);
     }
 }

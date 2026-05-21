@@ -40,7 +40,7 @@ public class DiscussionCommentLikeRepositoryImpl implements DiscussionCommentLik
     }
 
     @Override
-    public Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, UUID userId) {
+    public Optional<DiscussionCommentLike> findByCommentIdAndUserId(Long commentId, Long userId) {
         return discussionCommentLikeJpaRepository.findByCommentIdAndUserId(commentId, userId);
     }
 }

@@ -114,7 +114,7 @@ public class SquadService implements SquadCommandUseCase, SquadQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public SquadDto.Response getUserSquad(UUID userId) {
+    public SquadDto.Response getUserSquad(Long userId) {
         UserSquad userSquad = userSquadRepository.findByUserId(userId)
                 .orElseThrow(() -> new DomainException(GamificationErrorCode.USER_SQUAD_NOT_FOUND));
 

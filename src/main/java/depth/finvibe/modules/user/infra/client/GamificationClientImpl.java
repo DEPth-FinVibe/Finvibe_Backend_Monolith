@@ -18,7 +18,7 @@ public class GamificationClientImpl implements GamificationClient {
     private final ObjectMapper objectMapper;
 
     @Override
-    public Optional<UserDto.UserSummaryResponse> getUserSummary(UUID userId) {
+    public Optional<UserDto.UserSummaryResponse> getUserSummary(Long userId) {
         InternalGamificationDto.UserSummaryResponse summary = internalGamificationQueryUseCase.getUserSummary(userId);
         return Optional.ofNullable(toUserSummaryResponse(summary));
     }

@@ -28,13 +28,13 @@ public class Course extends TimeStampedBaseEntity {
     @Enumerated(EnumType.STRING)
     private CourseDifficulty difficulty;
 
-    private UUID owner;
+    private Long owner;
 
     private Boolean isGlobal;
 
     private Integer totalLessonCount;
 
-    public static Course of(String title, String description, CourseDifficulty difficulty, UUID owner) {
+    public static Course of(String title, String description, CourseDifficulty difficulty, Long owner) {
         return Course.builder()
                 .title(title)
                 .description(description)

@@ -30,7 +30,7 @@ public class NewsLikeRepositoryImpl implements NewsLikeRepository {
     }
 
     @Override
-    public Optional<NewsLike> findByNewsIdAndUserId(Long newsId, UUID userId) {
+    public Optional<NewsLike> findByNewsIdAndUserId(Long newsId, Long userId) {
         return newsLikeJpaRepository.findByNewsIdAndUserId(newsId, userId);
     }
 }

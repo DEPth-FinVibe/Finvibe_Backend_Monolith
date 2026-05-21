@@ -37,9 +37,9 @@ public class DiscussionCommentLike extends TimeStampedBaseEntity {
     private DiscussionComment comment;
 
     @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    private Long userId;
 
-    public static DiscussionCommentLike create(DiscussionComment comment, UUID userId) {
+    public static DiscussionCommentLike create(DiscussionComment comment, Long userId) {
         return DiscussionCommentLike.builder()
                 .comment(comment)
                 .userId(userId)

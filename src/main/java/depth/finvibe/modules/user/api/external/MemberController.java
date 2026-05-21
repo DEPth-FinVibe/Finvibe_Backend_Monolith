@@ -92,7 +92,7 @@ public class MemberController {
     @GetMapping("/{userId}")
     @Operation(summary = "타 유저 프로필 조회", description = "특정 회원의 닉네임과 게이미피케이션 요약 정보를 조회합니다.")
     public UserDto.MemberProfileResponse getMemberProfile(@PathVariable String userId) {
-        return userQueryUseCase.getMemberProfile(UUID.fromString(userId));
+        return userQueryUseCase.getMemberProfile(Long.valueOf(userId));
     }
 
     @DeleteMapping("/{userId}")

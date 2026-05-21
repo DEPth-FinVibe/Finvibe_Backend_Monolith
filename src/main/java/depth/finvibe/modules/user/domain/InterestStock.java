@@ -26,7 +26,7 @@ public class InterestStock extends TimeStampedBaseEntity {
 
     @Id
     @Column(nullable = false)
-    private UUID userId;
+    private Long userId;
 
     @Id
     @Column(nullable = false)
@@ -35,7 +35,7 @@ public class InterestStock extends TimeStampedBaseEntity {
     @Column(nullable = false)
     private String stockName;
 
-    public static InterestStock create(UUID userId, Long stockId, String stockName) {
+    public static InterestStock create(Long userId, Long stockId, String stockName) {
         return InterestStock.builder()
                 .userId(userId)
                 .stockId(stockId)
@@ -43,13 +43,13 @@ public class InterestStock extends TimeStampedBaseEntity {
                 .build();
     }
 
-    public void validateCreatable(UUID requesterId, UserRole role) {
+    public void validateCreatable(Long requesterId, UserRole role) {
         if (!this.userId.equals(requesterId) && role != UserRole.ADMIN) {
             throw new DomainException(UserErrorCode.UNAUTHORIZED_INTEREST_STOCK_CREATION);
         }
     }
 
-    public void validateDeletable(UUID requesterId, UserRole role) {
+    public void validateDeletable(Long requesterId, UserRole role) {
         if (!this.userId.equals(requesterId) && role != UserRole.ADMIN) {
             throw new DomainException(UserErrorCode.UNAUTHORIZED_INTEREST_STOCK_DELETION);
         }

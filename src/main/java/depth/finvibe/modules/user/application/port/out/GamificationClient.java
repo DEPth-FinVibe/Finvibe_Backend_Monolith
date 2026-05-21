@@ -6,5 +6,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface GamificationClient {
-    Optional<UserDto.UserSummaryResponse> getUserSummary(UUID userId);
+    Optional<UserDto.UserSummaryResponse> getUserSummary(Long userId);
 }

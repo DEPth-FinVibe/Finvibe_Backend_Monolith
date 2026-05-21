@@ -3,7 +3,6 @@ package depth.finvibe.modules.gamification.infra.persistence;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.querydsl.core.Tuple;
@@ -30,12 +29,12 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
     }
 
     @Override
-    public List<UserXpAward> findByUserId(UUID userId) {
+    public List<UserXpAward> findByUserId(Long userId) {
         return userXpAwardJpaRepository.findByUserId(userId);
     }
 
     @Override
-    public List<UUID> findTopUsersByTotalXp(int limit) {
+    public List<Long> findTopUsersByTotalXp(int limit) {
         QUserXpAward userXpAward = QUserXpAward.userXpAward;
 
         return jpaQueryFactory.select(userXpAward.userId)
@@ -76,7 +75,7 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
             LocalDateTime startInclusive,
             LocalDateTime endExclusive,
             Long afterXp,
-            UUID afterUserId,
+            Long afterUserId,
             int limit) {
         QUserXpAward userXpAward = QUserXpAward.userXpAward;
         int boundedLimit = Math.max(1, Math.min(limit, MAX_RANKING_QUERY_LIMIT));
@@ -108,8 +107,8 @@ public class UserXpAwardRepositoryImpl implements UserXpAwardRepository {
     }
 
     @Override
-    public Map<UUID, Long> findUserPeriodXpMapBetween(
-            List<UUID> userIds,
+    public Map<Long, Long> findUserPeriodXpMapBetween(
+            List<Long> userIds,
             LocalDateTime startInclusive,
             LocalDateTime endExclusive) {
         if (userIds.isEmpty()) {

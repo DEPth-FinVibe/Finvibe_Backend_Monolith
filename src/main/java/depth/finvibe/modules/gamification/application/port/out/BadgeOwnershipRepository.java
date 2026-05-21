@@ -10,5 +10,5 @@ public interface BadgeOwnershipRepository {
 
     boolean isExist(BadgeOwnership badgeOwnership);
 
-    List<BadgeOwnership> findByUserId(UUID userId);
+    List<BadgeOwnership> findByUserId(Long userId);
 }

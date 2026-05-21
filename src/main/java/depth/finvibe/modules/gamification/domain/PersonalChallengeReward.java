@@ -31,7 +31,7 @@ public class PersonalChallengeReward extends TimeStampedBaseEntity {
 
     private Long challengeId;
 
-    private UUID userId;
+    private Long userId;
 
     @Embedded
     private Period period;
@@ -39,7 +39,7 @@ public class PersonalChallengeReward extends TimeStampedBaseEntity {
     @Embedded
     private Reward reward;
 
-    public static PersonalChallengeReward of(Long challengeId, UUID userId, Period period, Reward reward) {
+    public static PersonalChallengeReward of(Long challengeId, Long userId, Period period, Reward reward) {
 
         checkArgumentsAreValid(challengeId, userId, period, reward);
 
@@ -51,7 +51,7 @@ public class PersonalChallengeReward extends TimeStampedBaseEntity {
                 .build();
     }
 
-    private static void checkArgumentsAreValid(Long challengeId, UUID userId, Period period, Reward reward) {
+    private static void checkArgumentsAreValid(Long challengeId, Long userId, Period period, Reward reward) {
         if (challengeId == null || challengeId <= 0) {
             throw new DomainException(GamificationErrorCode.INVALID_PERSONAL_CHALLENGE_ID);
         }

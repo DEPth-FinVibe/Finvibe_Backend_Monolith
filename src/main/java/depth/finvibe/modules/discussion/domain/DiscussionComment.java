@@ -36,7 +36,7 @@ public class DiscussionComment extends TimeStampedBaseEntity {
     private Discussion discussion;
 
     @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    private Long userId;
 
     @Column(nullable = false, length = 2000)
     private String content;
@@ -45,7 +45,7 @@ public class DiscussionComment extends TimeStampedBaseEntity {
     @Column(name = "is_edited", nullable = false)
     private boolean isEdited = false;
 
-    public static DiscussionComment create(Discussion discussion, UUID userId, String content) {
+    public static DiscussionComment create(Discussion discussion, Long userId, String content) {
         return DiscussionComment.builder()
                 .discussion(discussion)
                 .userId(userId)

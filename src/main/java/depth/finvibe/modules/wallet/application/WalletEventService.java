@@ -20,7 +20,7 @@ public class WalletEventService implements WalletEventUseCase {
 
     @Transactional
     public void handleTradeExecutedEvent(TradeExecutedEvent event) {
-        UUID userId = UUID.fromString(event.getUserId());
+        Long userId = Long.valueOf(event.getUserId());
 
         if (event.getType().equals("BUY")) {
             commandUseCase.withdraw(userId, event.getPrice() * event.getAmount().longValue());
@@ -33,7 +33,7 @@ public class WalletEventService implements WalletEventUseCase {
 
     @Transactional
     public void handleSignUpEvent(SignUpEvent event) {
-        UUID userId = UUID.fromString(event.getUserId());
+        Long userId = Long.valueOf(event.getUserId());
         commandUseCase.createWallet(userId);
     }
 }

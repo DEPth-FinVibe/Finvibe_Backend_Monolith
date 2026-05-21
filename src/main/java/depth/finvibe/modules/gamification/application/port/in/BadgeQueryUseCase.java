@@ -13,7 +13,7 @@ public interface BadgeQueryUseCase {
      * @param userId 사용자 ID
      * @return 사용자의 뱃지 목록
      */
-    List<BadgeDto.BadgeInfo> getUserBadges(UUID userId);
+    List<BadgeDto.BadgeInfo> getUserBadges(Long userId);
 
     /**
      * 모든 뱃지 목록을 조회

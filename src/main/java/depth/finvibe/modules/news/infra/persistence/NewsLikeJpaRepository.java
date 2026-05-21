@@ -9,5 +9,5 @@ import java.util.UUID;
 public interface NewsLikeJpaRepository extends JpaRepository<NewsLike, Long> {
     long countByNewsId(Long newsId);
 
-    Optional<NewsLike> findByNewsIdAndUserId(Long newsId, UUID userId);
+    Optional<NewsLike> findByNewsIdAndUserId(Long newsId, Long userId);
 }

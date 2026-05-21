@@ -37,9 +37,9 @@ public class NewsLike extends TimeStampedBaseEntity {
     private News news;
 
     @Column(name = "user_id", nullable = false)
-    private UUID userId;
+    private Long userId;
 
-    public static NewsLike create(News news, UUID userId) {
+    public static NewsLike create(News news, Long userId) {
         return NewsLike.builder()
                 .news(news)
                 .userId(userId)

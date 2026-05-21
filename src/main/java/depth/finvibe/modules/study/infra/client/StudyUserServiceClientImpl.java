@@ -25,7 +25,7 @@ public class StudyUserServiceClientImpl implements UserServiceClient {
     @Override
     public List<String> fetchUserInterestStocks(String userId) {
         try {
-            UUID parsedUserId = UUID.fromString(userId);
+            Long parsedUserId = Long.valueOf(userId);
             List<Map<String, Object>> favoriteStocks = objectMapper.convertValue(
                     userQueryUseCase.getFavoriteStocks(parsedUserId),
                     LIST_OF_MAP_TYPE

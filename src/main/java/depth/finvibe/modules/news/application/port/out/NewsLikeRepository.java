@@ -12,5 +12,5 @@ public interface NewsLikeRepository {
 
     void delete(NewsLike like);
 
-    Optional<NewsLike> findByNewsIdAndUserId(Long newsId, UUID userId);
+    Optional<NewsLike> findByNewsIdAndUserId(Long newsId, Long userId);
 }

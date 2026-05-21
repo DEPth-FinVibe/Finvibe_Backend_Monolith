@@ -35,7 +35,7 @@ public class DiscussionLikeRepositoryImpl implements DiscussionLikeRepository {
     }
 
     @Override
-    public Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, UUID userId) {
+    public Optional<DiscussionLike> findByDiscussionIdAndUserId(Long discussionId, Long userId) {
         return discussionLikeJpaRepository.findByDiscussionIdAndUserId(discussionId, userId);
     }
 }

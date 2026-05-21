@@ -28,12 +28,12 @@ public class TradeRepositoryImpl implements TradeRepository {
     }
 
     @Override
-    public List<Long> findDistinctStockIdsByUserIdAndTradeType(UUID userId, TradeType tradeType) {
+    public List<Long> findDistinctStockIdsByUserIdAndTradeType(Long userId, TradeType tradeType) {
         return jpaRepository.findDistinctStockIdsByUserIdAndTradeType(userId, tradeType);
     }
 
     @Override
-    public List<Trade> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end) {
+    public List<Trade> findByUserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end) {
         return jpaRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtDesc(userId, start, end);
     }
 }

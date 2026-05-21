@@ -25,5 +25,5 @@ public class BadgeOwnership extends TimeStampedBaseEntity {
     private Badge badge;
 
     @Id
-    private UUID ownerId;
+    private Long ownerId;
 }

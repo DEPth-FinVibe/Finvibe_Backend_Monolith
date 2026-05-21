@@ -15,7 +15,7 @@ public interface MetricCommandUseCase {
      * @param delta 증분 값
      * @param occurredAt 이벤트 발생 시각(UTC)
      */
-    void updateUserMetric(UserMetricType metricType, UUID userId, Double delta, Instant occurredAt);
+    void updateUserMetric(UserMetricType metricType, Long userId, Double delta, Instant occurredAt);
 
     /**
      * 주간 메트릭을 초기화합니다.

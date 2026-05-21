@@ -23,7 +23,7 @@ public class TopHoldingStockCacheRepositoryImpl implements TopHoldingStockCacheR
     private final ObjectMapper objectMapper;
 
     @Override
-    public Optional<TopHoldingStockDto.TopHoldingStockListResponse> find(UUID userId) {
+    public Optional<TopHoldingStockDto.TopHoldingStockListResponse> find(Long userId) {
         String value = redisTemplate.opsForValue().get(key(userId));
         if (value == null) {
             return Optional.empty();
@@ -37,7 +37,7 @@ public class TopHoldingStockCacheRepositoryImpl implements TopHoldingStockCacheR
     }
 
     @Override
-    public void save(UUID userId, TopHoldingStockDto.TopHoldingStockListResponse response) {
+    public void save(Long userId, TopHoldingStockDto.TopHoldingStockListResponse response) {
         try {
             String value = objectMapper.writeValueAsString(response);
             redisTemplate.opsForValue().set(key(userId), value, CACHE_TTL);
@@ -47,12 +47,12 @@ public class TopHoldingStockCacheRepositoryImpl implements TopHoldingStockCacheR
     }
 
     @Override
-    public void evictByUserId(UUID userId) {
+    public void evictByUserId(Long userId) {
         String key = key(userId);
         redisTemplate.delete(key);
     }
 
-    private String key(UUID userId) {
+    private String key(Long userId) {
         return KEY_PREFIX + userId;
     }
 }

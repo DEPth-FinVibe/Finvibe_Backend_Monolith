@@ -37,7 +37,7 @@ public class XpRewardEventConsumer {
         }
 
         try {
-            UUID userId = UUID.fromString(event.getUserId());
+            Long userId = Long.valueOf(event.getUserId());
             xpCommandUseCase.grantUserXp(userId, event.getXpAmount(), event.getReason());
         } catch (IllegalArgumentException ex) {
             log.warn("XpRewardEvent has invalid userId: {}", event.getUserId());

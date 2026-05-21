@@ -6,7 +6,7 @@ import depth.finvibe.modules.wallet.dto.WalletDto;
 import java.util.UUID;
 
 public interface WalletCommandUseCase {
-    WalletDto.WalletResponse createWallet(UUID userId);
-    WalletDto.WalletResponse deposit(UUID userId, Long price);
-    WalletDto.WalletResponse withdraw(UUID userId, Long price);
+    WalletDto.WalletResponse createWallet(Long userId);
+    WalletDto.WalletResponse deposit(Long userId, Long price);
+    WalletDto.WalletResponse withdraw(Long userId, Long price);
 }

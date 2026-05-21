@@ -11,5 +11,5 @@ public interface BadgeCommandUseCase {
      * @param userId 사용자 ID
      * @param badge 부여할 뱃지 종류
      */
-    void grantBadgeToUser(UUID userId, Badge badge);
+    void grantBadgeToUser(Long userId, Badge badge);
 }

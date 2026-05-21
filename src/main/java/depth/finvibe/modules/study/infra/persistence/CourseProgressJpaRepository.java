@@ -9,5 +9,5 @@ import depth.finvibe.modules.study.domain.CourseProgress;
 
 public interface CourseProgressJpaRepository extends JpaRepository<CourseProgress, Long> {
     Optional<CourseProgress> findByCourseUserIdKey(String courseUserIdKey);
-    Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, UUID userId);
+    Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, Long userId);
 }

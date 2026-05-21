@@ -36,7 +36,7 @@ public class DevController {
     @PostMapping("/jwt/token")
     @Operation(summary = "테스트 JWT 발급", description = "로컬 테스트용 JWT 토큰을 발급합니다.")
     public ResponseEntity<JwtTokenResponse> generateToken() {
-        UUID userId = UUID.randomUUID();
+        Long userId = 0L;
         UserRole role = UserRole.USER;
         Long expirationSeconds = 86400L; // 1일
         
@@ -50,7 +50,7 @@ public class DevController {
      */
     public record JwtTokenResponse(
             String token,
-            UUID userId,
+            Long userId,
             UserRole role
     ) {}
 }

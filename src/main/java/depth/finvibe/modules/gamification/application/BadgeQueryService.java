@@ -21,7 +21,7 @@ public class BadgeQueryService implements BadgeQueryUseCase {
     private final BadgeOwnershipRepository badgeOwnershipRepository;
 
     @Override
-    public List<BadgeDto.BadgeInfo> getUserBadges(UUID userId) {
+    public List<BadgeDto.BadgeInfo> getUserBadges(Long userId) {
         List<BadgeOwnership> badgeOwnerships = badgeOwnershipRepository.findByUserId(userId);
 
         return badgeOwnerships.stream()

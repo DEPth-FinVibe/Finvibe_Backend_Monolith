@@ -38,7 +38,7 @@ public class InternalGamificationQueryService implements InternalGamificationQue
     private final MetricRepository metricRepository;
 
     @Override
-    public InternalGamificationDto.UserSummaryResponse getUserSummary(UUID userId) {
+    public InternalGamificationDto.UserSummaryResponse getUserSummary(Long userId) {
         List<BadgeOwnership> ownedBadges = badgeOwnershipRepository.findByUserId(userId);
         Long totalXp = userXpRepository.findByUserId(userId)
                 .map(UserXp::getTotalXp)
@@ -60,7 +60,7 @@ public class InternalGamificationQueryService implements InternalGamificationQue
                 .build();
     }
 
-    private Integer getWeeklyRanking(UUID userId) {
+    private Integer getWeeklyRanking(Long userId) {
         LocalDate periodStartDate = getCurrentStart(RankingPeriod.WEEKLY, LocalDateTime.now(DEFAULT_ZONE)).toLocalDate();
         return userXpRankingSnapshotRepository.findByPeriodAndUserId(RankingPeriod.WEEKLY, periodStartDate, userId)
                 .map(UserXpRankingSnapshot::getRanking)

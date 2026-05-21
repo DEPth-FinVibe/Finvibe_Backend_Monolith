@@ -13,5 +13,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PortfolioCreatedEvent {
 	private Long portfolioId;
-	private UUID userId;
+	private Long userId;
 }

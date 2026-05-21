@@ -13,7 +13,7 @@ public interface ChallengeQueryUseCase {
      * @param userId 사용자 ID
      * @return 챌린지 응답 목록
      */
-    List<ChallengeDto.ChallengeResponse> getPersonalChallenges(UUID userId);
+    List<ChallengeDto.ChallengeResponse> getPersonalChallenges(Long userId);
 
     /**
      * 사용자의 월별 챌린지 완료 내역을 조회합니다.
@@ -23,5 +23,5 @@ public interface ChallengeQueryUseCase {
      * @param month 조회 월 (1-12)
      * @return 챌린지 완료 내역 목록
      */
-    List<ChallengeDto.ChallengeHistoryResponse> getCompletedChallenges(UUID userId, int year, int month);
+    List<ChallengeDto.ChallengeHistoryResponse> getCompletedChallenges(Long userId, int year, int month);
 }

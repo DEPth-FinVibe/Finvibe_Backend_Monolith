@@ -30,7 +30,7 @@ public class UserMetric extends TimeStampedBaseEntity {
     private UserMetricType type;
 
     @Id
-    private UUID userId;
+    private Long userId;
 
     @Id
     @Enumerated(EnumType.STRING)

@@ -37,7 +37,7 @@ public class JwtTokenGenerator {
      * @param expirationSeconds 만료 시간 (초)
      * @return 생성된 JWT 토큰
      */
-    public String generate(UUID userId, UserRole role, long expirationSeconds) {
+    public String generate(Long userId, UserRole role, long expirationSeconds) {
         try {
             // Header 생성
             Map<String, Object> header = new HashMap<>();
@@ -71,7 +71,7 @@ public class JwtTokenGenerator {
      * @param role 사용자 역할
      * @return 생성된 JWT 토큰
      */
-    public String generateWithoutExpiration(UUID userId, UserRole role) {
+    public String generateWithoutExpiration(Long userId, UserRole role) {
         try {
             // Header 생성
             Map<String, Object> header = new HashMap<>();

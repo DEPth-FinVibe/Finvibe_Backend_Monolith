@@ -90,7 +90,7 @@ public class JwtArgumentResolver implements HandlerMethodArgumentResolver {
         }
 
         return new Requester(
-            UUID.fromString(userIdHeader),
+            Long.valueOf(userIdHeader),
             UserRole.valueOf(roleHeader),
             tokenFamilyId
         );

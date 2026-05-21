@@ -57,12 +57,12 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
     }
 
     @Transactional
-    public List<Long> findReservedStockIds(UUID userId) {
+    public List<Long> findReservedStockIds(Long userId) {
         return tradeRepository.findDistinctStockIdsByUserIdAndTradeType(userId, TradeType.RESERVED);
     }
 
     @Override
-    public List<TradeDto.TradeHistoryResponse> findTradesByMonth(UUID userId, int year, int month) {
+    public List<TradeDto.TradeHistoryResponse> findTradesByMonth(Long userId, int year, int month) {
         YearMonth yearMonth = YearMonth.of(year, month);
         LocalDateTime start = yearMonth.atDay(1).atStartOfDay();
         LocalDateTime end = yearMonth.plusMonths(1).atDay(1).atStartOfDay();
@@ -74,7 +74,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
     }
 
     @Override
-    public List<TradeDto.TradeHistoryResponse> findTradesByDateRange(UUID userId, LocalDate fromDate, LocalDate toDate) {
+    public List<TradeDto.TradeHistoryResponse> findTradesByDateRange(Long userId, LocalDate fromDate, LocalDate toDate) {
         LocalDateTime start = fromDate.atStartOfDay();
         LocalDateTime end = toDate.plusDays(1).atStartOfDay();
 
@@ -119,7 +119,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         validateTransactionRequirements(request, requester.getUuid());
     }
 
-    private void validateTransactionRequirements(TradeDto.TransactionRequest request, UUID userId) {
+    private void validateTransactionRequirements(TradeDto.TransactionRequest request, Long userId) {
         if (request.getTransactionType() == TransactionType.BUY) {
             ensureSufficientBalanceForBuy(request, userId);
             return;
@@ -133,7 +133,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         throw new DomainException(TradeErrorCode.INVALID_TRADE_TYPE);
     }
 
-    private void ensureSufficientBalanceForBuy(TradeDto.TransactionRequest request, UUID userId) {
+    private void ensureSufficientBalanceForBuy(TradeDto.TransactionRequest request, Long userId) {
         Long balance = walletClient.getWalletBalance(userId);
         BigDecimal required = BigDecimal.valueOf(request.getAmount())
                 .multiply(BigDecimal.valueOf(request.getPrice()));
@@ -143,7 +143,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         }
     }
 
-    private void ensureSufficientHoldingAmountForSell(TradeDto.TransactionRequest request, UUID userId) {
+    private void ensureSufficientHoldingAmountForSell(TradeDto.TransactionRequest request, Long userId) {
         boolean hasSufficientStockAmount = assetClient.hasSufficientStockAmount(
                 request.getPortfolioId(),
                 userId,
@@ -257,7 +257,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         }
     }
 
-    private TradeDto.TradeResponse processNormalTrade(TradeDto.TransactionRequest request, UUID userId) {
+    private TradeDto.TradeResponse processNormalTrade(TradeDto.TransactionRequest request, Long userId) {
         validateMarketPrice(request);
 
         String stockName = marketClient.getStockNameById(request.getStockId());
@@ -280,7 +280,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
         }
     }
 
-    private static Trade createTradeFrom(TradeDto.TransactionRequest request, String stockName, UUID userId) {
+    private static Trade createTradeFrom(TradeDto.TransactionRequest request, String stockName, Long userId) {
         return Trade.create(
                 request.getStockId(),
                 request.getAmount(),
@@ -306,7 +306,7 @@ public class TradeService implements TradeCommandUseCase, TradeQueryUseCase {
                 .build());
     }
 
-    private TradeDto.TradeResponse processReservedTrade(TradeDto.TransactionRequest request, UUID userId) {
+    private TradeDto.TradeResponse processReservedTrade(TradeDto.TransactionRequest request, Long userId) {
         String stockName = marketClient.getStockNameById(request.getStockId());
 
         Trade trade = createTradeFrom(request, stockName, userId);

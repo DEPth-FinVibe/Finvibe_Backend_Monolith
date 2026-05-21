@@ -26,19 +26,19 @@ public class LessonCompleteRepositoryImpl implements LessonCompleteRepository {
     }
 
     @Override
-    public long countByLessonCourseIdAndUserId(Long courseId, UUID userId) {
+    public long countByLessonCourseIdAndUserId(Long courseId, Long userId) {
         return lessonCompleteJpaRepository.countByLessonCourseIdAndUserId(courseId, userId);
     }
 
     @Override
-    public List<Long> findLessonIdsByUserIdAndCourseId(UUID userId, Long courseId) {
+    public List<Long> findLessonIdsByUserIdAndCourseId(Long userId, Long courseId) {
         return lessonCompleteJpaRepository.findByUserIdAndLessonCourseId(userId, courseId).stream()
                 .map(lessonComplete -> lessonComplete.getLesson().getId())
                 .toList();
     }
 
     @Override
-    public List<LessonComplete> findByUserIdAndCreatedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end) {
+    public List<LessonComplete> findByUserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end) {
         return lessonCompleteJpaRepository.findByUserIdAndCreatedAtBetweenOrderByCreatedAtAsc(userId, start, end);
     }
 }

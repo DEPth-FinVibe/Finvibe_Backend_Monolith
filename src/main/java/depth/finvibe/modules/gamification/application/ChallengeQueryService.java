@@ -33,7 +33,7 @@ public class ChallengeQueryService implements ChallengeQueryUseCase {
     private final MetricRepository metricRepository;
 
     @Override
-    public List<ChallengeDto.ChallengeResponse> getPersonalChallenges(UUID userId) {
+    public List<ChallengeDto.ChallengeResponse> getPersonalChallenges(Long userId) {
         Period currentPeriod = Period.ofWeek(LocalDate.now());
         List<PersonalChallenge> challenges = personalChallengeRepository.findAllByPeriod(currentPeriod);
 
@@ -47,7 +47,7 @@ public class ChallengeQueryService implements ChallengeQueryUseCase {
                 .toList();
     }
 
-    private @NonNull Map<UserMetricType, Double> getRequiredMetrics(UUID userId, List<PersonalChallenge> challenges) {
+    private @NonNull Map<UserMetricType, Double> getRequiredMetrics(Long userId, List<PersonalChallenge> challenges) {
         // 챌린지에서 사용하는 메트릭 타입들만 추출
         List<UserMetricType> requiredTypes = challenges.stream()
                 .map(challenge -> challenge.getCondition().getMetricType())
@@ -90,7 +90,7 @@ public class ChallengeQueryService implements ChallengeQueryUseCase {
     }
 
     @Override
-    public List<ChallengeDto.ChallengeHistoryResponse> getCompletedChallenges(UUID userId, int year, int month) {
+    public List<ChallengeDto.ChallengeHistoryResponse> getCompletedChallenges(Long userId, int year, int month) {
         Period period = Period.ofMonth(year, month);
         List<PersonalChallengeReward> rewards = personalChallengeRewardRepository.findAllByUserIdAndPeriod(userId, period);
 

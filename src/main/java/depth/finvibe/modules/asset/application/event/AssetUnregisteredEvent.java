@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 public class AssetUnregisteredEvent {
 	private Long portfolioId;
 	private Long stockId;
-	private UUID userId;
+	private Long userId;
 	private BigDecimal remainingAmount;
 	private BigDecimal remainingPurchasePriceAmount;
 	private String currency;

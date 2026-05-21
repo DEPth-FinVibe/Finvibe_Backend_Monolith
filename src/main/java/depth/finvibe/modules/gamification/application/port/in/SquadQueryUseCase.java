@@ -12,7 +12,7 @@ public interface SquadQueryUseCase {
      * @param userId 사용자 ID
      * @return 스쿼드 정보 DTO
      */
-    SquadDto.Response getUserSquad(UUID userId);
+    SquadDto.Response getUserSquad(Long userId);
 
     /**
      * 전체 스쿼드 목록을 조회합니다.

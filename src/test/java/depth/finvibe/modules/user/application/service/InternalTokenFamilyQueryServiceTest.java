@@ -35,7 +35,7 @@ class InternalTokenFamilyQueryServiceTest {
 			tokenFamilyRepository,
 			tokenFamilyCacheRepository
 		);
-		TokenFamily tokenFamily = TokenFamily.create(UUID.randomUUID(), LoginContext.unknown(), Instant.now());
+		TokenFamily tokenFamily = TokenFamily.create(1L, LoginContext.unknown(), Instant.now());
 		tokenFamily.rotate("hashed-refresh", Instant.parse("2030-01-01T00:00:00Z"), Instant.now());
 
 		when(tokenFamilyRepository.findById(tokenFamily.getId())).thenReturn(Optional.of(tokenFamily));

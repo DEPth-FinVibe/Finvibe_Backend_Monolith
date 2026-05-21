@@ -11,10 +11,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface JpaUserRepository extends JpaRepository<User, UUID> {
+public interface JpaUserRepository extends JpaRepository<User, Long> {
+    Optional<User> findByExternalUserId(UUID externalUserId);
+    Optional<User> findByInternalUserId(Long internalUserId);
     Optional<User> findByLoginId(LoginId loginId);
     Optional<User> findByOauthInfo(OAuthInfo oauthInfo);
-    List<User> findAllByIdIn(Collection<UUID> ids);
+    List<User> findAllByInternalUserIdIn(Collection<Long> internalUserIds);
     boolean existsByPersonalDetails_Email(Email email);
     boolean existsByLoginId(LoginId loginId);
     boolean existsByPersonalDetails_Nickname(String nickname);

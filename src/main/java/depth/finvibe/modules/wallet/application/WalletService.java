@@ -23,7 +23,7 @@ public class WalletService implements WalletCommandUseCase, WalletQueryUseCase {
     private final MeterRegistry meterRegistry;
 
     @Transactional
-    public WalletDto.WalletResponse createWallet(UUID userId) {
+    public WalletDto.WalletResponse createWallet(Long userId) {
         if (userId == null) {
             throw new DomainException(WalletErrorCode.INVALID_USER_ID);
         }
@@ -36,7 +36,7 @@ public class WalletService implements WalletCommandUseCase, WalletQueryUseCase {
     }
 
     @Transactional
-    public WalletDto.WalletResponse deposit(UUID userId, Long price) {
+    public WalletDto.WalletResponse deposit(Long userId, Long price) {
         Wallet wallet = findWallet(userId);
 
         validatePrice(price);
@@ -47,7 +47,7 @@ public class WalletService implements WalletCommandUseCase, WalletQueryUseCase {
     }
 
     @Transactional
-    public WalletDto.WalletResponse withdraw(UUID userId, Long price) {
+    public WalletDto.WalletResponse withdraw(Long userId, Long price) {
         Wallet wallet = findWallet(userId);
 
         validatePrice(price);
@@ -70,13 +70,13 @@ public class WalletService implements WalletCommandUseCase, WalletQueryUseCase {
     }
 
     @Override
-    public WalletDto.WalletResponse getWalletByUserId(UUID userId) {
+    public WalletDto.WalletResponse getWalletByUserId(Long userId) {
         Wallet wallet = findWallet(userId);
 
         return WalletDto.WalletResponse.from(wallet);
     }
 
-    private Wallet findWallet(UUID userId) {
+    private Wallet findWallet(Long userId) {
         return walletRepository.findByUserId(userId)
                 .orElseThrow(() -> {
                     meterRegistry.counter("wallet.wallet.not_found").increment();

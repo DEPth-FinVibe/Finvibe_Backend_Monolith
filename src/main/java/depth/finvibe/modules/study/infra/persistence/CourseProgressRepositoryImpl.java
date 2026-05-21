@@ -25,7 +25,7 @@ public class CourseProgressRepositoryImpl implements CourseProgressRepository {
     }
 
     @Override
-    public Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, UUID userId) {
+    public Optional<CourseProgress> findByCourseIdAndUserId(Long courseId, Long userId) {
         return courseProgressJpaRepository.findByCourseIdAndUserId(courseId, userId);
     }
 }

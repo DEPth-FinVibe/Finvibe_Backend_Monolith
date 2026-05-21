@@ -10,11 +10,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Getter
 public class Requester {
-    private UUID userId;
+    private Long userId;
     private UserRole role;
     private UUID tokenFamilyId;
 
-    public UUID getUuid() {
+    public Long getUuid() {
         return userId;
     }
 }

@@ -7,9 +7,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AiStudyRecommendRepository {
-    boolean existsByUserIdAndLastModifiedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end);
+    boolean existsByUserIdAndLastModifiedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
 
-    Optional<AiStudyRecommend> findByUserId(UUID userId);
+    Optional<AiStudyRecommend> findByUserId(Long userId);
 
     AiStudyRecommend save(AiStudyRecommend aiStudyRecommend);
 }

@@ -36,33 +36,33 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
     private final ConcurrentHashMap<Long, BigDecimal> lastPublishedPrices = new ConcurrentHashMap<>();
 
     @Override
-    public void registerWatchingStock(Long stockId, UUID userId) {
+    public void registerWatchingStock(Long stockId, Long userId) {
         checkStockIsExist(stockId);
 
         currentStockWatcherRepository.save(CurrentStockWatcher.create(stockId, userId));
     }
 
     @Override
-    public void renewWatchingStock(Long stockId, UUID userId) {
+    public void renewWatchingStock(Long stockId, Long userId) {
         currentStockWatcherRepository.renew(CurrentStockWatcher.create(stockId, userId));
     }
 
     @Override
-    public void unregisterWatchingStock(Long stockId, UUID userId) {
+    public void unregisterWatchingStock(Long stockId, Long userId) {
         checkStockIsExist(stockId);
 
         currentStockWatcherRepository.remove(CurrentStockWatcher.create(stockId, userId));
     }
 
     @Override
-    public void registerHoldingStock(Long stockId, UUID userId) {
+    public void registerHoldingStock(Long stockId, Long userId) {
         checkStockIsExist(stockId);
 
         holdingStockRepository.registerHoldingStock(stockId, userId);
     }
 
     @Override
-    public void unregisterHoldingStock(Long stockId, UUID userId) {
+    public void unregisterHoldingStock(Long stockId, Long userId) {
         checkStockIsExist(stockId);
 
         holdingStockRepository.unregisterHoldingStock(stockId, userId);

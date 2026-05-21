@@ -15,6 +15,6 @@ import lombok.NoArgsConstructor;
 public class PortfolioDeletedEvent {
 	private Long deletedPortfolioId;
 	private Long defaultPortfolioId;
-	private UUID userId;
+	private Long userId;
 	private List<Long> stockIds;
 }

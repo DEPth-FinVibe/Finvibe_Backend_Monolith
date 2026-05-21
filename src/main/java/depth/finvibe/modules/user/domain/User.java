@@ -26,8 +26,17 @@ import lombok.experimental.SuperBuilder;
 })
 public class User extends TimeStampedBaseEntity {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long internalUserId;
+
     @Builder.Default
-    private UUID id = UUID.randomUUID();
+    @Column(
+        name = "external_user_id",
+        nullable = false,
+        unique = true
+    )
+    private UUID externalUserId = UUID.randomUUID();
 
     @Embedded
     @AttributeOverride(name = "value", column = @Column(name = "login_id"))
@@ -53,7 +62,7 @@ public class User extends TimeStampedBaseEntity {
 
     public static User create(LoginId loginId, PasswordHash password, PersonalDetails personalDetails) {
         return User.builder()
-                .id(UUID.randomUUID())
+                .externalUserId(UUID.randomUUID())
                 .loginId(loginId)
                 .passwordHash(password)
                 .personalDetails(personalDetails)
@@ -65,7 +74,7 @@ public class User extends TimeStampedBaseEntity {
         String randomPassword = UUID.randomUUID().toString().replaceAll("-", "").substring(0, 12);
 
         return User.builder()
-                .id(UUID.randomUUID())
+                .externalUserId(UUID.randomUUID())
                 .oauthInfo(oAuthInfo)
                 .passwordHash(PasswordHash.create(randomPassword, passwordEncoder))
                 .personalDetails(personalDetails)
@@ -109,9 +118,13 @@ public class User extends TimeStampedBaseEntity {
         }
     }
 
-    public void validateUpdatable(UUID requesterId, UserRole requesterRole) {
-        if (!this.id.equals(requesterId) && requesterRole != UserRole.ADMIN) {
+    public void validateUpdatable(Long requesterId, UserRole requesterRole) {
+        if (!this.internalUserId.equals(requesterId) && requesterRole != UserRole.ADMIN) {
             throw new DomainException(UserErrorCode.UNAUTHORIZED_USER_UPDATE);
         }
+    }
+
+    public Long getId() {
+        return internalUserId;
     }
 }

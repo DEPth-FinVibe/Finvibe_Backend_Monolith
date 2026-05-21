@@ -21,7 +21,7 @@ public class PersonalChallengeRewardRepositoryImpl implements PersonalChallengeR
     }
 
     @Override
-    public List<PersonalChallengeReward> findAllByUserIdAndPeriod(UUID userId, Period period) {
+    public List<PersonalChallengeReward> findAllByUserIdAndPeriod(Long userId, Period period) {
         return personalChallengeRewardJpaRepository.findByUserIdAndPeriodStartDateBetween(
                 userId,
                 period.getStartDate(),

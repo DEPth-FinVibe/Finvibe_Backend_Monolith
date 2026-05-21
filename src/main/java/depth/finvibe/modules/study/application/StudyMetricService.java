@@ -30,7 +30,7 @@ public class StudyMetricService implements MetricCommandUseCase, MetricQueryUseC
     @Override
     @Transactional(readOnly = true)
     public StudyMetricDto.MyMetricResponse getMyMetric(Requester requester) {
-        UUID userId = requester.getUuid();
+        Long userId = requester.getUuid();
         return studyMetricRepository.findByUserId(userId)
                 .map(StudyMetricDto.MyMetricResponse::from)
                 .orElseGet(StudyMetricDto.MyMetricResponse::empty);
@@ -42,7 +42,7 @@ public class StudyMetricService implements MetricCommandUseCase, MetricQueryUseC
         lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new DomainException(GlobalErrorCode.NOT_FOUND));
 
-        UUID userId = requester.getUuid();
+        Long userId = requester.getUuid();
         StudyMetric studyMetric = studyMetricRepository.findByUserId(userId)
                 .orElseGet(() -> StudyMetric.of(userId));
 

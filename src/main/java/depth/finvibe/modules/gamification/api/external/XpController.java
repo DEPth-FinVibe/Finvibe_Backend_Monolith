@@ -38,7 +38,7 @@ public class XpController {
     @Operation(summary = "관리자 수동 XP 지급", description = "관리자가 특정 사용자에게 XP를 수동 지급합니다", hidden = true)
     @PostMapping("/admin/users/{userId}/grant")
     public void grantUserXpByAdmin(
-            @PathVariable UUID userId,
+            @PathVariable Long userId,
             @RequestBody XpDto.GrantXpRequest request,
             @AuthenticatedUser Requester requester) {
         validateAdmin(requester);

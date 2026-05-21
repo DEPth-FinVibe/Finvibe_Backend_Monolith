@@ -13,5 +13,5 @@ import java.util.UUID;
 @EqualsAndHashCode
 public class CurrentStockWatcher {
     private final Long stockId;
-    private final UUID watcherId;
+    private final Long watcherId;
 }

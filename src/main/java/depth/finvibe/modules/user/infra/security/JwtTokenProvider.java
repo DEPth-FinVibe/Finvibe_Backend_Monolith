@@ -48,7 +48,7 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
     }
 
     @Override
-    public UserDto.TokenResponse generateToken(UUID userId, UserRole role, UUID tokenFamilyId) {
+    public UserDto.TokenResponse generateToken(Long userId, UserRole role, UUID tokenFamilyId) {
         Date now = new Date();
         Date accessExpiry = new Date(now.getTime() + accessTokenExpiration);
         Date refreshExpiry = new Date(now.getTime() + refreshTokenExpiration);
@@ -66,7 +66,7 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
     }
 
     @Override
-    public UserDto.TokenRefreshResponse refreshToken(UUID userId, UserRole role, UUID tokenFamilyId) {
+    public UserDto.TokenRefreshResponse refreshToken(Long userId, UserRole role, UUID tokenFamilyId) {
         Date now = new Date();
         Date accessExpiry = new Date(now.getTime() + accessTokenExpiration);
         Date refreshExpiry = new Date(now.getTime() + refreshTokenExpiration);
@@ -100,7 +100,7 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
     public AuthTokenClaims parse(String token) {
         Claims claims = parseClaims(token);
         return new AuthTokenClaims(
-                UUID.fromString(claims.getSubject()),
+                Long.valueOf(claims.getSubject()),
                 parseRoleClaim(claims),
                 parseTokenFamilyIdClaim(claims),
                 AuthTokenType.valueOf(claims.get(CLAIM_TOKEN_TYPE, String.class)),
@@ -109,7 +109,7 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
         );
     }
 
-    private String createToken(UUID userId, UserRole role, UUID tokenFamilyId, AuthTokenType tokenType, Date expiryDate) {
+    private String createToken(Long userId, UserRole role, UUID tokenFamilyId, AuthTokenType tokenType, Date expiryDate) {
         Date now = new Date();
 
         return Jwts.builder()
@@ -141,9 +141,9 @@ public class JwtTokenProvider implements TokenProvider, TokenResolver {
     /**
      * WS 인증용: 토큰 검증 후 userId 추출
      */
-    public UUID getUserId(String token) {
+    public Long getUserId(String token) {
         Claims claims = parseClaims(token);
-        return UUID.fromString(claims.getSubject());
+        return Long.valueOf(claims.getSubject());
     }
 
 

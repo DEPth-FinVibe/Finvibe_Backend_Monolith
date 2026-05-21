@@ -49,7 +49,7 @@ public class UserXpRankingSnapshotRepositoryImpl implements UserXpRankingSnapsho
     public Optional<UserXpRankingSnapshot> findByPeriodAndUserId(
             RankingPeriod periodType,
             LocalDate periodStartDate,
-            UUID userId) {
+            Long userId) {
         return userXpRankingSnapshotJpaRepository.findByPeriodTypeAndPeriodStartDateAndUserId(
                 periodType,
                 periodStartDate,

@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 public interface UserEventPublisher {
-    void publishUserSignUpEvent(UUID userId);
-    void publishUserSignInEvent(UUID userId);
-    void publishUserMetricEvent(UUID userId, String eventType, Double delta, Instant occurredAt);
+    void publishUserSignUpEvent(Long userId);
+    void publishUserSignInEvent(Long userId);
+    void publishUserMetricEvent(Long userId, String eventType, Double delta, Instant occurredAt);
 }

@@ -10,7 +10,7 @@ public interface XpCommandUseCase {
      * @param value 부여할 XP 값
      * @param reason 부여 사유
      */
-    void grantUserXp(UUID userId, Long value, String reason);
+    void grantUserXp(Long userId, Long value, String reason);
 
     /**
      * 주간 스쿼드 랭킹을 정산하고 초기화합니다.

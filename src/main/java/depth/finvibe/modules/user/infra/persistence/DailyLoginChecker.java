@@ -34,7 +34,7 @@ public class DailyLoginChecker implements depth.finvibe.modules.user.application
      * @return true: 당일 첫 로그인, false: 이미 로그인한 기록 있음
      */
     @Override
-    public boolean checkAndMarkDailyLogin(UUID userId) {
+    public boolean checkAndMarkDailyLogin(Long userId) {
         LocalDate today = LocalDate.now(ZONE_ID);
         String key = LOGIN_KEY_PREFIX + userId + ":" + today;
 

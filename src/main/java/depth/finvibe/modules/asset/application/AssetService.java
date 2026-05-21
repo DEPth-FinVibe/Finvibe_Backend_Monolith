@@ -40,7 +40,7 @@ import depth.finvibe.common.error.DomainException;
 public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
     private static final BigDecimal INITIAL_ASSET_BASELINE = BigDecimal.valueOf(10_000_000L);
     private static final int TOP_HOLDING_STOCK_LIMIT = 100;
-    private static final UUID TOP_HOLDING_STOCK_CACHE_KEY = UUID.fromString("00000000-0000-0000-0000-000000000000");
+    private static final Long TOP_HOLDING_STOCK_CACHE_KEY = 0L;
 
     private final PortfolioGroupRepository portfolioGroupRepository;
     private final AssetRepository assetRepository;
@@ -52,7 +52,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PortfolioGroupDto.AssetResponse> getAssetsByPortfolio(Long portfolioId, UUID requesterUserId) {
+    public List<PortfolioGroupDto.AssetResponse> getAssetsByPortfolio(Long portfolioId, Long requesterUserId) {
         PortfolioGroup portfolioGroup = findPortfolioGroupWithAssets(portfolioId);
 
         if (!portfolioGroup.getUserId().equals(requesterUserId)) {
@@ -66,7 +66,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PortfolioGroupDto.PortfolioGroupResponse> getPortfoliosByUser(UUID userId) {
+    public List<PortfolioGroupDto.PortfolioGroupResponse> getPortfoliosByUser(Long userId) {
         return portfolioGroupRepository.findAllByUserId(userId).stream()
                 .map(PortfolioGroupDto.PortfolioGroupResponse::from)
                 .toList();
@@ -74,13 +74,13 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean isExistPortfolio(Long portfolioId, UUID userId) {
+    public boolean isExistPortfolio(Long portfolioId, Long userId) {
         return portfolioGroupRepository.existsByIdAndUserId(portfolioId, userId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public boolean hasSufficientStockAmount(Long portfolioId, UUID userId, Long stockId, Double amount) {
+    public boolean hasSufficientStockAmount(Long portfolioId, Long userId, Long stockId, Double amount) {
         if (stockId == null || amount == null) {
             return false;
         }
@@ -100,7 +100,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public TopHoldingStockDto.TopHoldingStockListResponse getTopHoldingStocks(UUID userId) {
+    public TopHoldingStockDto.TopHoldingStockListResponse getTopHoldingStocks(Long userId) {
         return topHoldingStockCacheRepository.find(TOP_HOLDING_STOCK_CACHE_KEY)
                 .map(response -> {
                     meterRegistry.counter("asset.top_holdings.cache.requests", "result", "hit").increment();
@@ -114,7 +114,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public PortfolioGroupDto.AssetAllocationResponse getAssetAllocation(UUID requesterUserId) {
+    public PortfolioGroupDto.AssetAllocationResponse getAssetAllocation(Long requesterUserId) {
         List<PortfolioGroup> portfolios = portfolioGroupRepository.findAllByUserIdWithAssets(requesterUserId);
 
         BigDecimal stockAmount = portfolios.stream()
@@ -159,7 +159,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void registerAsset(Long portfolioId, PortfolioGroupDto.RegisterAssetRequest request, UUID requesterUserId) {
+    public void registerAsset(Long portfolioId, PortfolioGroupDto.RegisterAssetRequest request, Long requesterUserId) {
         HoldingMetricsSnapshot beforeSnapshot = getHoldingMetricsSnapshot(requesterUserId);
 
         PortfolioGroup foundPortfolioGroup = findPortfolioGroupWithAssets(portfolioId);
@@ -189,7 +189,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void unregisterAsset(Long portfolioId, PortfolioGroupDto.UnregisterAssetRequest request, UUID requesterUserId) {
+    public void unregisterAsset(Long portfolioId, PortfolioGroupDto.UnregisterAssetRequest request, Long requesterUserId) {
         HoldingMetricsSnapshot beforeSnapshot = getHoldingMetricsSnapshot(requesterUserId);
 
         PortfolioGroup foundPortfolioGroup = findPortfolioGroupWithAssets(portfolioId);
@@ -241,7 +241,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
             Long sourcePortfolioId,
             Long assetId,
             PortfolioGroupDto.TransferAssetRequest request,
-            UUID requesterUserId
+            Long requesterUserId
     ) {
         if (sourcePortfolioId.equals(request.getTargetPortfolioId())) {
             throw new DomainException(AssetErrorCode.SAME_PORTFOLIO_GROUP_TRANSFER_NOT_ALLOWED);
@@ -286,7 +286,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void createPortfolioGroup(PortfolioGroupDto.CreatePortfolioGroupRequest request, UUID requesterUserId) {
+    public void createPortfolioGroup(PortfolioGroupDto.CreatePortfolioGroupRequest request, Long requesterUserId) {
         PortfolioGroup toSave = PortfolioGroup.create(
                 request.getName(),
                 requesterUserId,
@@ -302,7 +302,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void updatePortfolioGroup(Long portfolioGroupId, PortfolioGroupDto.UpdatePortfolioGroupRequest request, UUID requesterUserId) {
+    public void updatePortfolioGroup(Long portfolioGroupId, PortfolioGroupDto.UpdatePortfolioGroupRequest request, Long requesterUserId) {
         PortfolioGroup existing = findPortfolioGroupWithAssets(portfolioGroupId);
 
         existing.patch(
@@ -318,7 +318,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void deletePortfolioGroup(Long portfolioGroupId, UUID requesterUserId) {
+    public void deletePortfolioGroup(Long portfolioGroupId, Long requesterUserId) {
         PortfolioGroup existing = findPortfolioGroupWithAssets(portfolioGroupId);
 
         existing.ensureDeletable(requesterUserId);
@@ -344,7 +344,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
 
     @Override
     @Transactional
-    public void createDefaultPortfolioGroup(UUID targetUserId) {
+    public void createDefaultPortfolioGroup(Long targetUserId) {
         PortfolioGroup toSave = PortfolioGroup.createDefault(targetUserId);
 
         if (portfolioGroupRepository.existDefaultByUserId(targetUserId)) {
@@ -364,12 +364,12 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
                 .orElseThrow(() -> new DomainException(AssetErrorCode.PORTFOLIO_GROUP_NOT_FOUND));
     }
 
-    private PortfolioGroup findDefaultPortfolioGroup(UUID userId) {
+    private PortfolioGroup findDefaultPortfolioGroup(Long userId) {
         return portfolioGroupRepository.findDefaultByUserId(userId)
                 .orElseThrow(() -> new DomainException(AssetErrorCode.DEFAULT_PORTFOLIO_GROUP_NOT_FOUND));
     }
 
-    private Asset toAssetEntity(PortfolioGroupDto.RegisterAssetRequest request, UUID requesterUserId) {
+    private Asset toAssetEntity(PortfolioGroupDto.RegisterAssetRequest request, Long requesterUserId) {
         return Asset.create(
                 request.getAmount(),
                 request.getStockPrice(),
@@ -380,7 +380,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
         );
     }
 
-    private HoldingMetricsSnapshot getHoldingMetricsSnapshot(UUID userId) {
+    private HoldingMetricsSnapshot getHoldingMetricsSnapshot(Long userId) {
         List<PortfolioGroup> portfolios = portfolioGroupRepository.findAllByUserIdWithAssets(userId);
         int holdingStockCount = (int) portfolios.stream()
                 .flatMap(portfolio -> portfolio.getAssets().stream())
@@ -394,7 +394,7 @@ public class AssetService implements AssetCommandUseCase, AssetQueryUseCase {
     }
 
     private void publishHoldingMetricsIfChanged(
-            UUID userId,
+            Long userId,
             HoldingMetricsSnapshot beforeSnapshot,
             HoldingMetricsSnapshot afterSnapshot
     ) {

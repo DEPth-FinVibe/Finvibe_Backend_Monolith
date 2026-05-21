@@ -52,7 +52,7 @@ public class UserXpRankingSnapshot extends TimeStampedBaseEntity {
 
     private LocalDate periodEndDate;
 
-    private UUID userId;
+    private Long userId;
 
     private String nickname;
 
@@ -75,7 +75,7 @@ public class UserXpRankingSnapshot extends TimeStampedBaseEntity {
             RankingPeriod periodType,
             LocalDate periodStartDate,
             LocalDate periodEndDate,
-            UUID userId,
+            Long userId,
             String nickname,
             Integer ranking,
             Long currentTotalXp,

@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface JpaInterestStockRepository extends JpaRepository<InterestStock, InterestStockId> {
-    void deleteByUserIdAndStockId(UUID userId, Long stockId);
-    List<InterestStock> findAllByUserId(UUID userId);
-    Optional<InterestStock> findByUserIdAndStockId(UUID userId, Long stockId);
+    void deleteByUserIdAndStockId(Long userId, Long stockId);
+    List<InterestStock> findAllByUserId(Long userId);
+    Optional<InterestStock> findByUserIdAndStockId(Long userId, Long stockId);
 }

@@ -9,5 +9,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import depth.finvibe.modules.gamification.domain.PersonalChallengeReward;
 
 public interface PersonalChallengeRewardJpaRepository extends JpaRepository<PersonalChallengeReward, Long> {
-    List<PersonalChallengeReward> findByUserIdAndPeriodStartDateBetween(UUID userId, LocalDate startDate, LocalDate endDate);
+    List<PersonalChallengeReward> findByUserIdAndPeriodStartDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
 }

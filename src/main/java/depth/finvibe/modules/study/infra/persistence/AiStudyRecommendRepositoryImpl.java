@@ -15,12 +15,12 @@ public class AiStudyRecommendRepositoryImpl implements AiStudyRecommendRepositor
     private final AiStudyRecommendJpaRepository aiStudyRecommendJpaRepository;
 
     @Override
-    public boolean existsByUserIdAndLastModifiedAtBetween(UUID userId, LocalDateTime start, LocalDateTime end) {
+    public boolean existsByUserIdAndLastModifiedAtBetween(Long userId, LocalDateTime start, LocalDateTime end) {
         return aiStudyRecommendJpaRepository.existsByUserIdAndLastModifiedAtBetween(userId, start, end);
     }
 
     @Override
-    public Optional<AiStudyRecommend> findByUserId(UUID userId) {
+    public Optional<AiStudyRecommend> findByUserId(Long userId) {
         return aiStudyRecommendJpaRepository.findById(userId);
     }
 

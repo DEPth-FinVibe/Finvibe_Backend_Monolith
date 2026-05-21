@@ -292,7 +292,7 @@ public class UserDto {
     @Schema(name = "UserResponse", description = "회원 정보 응답")
     public static class UserResponse {
         @Schema(description = "회원 ID", example = "00000000-0000-0000-0000-000000000000")
-        private UUID userId;
+        private Long userId;
 
         @Schema(description = "이메일", example = "user@example.com")
         private String email;
@@ -344,7 +344,7 @@ public class UserDto {
         private String name;
 
         @Schema(description = "회원 ID", example = "00000000-0000-0000-0000-000000000000")
-        private UUID userId;
+        private Long userId;
 
         public static FavoriteStockResponse from(InterestStock interestStock) {
             return FavoriteStockResponse.builder()
@@ -362,7 +362,7 @@ public class UserDto {
     @Schema(name = "UserSummaryResponse", description = "유저 게이미피케이션 요약 정보")
     public static class UserSummaryResponse {
         @Schema(description = "사용자 UUID")
-        private UUID userId;
+        private Long userId;
 
         @Schema(description = "보유 뱃지 목록")
         private java.util.List<OwnedBadge> badges;
@@ -403,7 +403,7 @@ public class UserDto {
     @Schema(name = "MemberProfileResponse", description = "닉네임 + 게이미피케이션 요약 응답")
     public static class MemberProfileResponse {
         @Schema(description = "회원 ID", example = "00000000-0000-0000-0000-000000000000")
-        private UUID userId;
+        private Long userId;
 
         @Schema(description = "닉네임", example = "핀바이브")
         private String nickname;

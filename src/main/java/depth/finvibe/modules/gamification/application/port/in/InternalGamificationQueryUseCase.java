@@ -6,5 +6,5 @@ import depth.finvibe.modules.gamification.dto.InternalGamificationDto;
 
 public interface InternalGamificationQueryUseCase {
 
-    InternalGamificationDto.UserSummaryResponse getUserSummary(UUID userId);
+    InternalGamificationDto.UserSummaryResponse getUserSummary(Long userId);
 }

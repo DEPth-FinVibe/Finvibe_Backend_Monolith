@@ -14,5 +14,5 @@ public interface UserCommandUseCase {
 
     UserDto.FavoriteStockResponse removeFavoriteStock(Long stockId, Requester requester);
 
-    void withdraw(UUID userId);
+    void withdraw(Long userId);
 }

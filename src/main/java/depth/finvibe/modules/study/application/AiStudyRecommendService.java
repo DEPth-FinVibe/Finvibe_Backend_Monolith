@@ -31,7 +31,7 @@ public class AiStudyRecommendService implements AiStudyRecommendCommandUseCase, 
     private final AiStudyRecommendRepository aiStudyRecommendRepository;
 
     @Override
-    public void createOrGetTodayAiStudyRecommend(UUID userId) {
+    public void createOrGetTodayAiStudyRecommend(Long userId) {
         createOrGetTodayAiStudyRecommendInternal(userId);
     }
 
@@ -43,7 +43,7 @@ public class AiStudyRecommendService implements AiStudyRecommendCommandUseCase, 
                 .build();
     }
 
-    private AiStudyRecommend createOrGetTodayAiStudyRecommendInternal(UUID userId) {
+    private AiStudyRecommend createOrGetTodayAiStudyRecommendInternal(Long userId) {
         LocalDate today = LocalDate.now();
         LocalDateTime startOfToday = today.atStartOfDay();
         LocalDateTime endOfToday = startOfToday.plusDays(1).minusNanos(1);
@@ -58,7 +58,7 @@ public class AiStudyRecommendService implements AiStudyRecommendCommandUseCase, 
     }
 
     private AiStudyRecommend generateAndSaveRecommend(
-            UUID userId,
+            Long userId,
             LocalDate today,
             Optional<AiStudyRecommend> existingRecommend
     ) {

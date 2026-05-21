@@ -13,6 +13,6 @@ import java.util.UUID;
 @Builder
 public class StockHoldingChangedEvent {
     private Long stockId;
-    private UUID userId;
+    private Long userId;
     private Boolean isHolding;
 }

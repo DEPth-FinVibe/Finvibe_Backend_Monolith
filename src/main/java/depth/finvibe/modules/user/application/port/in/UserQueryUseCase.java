@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface UserQueryUseCase {
-    UserDto.UserResponse getMe(UUID userId);
+    UserDto.UserResponse getMe(Long userId);
 
-    List<UserDto.FavoriteStockResponse> getFavoriteStocks(UUID userId);
+    List<UserDto.FavoriteStockResponse> getFavoriteStocks(Long userId);
 
     UserDto.DuplicateCheckResponse checkLoginIdDuplicate(String loginId);
 
@@ -18,9 +18,9 @@ public interface UserQueryUseCase {
 
     UserDto.DuplicateCheckResponse checkNicknameDuplicate(String nickname);
 
-    String getNickname(UUID userId);
+    String getNickname(Long userId);
 
-    Map<UUID, String> getNicknames(Collection<UUID> userIds);
+    Map<Long, String> getNicknames(Collection<Long> userIds);
 
-    UserDto.MemberProfileResponse getMemberProfile(UUID userId);
+    UserDto.MemberProfileResponse getMemberProfile(Long userId);
 }
