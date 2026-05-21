@@ -25,6 +25,7 @@ import datetime as dt
 import io
 import os
 import multiprocessing as mp
+import uuid
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Iterator, List, Tuple, Dict
 from dataclasses import dataclass
@@ -53,7 +54,7 @@ TRADES_PER_USER = 10
 INTEREST_STOCKS_PER_USER = 5
 USERS_PER_SQUAD = 500
 XP_AWARDS_PER_USER = 4
-BADGES_PER_USER_AVG = 1
+BADGES_PER_USER_AVG = 2.5
 USER_METRIC_FRACTION = 0.20
 CHALLENGE_COMPLETION_RATE = 0.25
 COURSE_PROGRESS_RATE = 0.30
@@ -64,7 +65,30 @@ DISCUSSION_LIKES_PER = 10
 COMMENT_LIKES_PER = 5
 NEWS_LIKES_PER = 20
 XP_RANKING_TOP_N = 100
+DEFAULT_USER_ROWS = 100_000
+DEFAULT_PASSWORD_HASH = (
+    "$2a$10$7EqJtq98hPqEX7fNZaFWoO5Y6QnqJ6TP2PzefRg2fzGEylh4G6dkK"
+)
+WALLET_INITIAL_BALANCE = 10_000_000
 
+SOCIAL_PROVIDERS = ("GOOGLE", "KAKAO", "NAVER")
+NAME_POOL = (
+    "Minsu",
+    "Jiwoo",
+    "Seoyeon",
+    "Jiwon",
+    "Sujin",
+    "Hyunjin",
+    "Yejun",
+    "Jisoo",
+    "Haneul",
+    "Yuna",
+    "Doyun",
+    "Sihyun",
+    "Taeyang",
+    "Hamin",
+    "Ara",
+)
 BADGES = [
     "FIRST_PROFIT",
     "KNOWLEDGE_SEEKER",
@@ -96,6 +120,8 @@ COLLECT_PERIODS = ["ALLTIME", "WEEKLY"]
 RANKING_PERIODS = ["DAILY", "WEEKLY", "MONTHLY"]
 TRANSACTION_TYPES = ["BUY", "SELL"]
 TRADE_TYPES = ["NORMAL", "RESERVED", "CANCELLED", "FAILED"]
+TRANSACTION_TYPE_ORDINAL = {name: idx for idx, name in enumerate(TRANSACTION_TYPES)}
+TRADE_TYPE_ORDINAL = {name: idx for idx, name in enumerate(TRADE_TYPES)}
 COURSE_DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED"]
 
 DATETIME_FMT = "%Y-%m-%d %H:%M:%S"
@@ -144,17 +170,33 @@ def load_env() -> dict[str, str]:
 def get_db_config() -> dict:
     env = load_env()
     return {
-        "host": env.get("SEED_DB_HOST", "localhost"),
-        "port": int(env.get("SEED_DB_PORT", 3306)),
-        "database": env.get("SEED_DB_NAME", "finvibe"),
-        "user": env.get("SEED_DB_USER", "finvibe"),
-        "password": env.get("SEED_DB_PASSWORD", "finvibe"),
+        "host": os.environ.get("SEED_DB_HOST", env.get("SEED_DB_HOST", "localhost")),
+        "port": int(os.environ.get("SEED_DB_PORT", env.get("SEED_DB_PORT", 3306))),
+        "database": os.environ.get("SEED_DB_NAME", env.get("SEED_DB_NAME", "finvibe")),
+        "user": os.environ.get("SEED_DB_USER", env.get("SEED_DB_USER", "finvibe")),
+        "password": os.environ.get("SEED_DB_PASSWORD", env.get("SEED_DB_PASSWORD", "finvibe")),
     }
 
 
 def get_parallel_workers() -> int:
     env = load_env()
-    return int(env.get("SEED_PARALLEL_WORKERS", mp.cpu_count()))
+    return int(os.environ.get("SEED_PARALLEL_WORKERS", env.get("SEED_PARALLEL_WORKERS", mp.cpu_count())))
+
+
+def get_insert_fallback_batch_size() -> int:
+    env = load_env()
+    return int(os.environ.get("SEED_INSERT_FALLBACK_BATCH_SIZE", env.get("SEED_INSERT_FALLBACK_BATCH_SIZE", 1000)))
+
+
+def get_user_seed_config() -> dict:
+    env = load_env()
+    return {
+        "rows": int(os.environ.get("SEED_USER_ROWS", env.get("SEED_USER_ROWS", DEFAULT_USER_ROWS))),
+        "social_ratio": float(os.environ.get("SEED_USER_SOCIAL_RATIO", env.get("SEED_USER_SOCIAL_RATIO", 0.30))),
+        "deleted_ratio": float(os.environ.get("SEED_USER_DELETED_RATIO", env.get("SEED_USER_DELETED_RATIO", 0.01))),
+        "admin_ratio": float(os.environ.get("SEED_USER_ADMIN_RATIO", env.get("SEED_USER_ADMIN_RATIO", 0.001))),
+        "password_hash": os.environ.get("SEED_USER_PASSWORD_HASH", env.get("SEED_USER_PASSWORD_HASH", DEFAULT_PASSWORD_HASH)),
+    }
 
 
 # ── Database Connection ────────────────────────────────────────────────────
@@ -174,12 +216,38 @@ def connect(cfg: dict) -> pymysql.Connection:
     )
 
 
+def table_columns(conn: pymysql.Connection, table_name: str) -> set[str]:
+    with conn.cursor() as cur:
+        cur.execute(f"DESCRIBE {table_name}")
+        return {row[0] for row in cur.fetchall()}
+
+
+def users_uuid_column(conn: pymysql.Connection) -> str:
+    columns = table_columns(conn, "users")
+    if "external_user_id" in columns:
+        return "external_user_id"
+    return "id"
+
+
+def next_seed_user_index(conn: pymysql.Connection) -> int:
+    """Return the next numeric suffix for generated user login IDs."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT MAX(CAST(SUBSTRING(login_id, 5) AS UNSIGNED))
+            FROM users
+            WHERE login_id LIKE 'user%'
+        """
+        )
+        row = cur.fetchone()
+    return (int(row[0]) + 1) if row and row[0] is not None else 0
+
+
 def optimize_db_for_import(conn: pymysql.Connection) -> None:
     """Temporarily disable constraints for faster bulk loading."""
     with conn.cursor() as cur:
         cur.execute("SET FOREIGN_KEY_CHECKS = 0")
         cur.execute("SET UNIQUE_CHECKS = 0")
-        cur.execute("SET AUTOCOMMIT = 0")
     conn.commit()
     print("  [DB] 최적화 적용 (외래키/고유키 검사 비활성화)")
 
@@ -207,6 +275,29 @@ def fmt_date(d: dt.date) -> str:
 def null(v: Any) -> str:
     """None → MariaDB NULL marker."""
     return str(v) if v is not None else r"\N"
+
+
+def validate_ratio(name: str, value: float) -> None:
+    if not (0.0 <= value <= 1.0):
+        raise ValueError(f"{name} must be between 0 and 1: {value}")
+
+
+def sample_count(population_size: int, fraction: float) -> int:
+    if population_size <= 0:
+        return 0
+    return min(population_size, max(1, int(population_size * fraction)))
+
+
+def random_date(rng: random.Random, start: dt.date, end: dt.date) -> dt.date:
+    day_span = (end - start).days
+    return start + dt.timedelta(days=rng.randint(0, day_span))
+
+
+def random_datetime(
+    rng: random.Random, start: dt.datetime, end: dt.datetime
+) -> dt.datetime:
+    second_span = int((end - start).total_seconds())
+    return start + dt.timedelta(seconds=rng.randint(0, second_span))
 
 
 # ── TSV Generation with StringIO ────────────────────────────────────────────
@@ -333,6 +424,14 @@ def _load_one_file(cfg: dict, filepath: pathlib.Path, load_sql_template: str) ->
             affected = cur.rowcount
         conn.commit()
         return affected
+    except pymysql.err.OperationalError as e:
+        if e.args and e.args[0] == 1180:
+            conn.rollback()
+            tqdm.write(f"    LOAD DATA 실패 ({filepath.name}), INSERT fallback 실행: {e}")
+            return insert_tsv_file(conn, filepath, load_sql_template)
+        conn.rollback()
+        tqdm.write(f"    오류 발생 ({filepath.name} 로드): {e}")
+        raise
     except Exception as e:
         conn.rollback()
         tqdm.write(f"    오류 발생 ({filepath.name} 로드): {e}")
@@ -372,6 +471,63 @@ def cleanup_files(filepaths: List[pathlib.Path]) -> None:
         fp.unlink(missing_ok=True)
 
 
+def parse_load_table_and_columns(load_sql: str) -> tuple[str, list[str]]:
+    normalized = " ".join(load_sql.split())
+    upper = normalized.upper()
+    table_marker = "INTO TABLE "
+    table_start = upper.index(table_marker) + len(table_marker)
+    table_end = normalized.index(" ", table_start)
+    table_name = normalized[table_start:table_end].strip("`")
+    columns_start = normalized.rindex("(") + 1
+    columns_end = normalized.rindex(")")
+    columns = [col.strip().strip("`") for col in normalized[columns_start:columns_end].split(",")]
+    return table_name, columns
+
+
+BIT_COLUMNS = {"is_deleted", "is_default", "is_edited"}
+
+
+def decode_tsv_value(column: str, value: str) -> Any:
+    value = value.rstrip("\n").rstrip("\r")
+    if value == r"\N":
+        return None
+    if column in BIT_COLUMNS:
+        return int(value)
+    return value
+
+
+def insert_tsv_file(conn: pymysql.Connection, filepath: pathlib.Path, load_sql: str) -> int:
+    table_name, columns = parse_load_table_and_columns(load_sql)
+    placeholders = ",".join(["%s"] * len(columns))
+    column_sql = ", ".join(f"`{column}`" for column in columns)
+    insert_sql = f"INSERT INTO `{table_name}` ({column_sql}) VALUES ({placeholders})"
+    batch_size = get_insert_fallback_batch_size()
+    batch: list[tuple[Any, ...]] = []
+    inserted = 0
+
+    with filepath.open("r", encoding="utf-8") as f:
+        with conn.cursor() as cur:
+            for line in f:
+                values = line.rstrip("\n").split("\t")
+                batch.append(
+                    tuple(
+                        decode_tsv_value(column, value)
+                        for column, value in zip(columns, values)
+                    )
+                )
+                if len(batch) >= batch_size:
+                    cur.executemany(insert_sql, batch)
+                    inserted += cur.rowcount
+                    conn.commit()
+                    batch.clear()
+            if batch:
+                cur.executemany(insert_sql, batch)
+                inserted += cur.rowcount
+                conn.commit()
+
+    return inserted
+
+
 # ── Reference Data Loading ─────────────────────────────────────────────────
 
 
@@ -382,7 +538,7 @@ def load_ref(conn: pymysql.Connection) -> dict:
         print("  레퍼런스 데이터 로딩 중...", end=" ", flush=True)
 
         cur.execute("SELECT id FROM users")
-        ref["users"] = [str(row[0]) for row in cur.fetchall()]
+        ref["users"] = [row[0] for row in cur.fetchall()]
 
         cur.execute("SELECT id, name FROM stock")
         rows = cur.fetchall()
@@ -518,8 +674,8 @@ class TradeGenerator(RowGenerator):
                     self.rng.randint(1000, 500_000),
                     pg_id,
                     uid,
-                    self.rng.choice(TRANSACTION_TYPES),
-                    self.rng.choice(TRADE_TYPES),
+                    TRANSACTION_TYPE_ORDINAL[self.rng.choice(TRANSACTION_TYPES)],
+                    TRADE_TYPE_ORDINAL[self.rng.choice(TRADE_TYPES)],
                     now_s,
                     now_s,
                 )
@@ -633,6 +789,24 @@ def generate_lesson_complete_chunk(
 # ── Load SQL Templates ───────────────────────────────────────────────────
 
 LOAD_SQL_TEMPLATES = {
+    "users": """
+        LOAD DATA LOCAL INFILE '__FILE__'
+        INTO TABLE users
+        CHARACTER SET utf8mb4
+        FIELDS TERMINATED BY '\t'
+        LINES TERMINATED BY '\n'
+        (id, login_id, password_hash, provider, provider_id, role,
+         phone_number_first_part, phone_number_second_part, phone_number_third_part,
+         birth_date, name, nickname, email, is_deleted, created_at, last_modified_at)
+    """,
+    "wallet": """
+        LOAD DATA LOCAL INFILE '__FILE__'
+        INTO TABLE wallet
+        CHARACTER SET utf8mb4
+        FIELDS TERMINATED BY '\t'
+        LINES TERMINATED BY '\n'
+        (user_id, balance, created_at, last_modified_at)
+    """,
     "interest_stock": """
         LOAD DATA LOCAL INFILE '__FILE__'
         INTO TABLE interest_stock
@@ -687,6 +861,120 @@ LOAD_SQL_TEMPLATES = {
 
 
 # ── Optimized Main Generators ─────────────────────────────────────────────
+
+
+def gen_users_wallet(conn: pymysql.Connection, rng: random.Random) -> int:
+    """Generate users and wallets from the former generate_users_csv.py flow."""
+    cfg = get_user_seed_config()
+    rows = cfg["rows"]
+    if rows <= 0:
+        raise ValueError("SEED_USER_ROWS must be > 0")
+
+    validate_ratio("SEED_USER_SOCIAL_RATIO", cfg["social_ratio"])
+    validate_ratio("SEED_USER_DELETED_RATIO", cfg["deleted_ratio"])
+    validate_ratio("SEED_USER_ADMIN_RATIO", cfg["admin_ratio"])
+
+    print("\n  [users + wallet] TSV 생성 중...")
+    print(f"    대상 유저: {rows:,}명")
+    start_idx = next_seed_user_index(conn)
+    print(f"    시작 user index: {start_idx:,}")
+
+    birth_date_start = dt.date(1960, 1, 1)
+    birth_date_end = dt.date(2005, 12, 31)
+
+    user_cache: list[tuple[str, str, str]] = []
+
+    def user_rows():
+        for idx in range(rows):
+            user_idx = start_idx + idx
+            user_id = str(uuid.uuid4())
+            login_id = f"user{user_idx:07d}"
+            email = f"user{user_idx:07d}@example.com"
+            nickname = f"fv{user_idx:07d}"
+            name = rng.choice(NAME_POOL)
+
+            phone_first = "010"
+            phone_second = f"{rng.randint(0, 9999):04d}"
+            phone_third = f"{rng.randint(0, 9999):04d}"
+            birth_date = random_date(rng, birth_date_start, birth_date_end).isoformat()
+
+            if rng.random() < cfg["social_ratio"]:
+                provider = rng.choice(SOCIAL_PROVIDERS)
+                provider_id = f"{provider.lower()}_{user_idx:07d}"
+            else:
+                provider = "LOCAL"
+                provider_id = None
+
+            role = "ADMIN" if rng.random() < cfg["admin_ratio"] else "USER"
+            is_deleted = 1 if rng.random() < cfg["deleted_ratio"] else 0
+
+            created_at = random_datetime(rng, CREATED_FROM, NOW)
+            last_modified_at = random_datetime(rng, created_at, NOW)
+            created_at_s = fmt_dt(created_at)
+            last_modified_at_s = fmt_dt(last_modified_at)
+            user_cache.append((user_id, created_at_s, last_modified_at_s))
+
+            yield (
+                user_id,
+                login_id,
+                cfg["password_hash"],
+                provider,
+                provider_id,
+                role,
+                phone_first,
+                phone_second,
+                phone_third,
+                birth_date,
+                name,
+                nickname,
+                email,
+                is_deleted,
+                created_at_s,
+                last_modified_at_s,
+            )
+
+    user_id_column = users_uuid_column(conn)
+    user_load_sql = LOAD_SQL_TEMPLATES["users"].replace("(id,", f"({user_id_column},")
+    user_count = write_tsv_and_load(
+        conn, "users.tsv", user_rows(), rows, user_load_sql, "users"
+    )
+    if user_count != rows:
+        raise RuntimeError(
+            f"users 적재 행 수 불일치: expected={rows}, actual={user_count}. "
+            "기존 seed 데이터와 충돌했거나 DB가 일부 row를 건너뛰었습니다."
+        )
+
+    generated_user_ids: dict[str, int] = {}
+    with conn.cursor() as cur:
+        for offset in range(0, len(user_cache), 1000):
+            chunk = user_cache[offset : offset + 1000]
+            placeholders = ",".join(["%s"] * len(chunk))
+            cur.execute(
+                f"SELECT id, {user_id_column} FROM users WHERE {user_id_column} IN ({placeholders})",
+                [external_user_id for external_user_id, _, _ in chunk],
+            )
+            generated_user_ids.update({str(row[1]): row[0] for row in cur.fetchall()})
+
+    if len(generated_user_ids) != len(user_cache):
+        raise RuntimeError(
+            f"생성된 users ID 조회 실패: expected={len(user_cache)}, actual={len(generated_user_ids)}"
+        )
+
+    def wallet_rows():
+        for external_user_id, created_at_s, last_modified_at_s in user_cache:
+            user_id = generated_user_ids[external_user_id]
+            yield (user_id, WALLET_INITIAL_BALANCE, created_at_s, last_modified_at_s)
+
+    wallet_count = write_tsv_and_load(
+        conn,
+        "wallet.tsv",
+        wallet_rows(),
+        len(user_cache),
+        LOAD_SQL_TEMPLATES["wallet"],
+        "wallet",
+    )
+    print(f"    완료: users {user_count:,} 행, wallet {wallet_count:,} 행")
+    return user_count + wallet_count
 
 
 def gen_interest_stock_optimized(
@@ -754,13 +1042,13 @@ def gen_portfolio_asset_trade_optimized(
     with conn.cursor() as cur:
         pg_total = len(users) * PORTFOLIOS_PER_USER
         cur.execute(
-            "SELECT id, user_id FROM portfolio_group ORDER BY id ASC LIMIT %s",
+            "SELECT id, user_id FROM portfolio_group ORDER BY id DESC LIMIT %s",
             (pg_total,),
         )
-        pg_data = cur.fetchall()
+        pg_data = list(reversed(cur.fetchall()))
 
     # Convert to list of tuples (pg_id, user_id)
-    pg_list = [(row[0], str(row[1])) for row in pg_data]
+    pg_list = [(row[0], row[1]) for row in pg_data]
     print(f"    portfolio_group ID {len(pg_list):,}개 로드 완료")
 
     # Step 3: Generate and load asset (parallel)
@@ -938,10 +1226,18 @@ def write_tsv_and_load(
     written = write_tsv_file(filepath, rows_iter, total, label)
     print(f"  DB 적재 중: {written:,} 행...")
     sql = load_sql.replace("__FILE__", str(filepath).replace("\\", "/"))
-    with conn.cursor() as cur:
-        cur.execute(sql)
-        affected = cur.rowcount
-    conn.commit()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            affected = cur.rowcount
+        conn.commit()
+    except pymysql.err.OperationalError as e:
+        if not (e.args and e.args[0] == 1180):
+            conn.rollback()
+            raise
+        conn.rollback()
+        print(f"  LOAD DATA 실패, INSERT fallback 실행: {e}")
+        affected = insert_tsv_file(conn, filepath, load_sql)
     filepath.unlink(missing_ok=True)
     print(f"  완료: {affected:,} 행")
     return affected
@@ -1058,7 +1354,7 @@ def gen_badge_ownership(conn: pymysql.Connection, ref: dict, rng: random.Random)
         conn,
         "badge_ownership.tsv",
         rows(),
-        len(users) * BADGES_PER_USER_AVG,
+        int(len(users) * BADGES_PER_USER_AVG),
         load_sql,
         "badge_ownership",
     )
@@ -1067,7 +1363,7 @@ def gen_badge_ownership(conn: pymysql.Connection, ref: dict, rng: random.Random)
 def gen_user_metric(conn: pymysql.Connection, ref: dict, rng: random.Random) -> int:
     print("\n  [user_metric] TSV 생성 중...")
     users = ref["users"]
-    sample_size = max(1, int(len(users) * USER_METRIC_FRACTION))
+    sample_size = sample_count(len(users), USER_METRIC_FRACTION)
     sampled = rng.sample(users, sample_size)
     total = sample_size * len(METRIC_TYPES) * len(COLLECT_PERIODS)
 
@@ -1099,7 +1395,7 @@ def gen_challenge_reward(
         return 0
 
     users = ref["users"]
-    sample_size = max(1, int(len(users) * CHALLENGE_COMPLETION_RATE))
+    sample_size = sample_count(len(users), CHALLENGE_COMPLETION_RATE)
     sampled = rng.sample(users, sample_size)
     total = sample_size * len(challenge_ids)
 
@@ -1149,7 +1445,9 @@ def gen_study_metric(conn: pymysql.Connection, ref: dict, rng: random.Random) ->
         for uid in users:
             xp = rng.randint(0, 10_000)
             time_min = rng.randint(0, 3_000)
-            last_ping = base_ts - rng.randint(0, 86_400 * 30)
+            last_ping = dt.datetime.fromtimestamp(
+                base_ts - rng.randint(0, 86_400 * 30)
+            ).replace(microsecond=0)
             yield (uid, xp, time_min, last_ping)
 
     load_sql = """
@@ -1182,7 +1480,7 @@ def gen_course_progress(
     course_lesson_map = course_data["course_lesson_map"]
     seed = rng.randint(0, 2**31)
 
-    cp_sample_size = max(1, int(len(users) * COURSE_PROGRESS_RATE))
+    cp_sample_size = sample_count(len(users), COURSE_PROGRESS_RATE)
     cp_sampled = rng.sample(users, cp_sample_size)
 
     chunk_size = max(1, len(cp_sampled) // workers)
@@ -1220,7 +1518,7 @@ def gen_lesson_complete(
     all_lesson_ids = course_data["lesson_ids"]
     seed = rng.randint(0, 2**31)
 
-    lc_sample_size = max(1, int(len(users) * LESSON_COMPLETE_RATE))
+    lc_sample_size = sample_count(len(users), LESSON_COMPLETE_RATE)
     lc_sampled = rng.sample(users, lc_sample_size)
 
     chunk_size = max(1, len(lc_sampled) // workers)
@@ -1250,6 +1548,9 @@ def gen_discussion_social(
     if not news_ids:
         print("    스킵 — 뉴스 데이터 없음")
         return
+    if not users:
+        print("    스킵 — 유저 데이터 없음")
+        return
 
     disc_total = len(news_ids) * DISCUSSIONS_PER_NEWS
 
@@ -1274,13 +1575,13 @@ def gen_discussion_social(
         LINES TERMINATED BY '\n'
         (news_id, user_id, content, is_edited, created_at, last_modified_at)
     """
-    write_tsv_and_load(
+    disc_count = write_tsv_and_load(
         conn, "discussion.tsv", disc_rows(), disc_total, disc_load_sql, "discussion"
     )
 
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM discussion")
-        discussion_ids = [row[0] for row in cur.fetchall()]
+        cur.execute("SELECT id FROM discussion ORDER BY id DESC LIMIT %s", (disc_count,))
+        discussion_ids = list(reversed([row[0] for row in cur.fetchall()]))
     print(f"    토론 ID {len(discussion_ids):,}개 로드 완료")
 
     comment_total = len(discussion_ids) * COMMENTS_PER_DISCUSSION
@@ -1306,7 +1607,7 @@ def gen_discussion_social(
         LINES TERMINATED BY '\n'
         (discussion_id, user_id, content, is_edited, created_at, last_modified_at)
     """
-    write_tsv_and_load(
+    comment_count = write_tsv_and_load(
         conn,
         "discussion_comment.tsv",
         comment_rows(),
@@ -1316,11 +1617,14 @@ def gen_discussion_social(
     )
 
     with conn.cursor() as cur:
-        cur.execute("SELECT id FROM discussion_comment")
-        comment_ids = [row[0] for row in cur.fetchall()]
+        cur.execute(
+            "SELECT id FROM discussion_comment ORDER BY id DESC LIMIT %s",
+            (comment_count,),
+        )
+        comment_ids = list(reversed([row[0] for row in cur.fetchall()]))
     print(f"    댓글 ID {len(comment_ids):,}개 로드 완료")
 
-    dl_total = len(discussion_ids) * DISCUSSION_LIKES_PER
+    dl_total = len(discussion_ids) * min(DISCUSSION_LIKES_PER, len(users))
 
     def dl_rows():
         now_s = fmt_dt(NOW)
@@ -1340,7 +1644,7 @@ def gen_discussion_social(
         conn, "discussion_like.tsv", dl_rows(), dl_total, dl_load_sql, "disc_like"
     )
 
-    cl_total = len(comment_ids) * COMMENT_LIKES_PER
+    cl_total = len(comment_ids) * min(COMMENT_LIKES_PER, len(users))
 
     def cl_rows():
         now_s = fmt_dt(NOW)
@@ -1373,8 +1677,11 @@ def gen_news_like(conn: pymysql.Connection, ref: dict, rng: random.Random) -> in
     if not news_ids:
         print("    스킵 — 뉴스 데이터 없음")
         return 0
+    if not users:
+        print("    스킵 — 유저 데이터 없음")
+        return 0
 
-    total = len(news_ids) * NEWS_LIKES_PER
+    total = len(news_ids) * min(NEWS_LIKES_PER, len(users))
 
     def rows():
         now_s = fmt_dt(NOW)
@@ -1483,62 +1790,112 @@ def gen_xp_ranking_snapshot(conn: pymysql.Connection, rng: random.Random) -> int
 # ── Menu & Main ────────────────────────────────────────────────────────────
 
 
+def estimated_badge_ownership_rows(user_count: int) -> int:
+    return int(user_count * BADGES_PER_USER_AVG)
+
+
+def estimated_discussion_social_rows(
+    news_count: int, user_count: int
+) -> tuple[int, int, int, int, int]:
+    if news_count <= 0 or user_count <= 0:
+        return (0, 0, 0, 0, 0)
+    discussion_count = news_count * DISCUSSIONS_PER_NEWS
+    comment_count = discussion_count * COMMENTS_PER_DISCUSSION
+    discussion_like_count = discussion_count * min(DISCUSSION_LIKES_PER, user_count)
+    comment_like_count = comment_count * min(COMMENT_LIKES_PER, user_count)
+    total = discussion_count + comment_count + discussion_like_count + comment_like_count
+    return (discussion_count, comment_count, discussion_like_count, comment_like_count, total)
+
+
+def estimated_xp_ranking_snapshot_rows(user_count: int) -> int:
+    period_count = 7 + 4 + 3
+    return min(XP_RANKING_TOP_N, user_count) * period_count
+
+
 def print_menu(ref: dict, cfg: dict, workers: int) -> None:
     n_users = len(ref.get("users", []))
     n_stocks = len(ref.get("stock_ids", []))
     n_squads = len(ref.get("squad_ids", []))
     n_news = len(ref.get("news_ids", []))
+    user_rows = get_user_seed_config()["rows"]
+    scenario_users = n_users + user_rows
+    scenario_challenge_users = sample_count(scenario_users, CHALLENGE_COMPLETION_RATE)
+    scenario_course_users = sample_count(scenario_users, COURSE_PROGRESS_RATE)
+    scenario_lesson_users = sample_count(scenario_users, LESSON_COMPLETE_RATE)
+    scenario_metric_users = sample_count(scenario_users, USER_METRIC_FRACTION)
+    (
+        scenario_discussions,
+        scenario_comments,
+        scenario_discussion_likes,
+        scenario_comment_likes,
+        scenario_social_total,
+    ) = estimated_discussion_social_rows(n_news, scenario_users)
 
     print()
-    print("╔════════════════════════════════════════════════════════════════╗")
-    print("║         Finvibe 더미 데이터 생성기 (최적화 버전)             ║")
-    print("╚════════════════════════════════════════════════════════════════╝")
+    print("+----------------------------------------------------------------+")
+    print("|         Finvibe 더미 데이터 생성기 (최적화 버전)             |")
+    print("+----------------------------------------------------------------+")
     print(f"  DB: {cfg['user']}@{cfg['host']}:{cfg['port']}/{cfg['database']}")
     print(f"  병렬 워커 수: {workers}")
     print(
         f"  레퍼런스: 유저 {n_users:,} | 주식 {n_stocks:,} | 스쿼드 {n_squads:,} | 뉴스 {n_news:,}"
     )
+    print(f"  전체 실행 예상 기준 유저: {scenario_users:,}명 (현재 {n_users:,} + 생성 {user_rows:,})")
+    print()
+    print("  ── 기초 데이터 ─────────────────────────────────────────────────")
+    print(f"   1. users + wallet                    ~{user_rows:,} + ~{user_rows:,} 행")
     print()
     print("  ── 콘텐츠 ─────────────────────────────────────────────────────")
-    print(f"   1. personal_challenge                ~{PERSONAL_CHALLENGES} 행")
+    print(f"   2. personal_challenge                ~{PERSONAL_CHALLENGES} 행")
     print(
-        f"   2. course + lesson + lesson_content  {COURSES}개 코스 × {LESSONS_PER_COURSE}개 레슨"
+        f"   3. course + lesson + lesson_content  {COURSES}개 코스 × {LESSONS_PER_COURSE}개 레슨"
     )
     print()
     print("  ── 유저 활동 (병렬) ─────────────────────────────────────────")
     print(
-        f"   3. interest_stock                    ~{n_users * INTEREST_STOCKS_PER_USER:,} 행 (병렬)"
+        f"   4. interest_stock                    ~{scenario_users * INTEREST_STOCKS_PER_USER:,} 행 (병렬)"
     )
     print(
-        f"   4. portfolio_group + asset + trade   ~{n_users * PORTFOLIOS_PER_USER:,} / "
-        f"~{n_users * PORTFOLIOS_PER_USER * ASSETS_PER_PORTFOLIO:,} / "
-        f"~{n_users * TRADES_PER_USER:,} 행 (병렬)"
+        f"   5. portfolio_group + asset + trade   ~{scenario_users * PORTFOLIOS_PER_USER:,} / "
+        f"~{scenario_users * PORTFOLIOS_PER_USER * ASSETS_PER_PORTFOLIO:,} / "
+        f"~{scenario_users * TRADES_PER_USER:,} 행 (병렬)"
     )
     print()
     print("  ── 게이미피케이션 ────────────────────────────────────────────")
-    print(f"   5. user_squad                        ~{n_squads * USERS_PER_SQUAD:,} 행")
+    print(f"   6. user_squad                        ~{min(n_squads * USERS_PER_SQUAD, scenario_users):,} 행")
     print(
-        f"   6. user_xp + user_xp_award           ~{n_users:,} + ~{n_users * XP_AWARDS_PER_USER:,} 행"
+        f"   7. user_xp + user_xp_award           ~{scenario_users:,} + ~{scenario_users * XP_AWARDS_PER_USER:,} 행"
     )
     print(
-        f"   7. badge_ownership                   ~{n_users * BADGES_PER_USER_AVG:,} 행"
+        f"   8. badge_ownership                   ~{estimated_badge_ownership_rows(scenario_users):,} 행"
     )
     print(
-        f"   8. user_metric                       ~{int(n_users * USER_METRIC_FRACTION) * len(METRIC_TYPES) * 2:,} 행"
+        f"   9. user_metric                       ~{scenario_metric_users * len(METRIC_TYPES) * len(COLLECT_PERIODS):,} 행"
     )
-    print(f"   9. personal_challenge_reward         challenge_id 필요")
-    print(f"  10. user_xp_ranking_snapshot          상위 {XP_RANKING_TOP_N}명 × 기간")
+    print(
+        f"  10. personal_challenge_reward         ~{scenario_challenge_users * PERSONAL_CHALLENGES:,} 행"
+    )
+    print(
+        f"  11. user_xp_ranking_snapshot          ~{estimated_xp_ranking_snapshot_rows(scenario_users):,} 행"
+    )
     print()
     print("  ── 학습 ──────────────────────────────────────────────────────")
-    print(f"  11. study_metric                      ~{n_users:,} 행")
-    print(f"  12. course_progress                   course/lesson ID 필요 (병렬)")
-    print(f"  13. lesson_complete                   course/lesson ID 필요 (병렬)")
+    print(f"  12. study_metric                      ~{scenario_users:,} 행")
+    print(
+        f"  13. course_progress                   ~{scenario_course_users * COURSES:,} 행 (병렬)"
+    )
+    print(
+        f"  14. lesson_complete                   ~{scenario_lesson_users * COURSES * LESSONS_PER_COURSE:,} 행 (병렬)"
+    )
     print()
     print("  ── 소셜 ──────────────────────────────────────────────────────")
     print(
-        f"  14. discussion + comment + like      ~{n_news * DISCUSSIONS_PER_NEWS:,} 행"
+        f"  15. discussion + comment + like      ~{scenario_social_total:,} 행 "
+        f"({scenario_discussions:,}/{scenario_comments:,}/{scenario_discussion_likes + scenario_comment_likes:,})"
     )
-    print(f"  15. news_like                         ~{n_news * NEWS_LIKES_PER:,} 행")
+    print(
+        f"  16. news_like                         ~{n_news * min(NEWS_LIKES_PER, scenario_users):,} 행"
+    )
     print()
     print("   0. 전체 실행 (최적화 병렬)")
     print()
@@ -1568,54 +1925,62 @@ def run_all_optimized(
 
     # Apply DB optimizations
     optimize_db_for_import(conn)
+    try:
+        # Phase 0: Base user data
+        print("\n" + "=" * 60)
+        print("  페이즈 0: 기초 유저/지갑 데이터")
+        print("=" * 60)
 
-    # Phase 1: Independent tables (can run in parallel)
-    print("\n" + "=" * 60)
-    print("  페이즈 1: 독립 테이블")
-    print("=" * 60)
+        gen_users_wallet(conn, random.Random(seed))
+        ref.clear()
+        ref.update(load_ref(conn))
 
-    challenge_ids = gen_personal_challenge(conn, random.Random(seed))
-    course_data = gen_course_lesson(conn, random.Random(seed))
+        # Phase 1: Independent tables (can run in parallel)
+        print("\n" + "=" * 60)
+        print("  페이즈 1: 독립 테이블")
+        print("=" * 60)
 
-    # Phase 2: Large tables with parallel processing
-    print("\n" + "=" * 60)
-    print("  페이즈 2: 대용량 테이블 (병렬 처리)")
-    print("=" * 60)
+        challenge_ids = gen_personal_challenge(conn, random.Random(seed))
+        course_data = gen_course_lesson(conn, random.Random(seed))
 
-    gen_interest_stock_optimized(conn, cfg, ref, workers, seed)
-    gen_portfolio_asset_trade_optimized(conn, cfg, ref, workers, seed)
+        # Phase 2: Large tables with parallel processing
+        print("\n" + "=" * 60)
+        print("  페이즈 2: 대용량 테이블 (병렬 처리)")
+        print("=" * 60)
 
-    # Phase 3: User-related tables
-    print("\n" + "=" * 60)
-    print("  페이즈 3: 유저 관련 테이블")
-    print("=" * 60)
+        gen_interest_stock_optimized(conn, cfg, ref, workers, seed)
+        gen_portfolio_asset_trade_optimized(conn, cfg, ref, workers, seed)
 
-    gen_user_squad(conn, ref, random.Random(seed))
-    gen_user_xp_and_awards(conn, ref, random.Random(seed))
-    gen_badge_ownership(conn, ref, random.Random(seed))
-    gen_user_metric(conn, ref, random.Random(seed))
-    gen_challenge_reward(conn, ref, random.Random(seed), challenge_ids)
-    gen_study_metric(conn, ref, random.Random(seed))
-    gen_course_progress(cfg, ref, random.Random(seed), course_data, workers)
-    gen_lesson_complete(cfg, ref, random.Random(seed), course_data, workers)
+        # Phase 3: User-related tables
+        print("\n" + "=" * 60)
+        print("  페이즈 3: 유저 관련 테이블")
+        print("=" * 60)
 
-    # Phase 4: Social tables
-    print("\n" + "=" * 60)
-    print("  페이즈 4: 소셜 테이블")
-    print("=" * 60)
+        gen_user_squad(conn, ref, random.Random(seed))
+        gen_user_xp_and_awards(conn, ref, random.Random(seed))
+        gen_badge_ownership(conn, ref, random.Random(seed))
+        gen_user_metric(conn, ref, random.Random(seed))
+        gen_challenge_reward(conn, ref, random.Random(seed), challenge_ids)
+        gen_study_metric(conn, ref, random.Random(seed))
+        gen_course_progress(cfg, ref, random.Random(seed), course_data, workers)
+        gen_lesson_complete(cfg, ref, random.Random(seed), course_data, workers)
 
-    gen_discussion_social(conn, ref, random.Random(seed))
-    gen_news_like(conn, ref, random.Random(seed))
+        # Phase 4: Social tables
+        print("\n" + "=" * 60)
+        print("  페이즈 4: 소셜 테이블")
+        print("=" * 60)
 
-    # Phase 5: Ranking snapshot (must be after user_xp)
-    print("\n" + "=" * 60)
-    print("  페이즈 5: 랭킹 스냅샷")
-    print("=" * 60)
+        gen_discussion_social(conn, ref, random.Random(seed))
+        gen_news_like(conn, ref, random.Random(seed))
 
-    gen_xp_ranking_snapshot(conn, random.Random(seed))
+        # Phase 5: Ranking snapshot (must be after user_xp)
+        print("\n" + "=" * 60)
+        print("  페이즈 5: 랭킹 스냅샷")
+        print("=" * 60)
 
-    # Restore DB settings
-    restore_db_settings(conn)
+        gen_xp_ranking_snapshot(conn, random.Random(seed))
+    finally:
+        restore_db_settings(conn)
 
     elapsed = dt.datetime.now() - start_time
     print("\n" + "=" * 60)
@@ -1641,6 +2006,10 @@ def main() -> None:
 
     challenge_ids: list[int] = []
     course_data: dict = {}
+
+    def refresh_ref() -> None:
+        ref.clear()
+        ref.update(load_ref(conn))
 
     def ensure_challenge_ids() -> list[int]:
         nonlocal challenge_ids
@@ -1673,74 +2042,157 @@ def main() -> None:
     # ── Ordered step definitions ───────────────────────────────────────────
     # Each entry: (menu_number, label, callable)
     def step1():
+        gen_users_wallet(conn, rng)
+        refresh_ref()
+
+    def step2():
         nonlocal challenge_ids
         challenge_ids = gen_personal_challenge(conn, rng)
 
-    def step2():
+    def step3():
         nonlocal course_data
         course_data = gen_course_lesson(conn, rng)
 
-    def step3():
+    def step4():
         optimize_db_for_import(conn)
         gen_interest_stock_optimized(conn, cfg, ref, workers, 42)
         restore_db_settings(conn)
 
-    def step4():
+    def step5():
         optimize_db_for_import(conn)
         gen_portfolio_asset_trade_optimized(conn, cfg, ref, workers, 42)
         restore_db_settings(conn)
 
-    def step5():
+    def step6():
         gen_user_squad(conn, ref, rng)
 
-    def step6():
+    def step7():
         gen_user_xp_and_awards(conn, ref, rng)
 
-    def step7():
+    def step8():
         gen_badge_ownership(conn, ref, rng)
 
-    def step8():
+    def step9():
         gen_user_metric(conn, ref, rng)
 
-    def step9():
+    def step10():
         gen_challenge_reward(conn, ref, rng, ensure_challenge_ids())
 
-    def step10():
+    def step11():
         gen_xp_ranking_snapshot(conn, rng)
 
-    def step11():
+    def step12():
         gen_study_metric(conn, ref, rng)
 
-    def step12():
+    def step13():
         gen_course_progress(cfg, ref, rng, ensure_course_data(), workers)
 
-    def step13():
+    def step14():
         gen_lesson_complete(cfg, ref, rng, ensure_course_data(), workers)
 
-    def step14():
+    def step15():
         gen_discussion_social(conn, ref, rng)
 
-    def step15():
+    def step16():
         gen_news_like(conn, ref, rng)
 
     STEPS: list[tuple[int, str, Callable]] = [
-        (1, "personal_challenge", step1),
-        (2, "course + lesson + lesson_content", step2),
-        (3, "interest_stock (parallel)", step3),
-        (4, "portfolio_group + asset + trade (parallel)", step4),
-        (5, "user_squad", step5),
-        (6, "user_xp + user_xp_award", step6),
-        (7, "badge_ownership", step7),
-        (8, "user_metric", step8),
-        (9, "personal_challenge_reward", step9),
-        (10, "user_xp_ranking_snapshot", step10),
-        (11, "study_metric", step11),
-        (12, "course_progress (parallel)", step12),
-        (13, "lesson_complete (parallel)", step13),
-        (14, "discussion + comment + like", step14),
-        (15, "news_like", step15),
+        (1, "users + wallet", step1),
+        (2, "personal_challenge", step2),
+        (3, "course + lesson + lesson_content", step3),
+        (4, "interest_stock (parallel)", step4),
+        (5, "portfolio_group + asset + trade (parallel)", step5),
+        (6, "user_squad", step6),
+        (7, "user_xp + user_xp_award", step7),
+        (8, "badge_ownership", step8),
+        (9, "user_metric", step9),
+        (10, "personal_challenge_reward", step10),
+        (11, "user_xp_ranking_snapshot", step11),
+        (12, "study_metric", step12),
+        (13, "course_progress (parallel)", step13),
+        (14, "lesson_complete (parallel)", step14),
+        (15, "discussion + comment + like", step15),
+        (16, "news_like", step16),
     ]
     step_map = {n: fn for n, _, fn in STEPS}
+
+    def count_rows(table_name: str) -> int:
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+            row = cur.fetchone()
+            return int(row[0]) if row else 0
+
+    def estimate_step_rows(step_numbers: list[int]) -> tuple[int, list[tuple[int, str, int]]]:
+        users = len(ref.get("users", []))
+        stocks = len(ref.get("stock_ids", []))
+        squads = len(ref.get("squad_ids", []))
+        news = len(ref.get("news_ids", []))
+        user_rows = get_user_seed_config()["rows"]
+        challenge_count = len(challenge_ids) if challenge_ids else count_rows("personal_challenge")
+        course_count = len(course_data.get("course_ids", [])) if course_data else count_rows("course")
+        lesson_count = len(course_data.get("lesson_ids", [])) if course_data else count_rows("lesson")
+        user_xp_count = count_rows("user_xp")
+        estimates: list[tuple[int, str, int]] = []
+
+        for n, label, _ in STEPS:
+            if n not in step_numbers:
+                continue
+
+            rows = 0
+            if n == 1:
+                rows = user_rows * 2
+                users += user_rows
+            elif n == 2:
+                rows = PERSONAL_CHALLENGES
+                challenge_count = PERSONAL_CHALLENGES
+            elif n == 3:
+                lesson_count = COURSES * LESSONS_PER_COURSE
+                rows = COURSES + lesson_count * 2
+                course_count = COURSES
+            elif n == 4 and stocks:
+                rows = users * min(INTEREST_STOCKS_PER_USER, stocks)
+            elif n == 5 and stocks:
+                rows = (
+                    users * PORTFOLIOS_PER_USER
+                    + users * PORTFOLIOS_PER_USER * min(ASSETS_PER_PORTFOLIO, stocks)
+                    + users * TRADES_PER_USER
+                )
+            elif n == 6:
+                rows = min(squads * USERS_PER_SQUAD, users)
+            elif n == 7:
+                rows = users + users * XP_AWARDS_PER_USER
+                user_xp_count = users
+            elif n == 8:
+                rows = estimated_badge_ownership_rows(users)
+            elif n == 9:
+                rows = sample_count(users, USER_METRIC_FRACTION) * len(METRIC_TYPES) * len(COLLECT_PERIODS)
+            elif n == 10:
+                rows = sample_count(users, CHALLENGE_COMPLETION_RATE) * challenge_count
+            elif n == 11:
+                rows = estimated_xp_ranking_snapshot_rows(user_xp_count)
+            elif n == 12:
+                rows = users
+            elif n == 13:
+                rows = sample_count(users, COURSE_PROGRESS_RATE) * course_count
+            elif n == 14:
+                rows = sample_count(users, LESSON_COMPLETE_RATE) * lesson_count
+            elif n == 15:
+                rows = estimated_discussion_social_rows(news, users)[4]
+            elif n == 16:
+                rows = news * min(NEWS_LIKES_PER, users) if users else 0
+
+            estimates.append((n, label, rows))
+
+        return sum(rows for _, _, rows in estimates), estimates
+
+    def print_estimated_total(step_numbers: list[int]) -> None:
+        total_rows, estimates = estimate_step_rows(step_numbers)
+        print("\n" + "=" * 60)
+        print(f"  실행 전 예상 총 생성 row: {total_rows:,} 행")
+        print("  스텝별 예상:")
+        for n, label, rows in estimates:
+            print(f"   {n:>2}. {label:<38} {rows:>12,} 행")
+        print("=" * 60)
 
     def run_steps(start: int, end: int | None = None) -> None:
         """Run steps[start : end] sequentially (1-indexed, end inclusive).
@@ -1756,6 +2208,7 @@ def main() -> None:
             if n >= start and (end is None or n <= end)
         ]
         total = len(subset)
+        print_estimated_total([n for n, _, _ in subset])
         optimize_db_for_import(conn)
         start_time = dt.datetime.now()
         completed = 0
@@ -1785,6 +2238,17 @@ def main() -> None:
             elapsed = dt.datetime.now() - start_time
             print(f"  소요 시간: {elapsed}")
             return
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            restore_db_settings(conn)
+            leftover = list(DATA_DIR.glob("*.tsv"))
+            if leftover:
+                print(f"  임시 파일 {len(leftover)}개 정리 중...")
+                cleanup_files(leftover)
+            raise
         restore_db_settings(conn)
         elapsed = dt.datetime.now() - start_time
         print(f"\n  {total} 스텝 완료 (소요 시간: {elapsed})")
@@ -1810,6 +2274,7 @@ def main() -> None:
 
             elif choice == "0":
                 if confirm("전체 데이터를 최적화 병렬 모드로 생성하시겠습니까?"):
+                    print_estimated_total([n for n, _, _ in STEPS])
                     run_all_optimized(conn, cfg, ref, workers, 42)
 
             # "N~" — from step N to the end
@@ -1826,6 +2291,7 @@ def main() -> None:
             elif choice.isdigit() and int(choice) in step_map:
                 n = int(choice)
                 try:
+                    print_estimated_total([n])
                     optimize_db_for_import(conn)
                     step_map[n]()
                     restore_db_settings(conn)
@@ -1840,6 +2306,17 @@ def main() -> None:
                     if leftover:
                         print(f"  임시 파일 {len(leftover)}개 정리 중...")
                         cleanup_files(leftover)
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    restore_db_settings(conn)
+                    leftover = list(DATA_DIR.glob("*.tsv"))
+                    if leftover:
+                        print(f"  임시 파일 {len(leftover)}개 정리 중...")
+                        cleanup_files(leftover)
+                    raise
 
             else:
                 print("  유효하지 않은 입력입니다.")
