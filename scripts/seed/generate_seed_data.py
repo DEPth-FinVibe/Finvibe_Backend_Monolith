@@ -36,6 +36,11 @@ try:
 except ImportError:
     raise SystemExit("pymysql가 필요합니다. 실행: pip install pymysql")
 
+try:
+    from tqdm import tqdm
+except ImportError:
+    raise SystemExit("tqdm이 필요합니다. 실행: pip install tqdm")
+
 
 # ── Configuration ───────────────────────────────────────────────────────────
 
@@ -245,12 +250,26 @@ def write_tsv_file(
     writer = TSVWriter(buffer)
     written = 0
 
-    for row in rows:
-        writer.write_row(row)
-        written += 1
-        if written % 500_000 == 0 and total > 0:
-            pct = written * 100 // total
-            print(f"    {written:>12,} / {total:,} ({pct}%) [{label}]", flush=True)
+    # tqdm의 잦은 호출 오버헤드를 막기 위해 일정 간격으로 나누어 업데이트
+    update_interval = max(1000, total // 100) if total > 0 else 1000
+
+    with tqdm(
+        total=total if total > 0 else None,
+        desc=f"    [생성] {label:<25}",
+        unit="row",
+        leave=False,
+        mininterval=0.5
+    ) as pbar:
+        accumulated = 0
+        for row in rows:
+            writer.write_row(row)
+            written += 1
+            accumulated += 1
+            if accumulated >= update_interval:
+                pbar.update(accumulated)
+                accumulated = 0
+        if accumulated > 0:
+            pbar.update(accumulated)
 
     filepath.write_text(writer.getvalue(), encoding="utf-8")
     writer.close()
@@ -274,15 +293,21 @@ def parallel_generate_csv(
             for i, args in enumerate(task_args_list)
         }
 
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                filepath = future.result()
-                filepaths.append(filepath)
-                print(f"    청크 {idx + 1}/{len(task_args_list)} 완료")
-            except Exception as e:
-                print(f"    오류 발생 (청크 {idx + 1}): {e}")
-                raise
+        with tqdm(
+            total=len(task_args_list),
+            desc=f"    [생성] {label:<25}",
+            unit="chunk",
+            leave=True
+        ) as pbar:
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    filepath = future.result()
+                    filepaths.append(filepath)
+                    pbar.update(1)
+                except Exception as e:
+                    tqdm.write(f"    오류 발생 (청크 {idx + 1}): {e}")
+                    raise
     except KeyboardInterrupt:
         print(f"\n  [병렬] 중단됨 — 워커 취소 중 [{label}]...")
         executor.shutdown(wait=False, cancel_futures=True)
@@ -307,11 +332,10 @@ def _load_one_file(cfg: dict, filepath: pathlib.Path, load_sql_template: str) ->
             cur.execute(sql)
             affected = cur.rowcount
         conn.commit()
-        print(f"    {filepath.name} 로드 완료: {affected:,} 행")
         return affected
     except Exception as e:
         conn.rollback()
-        print(f"    오류 발생 ({filepath.name} 로드): {e}")
+        tqdm.write(f"    오류 발생 ({filepath.name} 로드): {e}")
         raise
     finally:
         conn.close()
@@ -330,8 +354,15 @@ def parallel_load_csv(
             executor.submit(_load_one_file, cfg, fp, load_sql_template): fp
             for fp in filepaths
         }
-        for fut in as_completed(futs):
-            total_affected += fut.result()  # re-raises on error
+        with tqdm(
+            total=len(filepaths),
+            desc="    [적재] DB Bulk Load             ",
+            unit="file",
+            leave=True
+        ) as pbar:
+            for fut in as_completed(futs):
+                total_affected += fut.result()  # re-raises on error
+                pbar.update(1)
     return total_affected
 
 
