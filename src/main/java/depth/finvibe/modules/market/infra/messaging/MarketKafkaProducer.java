@@ -10,24 +10,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import depth.finvibe.modules.market.application.port.out.BatchPriceEventProducer;
-import depth.finvibe.common.investment.dto.BatchPriceUpdatedEvent;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class MarketKafkaProducer implements BatchPriceEventProducer, ReservationEventPublisher, StockPriceEventProducer {
-    private static final String BATCH_PRICE_UPDATED_TOPIC = "market.batch-price-updated.v1";
+public class MarketKafkaProducer implements ReservationEventPublisher, StockPriceEventProducer {
     private static final String RESERVATION_CONDITION_MET_TOPIC = "market.reservation-satisfied.v1";
     private static final String STOCK_PRICE_UPDATED_TOPIC = "market.stock-price-updated.v1";
     private static final String STOCK_PRICE_UPDATED_DLT = "market.stock-price-updated.v1.DLT";
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    @Override
-    public void publishBatchPriceUpdated(BatchPriceUpdatedEvent event) {
-        kafkaTemplate.send(BATCH_PRICE_UPDATED_TOPIC, event);
-    }
 
     @Override
     public void publishReservationConditionMetEvent(Long tradeId, ReservationType type, Long stockId, Long price) {
