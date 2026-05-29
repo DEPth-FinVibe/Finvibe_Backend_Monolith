@@ -77,6 +77,12 @@ public class KisSubscriptionSynchronizer {
     private SyncLogSnapshot lastSyncLogSnapshot;
     private int unchangedSyncCycleCount;
 
+    // 최근 동기화 사이클의 통계 (Gauge에서 참조)
+    private volatile int latestReservationStockCount;
+    private volatile int latestHoldingStockCount;
+    private volatile int latestWatcherStockCount;
+    private volatile int latestMaxSubscriptions;
+
     private Timer syncTimer;
     private Counter syncErrorCounter;
     private Counter lockFailureCounter;
@@ -94,6 +100,18 @@ public class KisSubscriptionSynchronizer {
                 .register(meterRegistry);
         Gauge.builder("kis.sync.subscriptions.active", subscriptionOrder, LinkedHashSet::size)
                 .description("이 노드가 보유한 활성 구독 수")
+                .register(meterRegistry);
+        Gauge.builder("kis.sync.subscriptions.capacity", this, s -> s.latestMaxSubscriptions)
+                .description("이 노드에 할당된 최대 구독 수 (quota)")
+                .register(meterRegistry);
+        Gauge.builder("kis.stocks.reservation", this, s -> s.latestReservationStockCount)
+                .description("전체 활성 예약 종목 수")
+                .register(meterRegistry);
+        Gauge.builder("kis.stocks.holding", this, s -> s.latestHoldingStockCount)
+                .description("전체 보유 종목 수")
+                .register(meterRegistry);
+        Gauge.builder("kis.stocks.watcher", this, s -> s.latestWatcherStockCount)
+                .description("전체 관심 종목 수")
                 .register(meterRegistry);
     }
 
@@ -166,6 +184,11 @@ public class KisSubscriptionSynchronizer {
             protectedStockIds.addAll(reservationStockIds);
             protectedStockIds.addAll(holdingStockIds);
 
+            // 동기화 사이클 통계 갱신 (Gauge 노출용)
+            latestReservationStockCount = reservationStockIds.size();
+            latestHoldingStockCount = holdingStockIds.size();
+            latestWatcherStockCount = watcherStockIds.size();
+
             // 세션 용량이 보유 종목 수를 커버할 수 있는지 경고
             int sessionCapacity = marketDataStreamPort.getAvailableSessionCount() * MAX_SUBSCRIPTIONS_PER_SESSION;
             if (holdingStockIds.size() > sessionCapacity) {
@@ -178,6 +201,7 @@ public class KisSubscriptionSynchronizer {
 
             // 노드당 최대 구독 수 계산
             int maxSubscriptionsForNode = calculateMaxSubscriptionsForNode(activeStockIds.size());
+            latestMaxSubscriptions = maxSubscriptionsForNode;
 
             Map<Long, String> stockIdToSymbol = buildStockIdToSymbolMap(activeStockIds);
             SubscriptionResult result = processActiveStocks(

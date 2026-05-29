@@ -79,6 +79,9 @@ public class KisConnectionPool implements MarketDataStreamPort {
         Gauge.builder("kis.subscriptions.active", stockIdToSymbol, Map::size)
                 .description("KIS WebSocket 활성 구독 종목 수")
                 .register(meterRegistry);
+        Gauge.builder("kis.subscriptions.capacity", sessions, s -> s.size() * MAX_SUBSCRIPTIONS_PER_SESSION)
+                .description("현재 세션으로 구독 가능한 최대 종목 수 (세션 수 × 41)")
+                .register(meterRegistry);
 
         noSessionCounter = Counter.builder("kis.subscribe.no.session")
                 .description("가용 세션 없어 구독 실패 횟수")
