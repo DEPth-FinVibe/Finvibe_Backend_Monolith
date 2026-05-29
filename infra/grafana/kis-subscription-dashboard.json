@@ -1,0 +1,458 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "title": "KIS WebSocket Subscription",
+  "uid": "kis-subscription",
+  "version": 1,
+  "schemaVersion": 39,
+  "tags": ["finvibe", "kis", "market"],
+  "timezone": "Asia/Seoul",
+  "editable": true,
+  "graphTooltip": 0,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "구독 현황 vs 용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "showPoints": "never",
+            "lineInterpolation": "stepBefore",
+            "spanNulls": false,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "capacity (kis_subscriptions_capacity)" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#7EB26D" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "quota (kis_sync_subscriptions_capacity)" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [5, 5] } },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#EAB839" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "active (kis_subscriptions_active)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#1F78C1" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["last", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "kis_subscriptions_active",
+          "legendFormat": "active (kis_subscriptions_active)",
+          "refId": "A"
+        },
+        {
+          "expr": "kis_subscriptions_capacity",
+          "legendFormat": "capacity (kis_subscriptions_capacity)",
+          "refId": "B"
+        },
+        {
+          "expr": "kis_sync_subscriptions_capacity",
+          "legendFormat": "quota (kis_sync_subscriptions_capacity)",
+          "refId": "C"
+        }
+      ],
+      "description": "실제 구독 수(active)와 세션 기반 최대 용량(capacity), 노드 할당 quota를 함께 표시합니다. active가 capacity에 근접하면 세션 추가가 필요합니다."
+    },
+    {
+      "id": 2,
+      "title": "종목별 현황",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "showPoints": "never",
+            "lineInterpolation": "stepBefore",
+            "spanNulls": false,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "holding (kis_stocks_holding)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#1F78C1" } },
+              { "id": "custom.fillOpacity", "value": 20 }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "watcher (kis_stocks_watcher)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#BF1B00" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "reservation (kis_stocks_reservation)" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#EAB839" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["last", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "kis_stocks_holding",
+          "legendFormat": "holding (kis_stocks_holding)",
+          "refId": "A"
+        },
+        {
+          "expr": "kis_stocks_watcher",
+          "legendFormat": "watcher (kis_stocks_watcher)",
+          "refId": "B"
+        },
+        {
+          "expr": "kis_stocks_reservation",
+          "legendFormat": "reservation (kis_stocks_reservation)",
+          "refId": "C"
+        }
+      ],
+      "description": "보유 종목, 관심 종목, 예약 종목의 수를 시계열로 표시합니다."
+    },
+    {
+      "id": 3,
+      "title": "세션 & 노드 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "green", "value": 3 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "kis_sessions_available",
+          "legendFormat": "sessions",
+          "refId": "A"
+        }
+      ],
+      "description": "연결된 KIS WebSocket 세션 수"
+    },
+    {
+      "id": 4,
+      "title": "노드 구독 수",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 30 },
+              { "color": "red", "value": 40 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "kis_sync_subscriptions_active",
+          "legendFormat": "subscribed",
+          "refId": "A"
+        }
+      ],
+      "description": "이 노드의 활성 구독 종목 수"
+    },
+    {
+      "id": 5,
+      "title": "노드 최대 구독 수 (quota)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "expr": "kis_sync_subscriptions_capacity",
+          "legendFormat": "quota",
+          "refId": "A"
+        }
+      ],
+      "description": "이 노드에 할당된 최대 구독 quota"
+    },
+    {
+      "id": 6,
+      "title": "에러율 (최근 30분)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "min": 0,
+          "custom": {
+            "showPoints": "never",
+            "lineInterpolation": "smooth",
+            "spanNulls": false,
+            "fillOpacity": 30
+          }
+        }
+      },
+      "options": {
+        "legend": { "calcs": ["last", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "rate(kis_sync_errors_total[5m])",
+          "legendFormat": "sync errors",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(kis_sync_lock_failures_total[5m])",
+          "legendFormat": "lock failures",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(kis_subscribe_no_session_total[5m])",
+          "legendFormat": "no-session failures",
+          "refId": "C"
+        }
+      ],
+      "description": "동기화 에러, 락 획득 실패, 세션 부족 에러의 변화율"
+    },
+    {
+      "id": 7,
+      "title": "동기화 지연",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 12 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "min": 0,
+          "custom": {
+            "showPoints": "never",
+            "lineInterpolation": "smooth",
+            "spanNulls": false,
+            "fillOpacity": 30
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "p99" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#BF1B00" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "p50" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "#1F78C1" } },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "calcs": ["last", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "kis_sync_execution_seconds_sum / kis_sync_execution_seconds_count",
+          "legendFormat": "avg",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(kis_sync_execution_seconds_bucket[5m])) * 1000",
+          "legendFormat": "p99",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.50, rate(kis_sync_execution_seconds_bucket[5m])) * 1000",
+          "legendFormat": "p50",
+          "refId": "C"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(kis_sync_execution_seconds_bucket[5m])) * 1000",
+          "legendFormat": "p95",
+          "refId": "D"
+        }
+      ],
+      "description": "동기화 사이클 실행 시간 (ms)"
+    },
+    {
+      "id": 8,
+      "title": "세션 연결",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cps",
+          "min": 0,
+          "custom": {
+            "showPoints": "never",
+            "lineInterpolation": "smooth",
+            "spanNulls": false,
+            "fillOpacity": 30
+          }
+        }
+      },
+      "options": {
+        "legend": { "calcs": ["last", "max", "mean"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "expr": "rate(kis_session_connect_success_total[5m])",
+          "legendFormat": "connect success",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(kis_session_connect_failures_total[5m])",
+          "legendFormat": "connect failures",
+          "refId": "B"
+        }
+      ],
+      "description": "WebSocket 세션 연결 성공/실패 변화율"
+    },
+    {
+      "id": 9,
+      "title": "활성 구독 비율",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "red", "value": 95 }
+            ]
+          },
+          "custom": {
+            "showPoints": "never",
+            "fillOpacity": 10
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"] },
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true,
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "expr": "kis_subscriptions_active / kis_subscriptions_capacity * 100",
+          "legendFormat": "usage %",
+          "refId": "A"
+        }
+      ],
+      "description": "전체 용량 대비 사용률. 95% 이상이면 세션/키 추가가 필요합니다."
+    },
+    {
+      "id": 10,
+      "title": "연결 시도/실패 (누적)",
+      "type": "stat",
+      "gridPos": { "h": 3, "w": 3, "x": 18, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": { "values": false, "calcs": ["increase"] },
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "none"
+      },
+      "targets": [
+        {
+          "expr": "increase(kis_session_connect_failures_total[1h])",
+          "legendFormat": "failures",
+          "refId": "A"
+        }
+      ],
+      "description": "최근 1시간 동안의 세션 연결 실패 수"
+    }
+  ]
+}
