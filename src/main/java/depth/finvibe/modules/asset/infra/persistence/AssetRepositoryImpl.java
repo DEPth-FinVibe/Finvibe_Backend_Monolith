@@ -11,6 +11,7 @@ import depth.finvibe.modules.asset.application.port.out.AssetRepository;
 @RequiredArgsConstructor
 public class AssetRepositoryImpl implements AssetRepository {
     private final AssetJpaRepository jpaRepository;
+    private final AssetQueryRepository queryRepository;
 
     @Override
     public void deleteById(Long assetId) {
@@ -23,5 +24,10 @@ public class AssetRepositoryImpl implements AssetRepository {
             return;
         }
         jpaRepository.deleteAllById(assetIds);
+    }
+
+    @Override
+    public List<Long> findDistinctHoldingStockIds() {
+        return queryRepository.findDistinctHoldingStockIds();
     }
 }

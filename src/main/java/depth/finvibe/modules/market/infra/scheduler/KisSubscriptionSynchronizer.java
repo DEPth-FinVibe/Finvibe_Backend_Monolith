@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
+import depth.finvibe.modules.market.application.port.out.HoldingStockRepository;
 import depth.finvibe.modules.market.application.port.out.ReservationRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.MarketHours;
@@ -54,6 +55,7 @@ public class KisSubscriptionSynchronizer {
     private static final Duration SUBSCRIPTION_LOCK_LEASE = Duration.ofSeconds(3);
 
     private final CurrentStockWatcherRepository currentStockWatcherRepository;
+    private final HoldingStockRepository holdingStockRepository;
     private final ReservationRepository reservationRepository;
     private final StockRepository stockRepository;
     private final DistributedLockManager distributedLockManager;
@@ -149,8 +151,9 @@ public class KisSubscriptionSynchronizer {
             reconcileSubscriptionOrder();
 
             List<Long> reservationStockIds = reservationRepository.findReservedStockIds();
+            List<Long> holdingStockIds = holdingStockRepository.findAllDistinctStockIds();
             List<Long> watcherStockIds = currentStockWatcherRepository.findActiveStockIds();
-            List<Long> activeStockIds = buildActiveStockIds(reservationStockIds, watcherStockIds);
+            List<Long> activeStockIds = buildActiveStockIds(reservationStockIds, holdingStockIds, watcherStockIds);
 
             if (activeStockIds.isEmpty()) {
                 handleEmptyActiveStocks(nodeId);
@@ -390,15 +393,13 @@ public class KisSubscriptionSynchronizer {
         return null;
     }
 
-    private List<Long> buildActiveStockIds(List<Long> reservationStockIds, List<Long> watcherStockIds) {
-        if (reservationStockIds.isEmpty()) {
-            return watcherStockIds;
-        }
-        if (watcherStockIds.isEmpty()) {
-            return reservationStockIds;
-        }
-
+    private List<Long> buildActiveStockIds(
+            List<Long> reservationStockIds,
+            List<Long> holdingStockIds,
+            List<Long> watcherStockIds
+    ) {
         LinkedHashSet<Long> merged = new LinkedHashSet<>(reservationStockIds);
+        merged.addAll(holdingStockIds);
         merged.addAll(watcherStockIds);
         return merged.stream().toList();
     }

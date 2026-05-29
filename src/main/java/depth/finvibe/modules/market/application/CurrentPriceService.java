@@ -19,7 +19,6 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -70,10 +69,6 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
 
     @Override
     public void stockPriceUpdated(CurrentPriceUpdatedEvent priceUpdate) {
-        if(!currentStockWatcherRepository.existsByStockId(priceUpdate.getStockId())) {
-            return;
-        }
-
         currentPriceRepository.upsertCurrentPrice(CurrentPrice.from(priceUpdate));
         priceUpdate.setPublishedAt(System.currentTimeMillis());
         currentPriceEventPublisher.publish(priceUpdate);

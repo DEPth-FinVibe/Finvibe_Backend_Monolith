@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
+import depth.finvibe.modules.asset.application.port.out.HoldingStockProjectionRepository;
+
 /**
  * 종목 → 포트폴리오 역방향 인덱스.
  * 특정 종목을 보유한 포트폴리오 ID 목록을 Redis SET으로 관리한다.
@@ -20,19 +22,26 @@ import org.springframework.stereotype.Repository;
 @Slf4j
 @Repository
 @RequiredArgsConstructor
-public class StockHoldingIndexRedisRepository {
+public class StockHoldingIndexRedisRepository implements HoldingStockProjectionRepository {
 
 	private static final String KEY_PREFIX = "stock:";
 	private static final String KEY_SUFFIX = ":portfolios";
+	private static final String MARKET_HOLDING_STOCK_IDS_KEY = "market:holding:stock-ids";
+	private static final String MARKET_HOLDING_USER_KEY_PREFIX = "market:holding:stock:";
+	private static final String MARKET_HOLDING_USER_KEY_SUFFIX = ":users";
 
 	private final StringRedisTemplate redisTemplate;
 
 	public void addPortfolio(Long stockId, Long portfolioId) {
 		redisTemplate.opsForSet().add(key(stockId), portfolioId.toString());
+		redisTemplate.opsForSet().add(MARKET_HOLDING_STOCK_IDS_KEY, stockId.toString());
 	}
 
 	public void removePortfolio(Long stockId, Long portfolioId) {
-		redisTemplate.opsForSet().remove(key(stockId), portfolioId.toString());
+		String portfolioKey = key(stockId);
+		redisTemplate.opsForSet().remove(portfolioKey, portfolioId.toString());
+		deleteIfEmpty(portfolioKey);
+		removeGlobalStockIdIfUnused(stockId);
 	}
 
 	public Set<Long> getPortfolioIds(Long stockId) {
@@ -53,7 +62,29 @@ public class StockHoldingIndexRedisRepository {
 					.map(String::valueOf)
 					.toArray(String[]::new);
 			redisTemplate.opsForSet().add(k, members);
+			redisTemplate.opsForSet().add(MARKET_HOLDING_STOCK_IDS_KEY, stockId.toString());
+		} else {
+			removeGlobalStockIdIfUnused(stockId);
 		}
+	}
+
+	@Override
+	public void replaceHoldingStockIds(Set<Long> stockIds) {
+		redisTemplate.delete(MARKET_HOLDING_STOCK_IDS_KEY);
+		if (stockIds == null || stockIds.isEmpty()) {
+			return;
+		}
+
+		String[] members = stockIds.stream()
+				.map(String::valueOf)
+				.toArray(String[]::new);
+		redisTemplate.opsForSet().add(MARKET_HOLDING_STOCK_IDS_KEY, members);
+	}
+
+	@Override
+	public boolean isEmpty() {
+		Long size = redisTemplate.opsForSet().size(MARKET_HOLDING_STOCK_IDS_KEY);
+		return size == null || size == 0L;
 	}
 
 	public boolean exists(Long stockId) {
@@ -62,5 +93,27 @@ public class StockHoldingIndexRedisRepository {
 
 	private String key(Long stockId) {
 		return KEY_PREFIX + stockId + KEY_SUFFIX;
+	}
+
+	private String userKey(Long stockId) {
+		return MARKET_HOLDING_USER_KEY_PREFIX + stockId + MARKET_HOLDING_USER_KEY_SUFFIX;
+	}
+
+	private void deleteIfEmpty(String key) {
+		Long size = redisTemplate.opsForSet().size(key);
+		if (size != null && size == 0L) {
+			redisTemplate.delete(key);
+		}
+	}
+
+	private void removeGlobalStockIdIfUnused(Long stockId) {
+		if (!hasMembers(key(stockId)) && !hasMembers(userKey(stockId))) {
+			redisTemplate.opsForSet().remove(MARKET_HOLDING_STOCK_IDS_KEY, stockId.toString());
+		}
+	}
+
+	private boolean hasMembers(String key) {
+		Long size = redisTemplate.opsForSet().size(key);
+		return size != null && size > 0L;
 	}
 }

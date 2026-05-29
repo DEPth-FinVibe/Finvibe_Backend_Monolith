@@ -6,4 +6,6 @@ public interface AssetRepository {
     void deleteById(Long assetId);
 
     void deleteAllById(List<Long> assetIds);
+
+    List<Long> findDistinctHoldingStockIds();
 }
