@@ -54,6 +54,7 @@ public class KisSubscriptionSynchronizer {
     private static final int UNCHANGED_SYNC_DEBUG_INTERVAL = 12;
     private static final Duration SUBSCRIPTION_LOCK_WAIT = Duration.ofMillis(0);
     private static final Duration SUBSCRIPTION_LOCK_LEASE = Duration.ofSeconds(3);
+    private static final int UNBOUNDED_SUBSCRIPTION_CAPACITY = Integer.MAX_VALUE;
 
     private final CurrentStockWatcherRepository currentStockWatcherRepository;
     private final HoldingStockRepository holdingStockRepository;
@@ -190,7 +191,7 @@ public class KisSubscriptionSynchronizer {
             latestWatcherStockCount = watcherStockIds.size();
 
             // 세션 용량이 보유 종목 수를 커버할 수 있는지 경고
-            int sessionCapacity = marketDataStreamPort.getAvailableSessionCount() * MAX_SUBSCRIPTIONS_PER_SESSION;
+            int sessionCapacity = getSessionCapacity();
             if (holdingStockIds.size() > sessionCapacity) {
                 log.warn("현재 노드의 KIS WebSocket 세션 용량이 보유 종목 수보다 부족합니다. " +
                                 "보유 종목 수: {}, 세션 용량: {} (세션: {}개, 세션당 최대: {}) " +
@@ -279,7 +280,7 @@ public class KisSubscriptionSynchronizer {
         }
 
         // 세션당 최대 구독 수 제한
-        int maxBySession = availableSessionCount * MAX_SUBSCRIPTIONS_PER_SESSION;
+        int maxBySession = getSessionCapacity();
 
         // 노드 간 공평 분배
         int fairShare = (int) Math.ceil((double) totalActiveStocks / activeNodeCount);
@@ -290,6 +291,14 @@ public class KisSubscriptionSynchronizer {
                 activeNodeCount, totalActiveStocks, availableSessionCount, maxSubscriptions);
 
         return maxSubscriptions;
+    }
+
+    private int getSessionCapacity() {
+        if (isMockProvider()) {
+            return UNBOUNDED_SUBSCRIPTION_CAPACITY;
+        }
+
+        return marketDataStreamPort.getAvailableSessionCount() * MAX_SUBSCRIPTIONS_PER_SESSION;
     }
 
     private void handleEmptyActiveStocks(String nodeId) {

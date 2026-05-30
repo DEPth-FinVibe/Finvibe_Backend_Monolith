@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Set;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 import depth.finvibe.common.investment.lock.DistributedLockManager;
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
@@ -71,9 +73,14 @@ class KisSubscriptionSynchronizerTest {
 				activeNodeRegistry,
 				ownershipManager,
 				new SimpleMeterRegistry()
-		);
+		) {
+			@Override
+			ZonedDateTime now() {
+				return ZonedDateTime.of(2026, 5, 29, 10, 0, 0, 0, ZoneId.of("Asia/Seoul"));
+			}
+		};
 		synchronizer.initMetrics();
-		ReflectionTestUtils.setField(synchronizer, "marketProvider", "mock");
+		ReflectionTestUtils.setField(synchronizer, "marketProvider", "kis");
 
 		when(activeNodeRegistry.getNodeId()).thenReturn("node-1");
 		when(activeNodeRegistry.getActiveNodeCount()).thenReturn(1);
@@ -180,6 +187,32 @@ class KisSubscriptionSynchronizerTest {
 		// 42 이상의 watcher는 quota 초과로 구독되지 않음
 		for (long id = 42; id <= 110; id++) {
 			verify(marketDataStreamPort, never()).subscribe(id, "SYM" + id);
+		}
+	}
+
+	@Test
+	void subscribesAllWatchersWithoutQuotaWhenProviderIsMock() {
+		ReflectionTestUtils.setField(synchronizer, "marketProvider", "mock");
+
+		List<Long> watchers = List.of(11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L,
+				21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L,
+				31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L,
+				41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, 50L,
+				51L, 52L);
+
+		when(reservationRepository.findReservedStockIds()).thenReturn(List.of());
+		when(holdingStockRepository.findAllDistinctStockIds()).thenReturn(List.of());
+		when(currentStockWatcherRepository.findActiveStockIds()).thenReturn(watchers);
+		when(stockRepository.findAllById(any())).thenAnswer(invocation -> {
+			List<Long> ids = invocation.getArgument(0);
+			return ids.stream().map(id -> stock(id, "SYM" + id)).toList();
+		});
+		when(marketDataStreamPort.isSubscribed(any())).thenReturn(false);
+
+		synchronizer.syncRealtimeSubscriptions();
+
+		for (Long id : watchers) {
+			verify(marketDataStreamPort).subscribe(id, "SYM" + id);
 		}
 	}
 
