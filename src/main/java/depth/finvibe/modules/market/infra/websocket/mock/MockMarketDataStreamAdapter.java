@@ -2,6 +2,7 @@ package depth.finvibe.modules.market.infra.websocket.mock;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -18,6 +19,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -44,6 +48,7 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 	private final ApplicationEventPublisher eventPublisher;
 	private final MockMarketProperties properties;
+	private final MeterRegistry meterRegistry;
 
 	private final Map<Long, String> subscribedStocks = new ConcurrentHashMap<>();
 	private final Map<Long, BigDecimal> currentPrices = new ConcurrentHashMap<>();
@@ -54,13 +59,37 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	private ExecutorService publishPool;
 	private ScheduledFuture<?> emitTask;
 	private volatile boolean initialized;
+	private final Counter priceUpdateReceivedCounter;
+	private final Counter priceUpdatePublishedCounter;
+	private final Timer priceUpdateProcessingTimer;
+	private final Timer priceUpdateEventAgeTimer;
 
 	public MockMarketDataStreamAdapter(
 			ApplicationEventPublisher eventPublisher,
-			MockMarketProperties properties
+			MockMarketProperties properties,
+			MeterRegistry meterRegistry
 	) {
 		this.eventPublisher = eventPublisher;
 		this.properties = properties;
+		this.meterRegistry = meterRegistry;
+		this.priceUpdateReceivedCounter = Counter.builder("market.price.update.provider.received")
+				.tag("provider", "mock")
+				.description("Provider에서 수신한 PriceUpdate 원본 이벤트 수")
+				.register(meterRegistry);
+		this.priceUpdatePublishedCounter = Counter.builder("market.price.update.provider.published")
+				.tag("provider", "mock")
+				.description("Provider에서 애플리케이션 이벤트로 발행한 PriceUpdate 수")
+				.register(meterRegistry);
+		this.priceUpdateProcessingTimer = Timer.builder("market.price.update.provider.processing")
+				.tag("provider", "mock")
+				.description("Provider에서 PriceUpdate를 수신 후 애플리케이션 이벤트로 발행하기까지의 처리 시간")
+				.publishPercentileHistogram()
+				.register(meterRegistry);
+		this.priceUpdateEventAgeTimer = Timer.builder("market.price.update.provider.event.age")
+				.tag("provider", "mock")
+				.description("Provider에서 PriceUpdate를 처리할 때 원본 시각 대비 이벤트 나이")
+				.publishPercentileHistogram()
+				.register(meterRegistry);
 	}
 
 	@Override
@@ -170,12 +199,37 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	}
 
 	private void emitOne(Long stockId) {
+		Timer.Sample sample = Timer.start(meterRegistry);
+		priceUpdateReceivedCounter.increment();
 		try {
 			BigDecimal price = nextPrice(stockId);
-			eventPublisher.publishEvent(buildEvent(stockId, price));
+			CurrentPriceUpdatedEvent event = buildEvent(stockId, price);
+			recordEventAge(event);
+			eventPublisher.publishEvent(event);
+			priceUpdatePublishedCounter.increment();
 		} catch (Exception ex) {
+			recordPriceUpdateDropped("emit_failed");
 			log.warn("[Mock] 가격 이벤트 발행 실패 — stockId: {}", stockId, ex);
+		} finally {
+			sample.stop(priceUpdateProcessingTimer);
 		}
+	}
+
+	private void recordEventAge(CurrentPriceUpdatedEvent event) {
+		if (event.getTs() == null) {
+			return;
+		}
+
+		long ageMillis = Math.max(0L, System.currentTimeMillis() - event.getTs());
+		priceUpdateEventAgeTimer.record(Duration.ofMillis(ageMillis));
+	}
+
+	private void recordPriceUpdateDropped(String reason) {
+		meterRegistry.counter(
+				"market.price.update.provider.dropped",
+				"provider", "mock",
+				"reason", reason
+		).increment();
 	}
 
 	private BigDecimal nextPrice(Long stockId) {

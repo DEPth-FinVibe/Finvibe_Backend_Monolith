@@ -1,0 +1,545 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "uid": "finvibe-kis-mock-sub",
+  "title": "Finvibe KIS/Mock Subscription",
+  "description": "KIS/Mock 웹소켓 구독 동기화와 KIS 세션 상태를 모니터링하는 대시보드입니다.",
+  "tags": ["finvibe", "market", "websocket", "kis", "mock", "subscription"],
+  "timezone": "Asia/Seoul",
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": { "from": "now-3h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "type": "query",
+        "label": "애플리케이션",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(kis_sync_subscriptions_active, application)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "selected": true,
+          "text": "finvibe-backend-monolith",
+          "value": "finvibe-backend-monolith"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "개요",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "현재 구독 수",
+      "description": "동기화기가 추적 중인 현재 노드의 활성 구독 수",
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 30 },
+            { "color": "red", "value": 41 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "max(kis_sync_subscriptions_active{application=\"$application\"})", "legendFormat": "구독 수" }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "구독 할당량",
+      "description": "현재 노드에 계산된 최대 구독 수",
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "green", "value": 10 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "max(kis_sync_subscriptions_capacity{application=\"$application\"})", "legendFormat": "할당량" }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "구독 사용률",
+      "description": "현재 구독 수 / 현재 할당량",
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 0.8 },
+            { "color": "red", "value": 0.95 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "expr": "max(kis_sync_subscriptions_active{application=\"$application\"}) / clamp_min(max(kis_sync_subscriptions_capacity{application=\"$application\"}), 1)",
+          "legendFormat": "사용률"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "KIS 세션 수",
+      "description": "실제 연결된 KIS WebSocket 세션 수. mock 환경에서는 0으로 보입니다.",
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 1 },
+            { "color": "green", "value": 2 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "max(kis_sessions_available{application=\"$application\"}) or vector(0)", "legendFormat": "세션 수" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "KIS 현재 구독 수",
+      "description": "Connection pool 기준 실제 KIS 업스트림 구독 수. mock 환경에서는 0입니다.",
+      "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 35 },
+            { "color": "red", "value": 40 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "max(kis_subscriptions_active{application=\"$application\"}) or vector(0)", "legendFormat": "KIS 구독 수" }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "KIS 세션 총 용량",
+      "description": "세션 수 x 41로 계산된 KIS 업스트림 최대 수용량",
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "yellow", "value": 41 },
+            { "color": "green", "value": 82 }
+          ]}
+        }
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "background"
+      },
+      "targets": [
+        { "expr": "max(kis_subscriptions_capacity{application=\"$application\"}) or vector(0)", "legendFormat": "총 용량" }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "구독 수요와 용량",
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "구독 수와 할당량 추이",
+      "description": "현재 노드 관점의 구독 수와 동적 quota 변화",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "kis_sync_subscriptions_active{application=\"$application\"}", "legendFormat": "현재 구독" },
+        { "expr": "kis_sync_subscriptions_capacity{application=\"$application\"}", "legendFormat": "할당량" },
+        { "expr": "kis_subscriptions_active{application=\"$application\"} or vector(0)", "legendFormat": "KIS 업스트림 구독" },
+        { "expr": "kis_subscriptions_capacity{application=\"$application\"} or vector(0)", "legendFormat": "KIS 세션 총 용량" }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "활성 종목 구성 추이",
+      "description": "동기화 입력이 되는 예약/보유/관심 종목 수",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "kis_stocks_reservation{application=\"$application\"}", "legendFormat": "예약 종목" },
+        { "expr": "kis_stocks_holding{application=\"$application\"}", "legendFormat": "보유 종목" },
+        { "expr": "kis_stocks_watcher{application=\"$application\"}", "legendFormat": "관심 종목" }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "구독 사용률 추이",
+      "description": "quota와 KIS 세션 용량 기준 사용률",
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "kis_sync_subscriptions_active{application=\"$application\"} / clamp_min(kis_sync_subscriptions_capacity{application=\"$application\"}, 1)",
+          "legendFormat": "quota 사용률"
+        },
+        {
+          "expr": "(kis_subscriptions_active{application=\"$application\"} / clamp_min(kis_subscriptions_capacity{application=\"$application\"}, 1)) or vector(0)",
+          "legendFormat": "KIS 세션 사용률"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "세션 수와 구독 실패 징후",
+      "description": "세션 수 저하와 no-session 증가를 같이 봅니다.",
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "kis_sessions_available{application=\"$application\"} or vector(0)", "legendFormat": "KIS 세션 수" },
+        { "expr": "sum(increase(kis_subscribe_no_session_total{application=\"$application\"}[5m])) or vector(0)", "legendFormat": "최근 5분 no-session" }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "row",
+      "title": "오류와 성능",
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "구독/세션 에러율",
+      "description": "KIS 세션 연결 실패와 동기화 계열 에러율",
+      "gridPos": { "x": 0, "y": 23, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sum(rate(kis_session_connect_failures_total{application=\"$application\"}[5m])) or vector(0)", "legendFormat": "세션 연결 실패" },
+        { "expr": "sum(rate(kis_subscribe_no_session_total{application=\"$application\"}[5m])) or vector(0)", "legendFormat": "가용 세션 없음" },
+        { "expr": "sum(rate(kis_sync_errors_total{application=\"$application\"}[5m]))", "legendFormat": "동기화 에러" },
+        { "expr": "sum(rate(kis_sync_lock_failures_total{application=\"$application\"}[5m]))", "legendFormat": "락 획득 실패" }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "세션 연결 성공/실패",
+      "description": "KIS 세션 재연결 패턴 확인용",
+      "gridPos": { "x": 12, "y": 23, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sum(increase(kis_session_connect_success_total{application=\"$application\"}[5m])) or vector(0)", "legendFormat": "최근 5분 연결 성공" },
+        { "expr": "sum(increase(kis_session_connect_failures_total{application=\"$application\"}[5m])) or vector(0)", "legendFormat": "최근 5분 연결 실패" }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "동기화 실행 시간",
+      "description": "구독 동기화 사이클 평균 및 p95",
+      "gridPos": { "x": 0, "y": 31, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(kis_sync_execution_seconds_sum{application=\"$application\"}[5m])) / clamp_min(sum(rate(kis_sync_execution_seconds_count{application=\"$application\"}[5m])), 1)",
+          "legendFormat": "평균"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(kis_sync_execution_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "동기화 처리량과 실패 수",
+      "description": "동기화 주기 자체가 멈추거나 실패하는지 확인합니다.",
+      "gridPos": { "x": 12, "y": 31, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sum(rate(kis_sync_execution_seconds_count{application=\"$application\"}[5m]))", "legendFormat": "동기화 실행/초" },
+        { "expr": "sum(increase(kis_sync_errors_total{application=\"$application\"}[5m]))", "legendFormat": "최근 5분 에러 수" },
+        { "expr": "sum(increase(kis_sync_lock_failures_total{application=\"$application\"}[5m]))", "legendFormat": "최근 5분 락 실패 수" }
+      ]
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Provider PriceUpdate",
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 31,
+      "type": "timeseries",
+      "title": "Provider 수신/발행 처리량",
+      "description": "KIS/Mock provider가 PriceUpdate를 수신하고 발행하는 초당 처리량",
+      "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sum by (provider) (rate(market_price_update_provider_received_total{application=\"$application\"}[5m]))", "legendFormat": "{{provider}} 수신" },
+        { "expr": "sum by (provider) (rate(market_price_update_provider_published_total{application=\"$application\"}[5m]))", "legendFormat": "{{provider}} 발행" }
+      ]
+    },
+    {
+      "id": 32,
+      "type": "timeseries",
+      "title": "Provider 드롭률",
+      "description": "종목 매핑 실패나 발행 실패로 드롭된 PriceUpdate",
+      "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        { "expr": "sum by (provider, reason) (rate(market_price_update_provider_dropped_total{application=\"$application\"}[5m]))", "legendFormat": "{{provider}} / {{reason}}" }
+      ]
+    },
+    {
+      "id": 33,
+      "type": "timeseries",
+      "title": "Provider 처리 시간",
+      "description": "PriceUpdate 수신부터 ApplicationEventPublisher 발행까지 걸린 시간",
+      "gridPos": { "x": 0, "y": 48, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, provider) (rate(market_price_update_provider_processing_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "{{provider}} p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(market_price_update_provider_processing_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "{{provider}} p95"
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "type": "timeseries",
+      "title": "Provider Event Age",
+      "description": "Provider가 이벤트를 처리할 때 원본 시각 대비 얼마나 늦게 도착했는지",
+      "gridPos": { "x": 12, "y": 48, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 4,
+          "custom": { "lineWidth": 2 }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, provider) (rate(market_price_update_provider_event_age_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "{{provider}} p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, provider) (rate(market_price_update_provider_event_age_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "{{provider}} p95"
+        }
+      ]
+    }
+  ]
+}

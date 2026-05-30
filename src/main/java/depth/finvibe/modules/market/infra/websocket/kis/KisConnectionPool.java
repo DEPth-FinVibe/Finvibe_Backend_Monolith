@@ -1,6 +1,7 @@
 package depth.finvibe.modules.market.infra.websocket.kis;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -17,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -56,6 +58,11 @@ public class KisConnectionPool implements MarketDataStreamPort {
     private Counter noSessionCounter;
     private Counter sessionConnectFailureCounter;
     private Counter sessionConnectSuccessCounter;
+    private Counter priceUpdateReceivedCounter;
+    private Counter priceUpdatePublishedCounter;
+    private Timer priceUpdateProcessingTimer;
+    private Timer priceUpdateEventAgeTimer;
+    private MeterRegistry meterRegistry;
 
     public KisConnectionPool(
             KisCredentialsProperties properties,
@@ -72,6 +79,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
         this.marketServiceClient = marketServiceClient;
         this.objectMapper = objectMapper;
         this.eventPublisher = eventPublisher;
+        this.meterRegistry = meterRegistry;
 
         Gauge.builder("kis.sessions.available", sessions, Map::size)
                 .description("연결된 KIS WebSocket 세션 수")
@@ -91,6 +99,24 @@ public class KisConnectionPool implements MarketDataStreamPort {
                 .register(meterRegistry);
         sessionConnectSuccessCounter = Counter.builder("kis.session.connect.success")
                 .description("KIS WebSocket 세션 연결 성공 수")
+                .register(meterRegistry);
+        priceUpdateReceivedCounter = Counter.builder("market.price.update.provider.received")
+                .tag("provider", "kis")
+                .description("Provider에서 수신한 PriceUpdate 원본 이벤트 수")
+                .register(meterRegistry);
+        priceUpdatePublishedCounter = Counter.builder("market.price.update.provider.published")
+                .tag("provider", "kis")
+                .description("Provider에서 애플리케이션 이벤트로 발행한 PriceUpdate 수")
+                .register(meterRegistry);
+        priceUpdateProcessingTimer = Timer.builder("market.price.update.provider.processing")
+                .tag("provider", "kis")
+                .description("Provider에서 PriceUpdate를 수신 후 애플리케이션 이벤트로 발행하기까지의 처리 시간")
+                .publishPercentileHistogram()
+                .register(meterRegistry);
+        priceUpdateEventAgeTimer = Timer.builder("market.price.update.provider.event.age")
+                .tag("provider", "kis")
+                .description("Provider에서 PriceUpdate를 처리할 때 원본 시각 대비 이벤트 나이")
+                .publishPercentileHistogram()
                 .register(meterRegistry);
     }
 
@@ -250,16 +276,46 @@ public class KisConnectionPool implements MarketDataStreamPort {
     }
 
     private void onPriceUpdated(KisMessage.TransactionResponse response) {
-        String symbol = response.getShortStockCode();
+        Timer.Sample sample = Timer.start(meterRegistry);
+        priceUpdateReceivedCounter.increment();
 
-        Long stockId = resolveStockId(symbol);
-        if (stockId == null) {
-            log.debug("수신된 가격 정보의 종목 ID를 찾을 수 없습니다. - symbol: {}, reason: mapping-and-lookup-miss", symbol);
+        try {
+            String symbol = response.getShortStockCode();
+
+            Long stockId = resolveStockId(symbol);
+            if (stockId == null) {
+                recordPriceUpdateDropped("kis", "stock_mapping_missing");
+                log.debug("수신된 가격 정보의 종목 ID를 찾을 수 없습니다. - symbol: {}, reason: mapping-and-lookup-miss", symbol);
+                return;
+            }
+
+            CurrentPriceUpdatedEvent event = mapToEvent(response, stockId);
+            recordEventAge(event);
+            eventPublisher.publishEvent(event);
+            priceUpdatePublishedCounter.increment();
+        } catch (RuntimeException ex) {
+            recordPriceUpdateDropped("kis", "publish_failed");
+            throw ex;
+        } finally {
+            sample.stop(priceUpdateProcessingTimer);
+        }
+    }
+
+    private void recordEventAge(CurrentPriceUpdatedEvent event) {
+        if (event.getTs() == null) {
             return;
         }
 
-        CurrentPriceUpdatedEvent event = mapToEvent(response, stockId);
-        eventPublisher.publishEvent(event);
+        long ageMillis = Math.max(0L, System.currentTimeMillis() - event.getTs());
+        priceUpdateEventAgeTimer.record(Duration.ofMillis(ageMillis));
+    }
+
+    private void recordPriceUpdateDropped(String provider, String reason) {
+        meterRegistry.counter(
+                "market.price.update.provider.dropped",
+                "provider", provider,
+                "reason", reason
+        ).increment();
     }
 
     private Long resolveStockId(String symbol) {
