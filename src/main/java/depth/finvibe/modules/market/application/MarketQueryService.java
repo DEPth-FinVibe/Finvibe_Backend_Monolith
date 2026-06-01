@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
@@ -60,6 +61,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final StockRepository stockRepository;
     private final DistributedLockManager distributedLockManager;
     private final HolidayCalendarService holidayCalendarService;
+    private final TransactionTemplate transactionTemplate;
     private final MeterRegistry meterRegistry;
     private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
     private final Map<Long, ReentrantLock> currentPriceMissLocks = new ConcurrentHashMap<>();
@@ -67,18 +69,19 @@ public class MarketQueryService implements MarketQueryUseCase {
     private String marketProvider;
 
     @Override
-    @Transactional
     public List<PriceCandleDto.Response> getStockCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
-        
+
         // 분산 락 키: 종목ID + 시간프레임 (단일 락)
         String lockKey = String.format("stock:candle:%d:%s", stockId, timeframe);
-        
+
         // 분산 락 적용: 대기 10초, 보유 60초 (API 호출 및 배치 저장 고려)
+        // 락 획득 후에 트랜잭션을 시작하여 대기 중 DB 커넥션 점유를 방지
         return distributedLockManager.executeWithLock(
                 lockKey,
                 Duration.ofSeconds(10),
                 Duration.ofSeconds(60),
-                () -> fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe)
+                () -> transactionTemplate.execute(status ->
+                        fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe))
         );
     }
 
