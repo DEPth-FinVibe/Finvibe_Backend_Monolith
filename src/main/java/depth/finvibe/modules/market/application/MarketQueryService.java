@@ -75,13 +75,12 @@ public class MarketQueryService implements MarketQueryUseCase {
         String lockKey = String.format("stock:candle:%d:%s", stockId, timeframe);
 
         // 분산 락 적용: 대기 10초, 보유 60초 (API 호출 및 배치 저장 고려)
-        // 락 획득 후에 트랜잭션을 시작하여 대기 중 DB 커넥션 점유를 방지
+        // 트랜잭션을 DB 작업에만 한정하여 API 호출 중 커넥션 점유를 방지
         return distributedLockManager.executeWithLock(
                 lockKey,
                 Duration.ofSeconds(10),
                 Duration.ofSeconds(60),
-                () -> transactionTemplate.execute(status ->
-                        fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe))
+                () -> fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe)
         );
     }
 
@@ -107,7 +106,8 @@ public class MarketQueryService implements MarketQueryUseCase {
 
     /**
      * 분산 락 내에서 실행되는 실제 캔들 조회 로직
-     * 락 내에서 DB를 다시 조회하여 다른 노드가 이미 저장했는지 확인
+     * DB 읽기/쓰기를 각각 짧은 트랜잭션으로 감싸고, 외부 API 호출은 트랜잭션 밖에서 수행한다.
+     * 이로써 KIS API 응답 대기 중 DB 커넥션이 점유되지 않는다.
      */
     private List<PriceCandleDto.Response> fetchStockCandlesWithLock(
             Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
@@ -116,30 +116,33 @@ public class MarketQueryService implements MarketQueryUseCase {
         LocalDateTime normalizedStart = timeframe.normalizeStart(startTime);
         LocalDateTime normalizedEnd = timeframe.normalizeEnd(endTime);
 
-        // 2. DB에서 기존 캔들 조회 (락 내에서 다시 조회!)
-        List<PriceCandle> existingCandles = priceCandleRepository.findExisting(stockId, normalizedStart, normalizedEnd, timeframe);
+        // 2. [트랜잭션 1] DB에서 기존 캔들 조회
+        List<PriceCandle> existingCandles = transactionTemplate.execute(status ->
+                priceCandleRepository.findExisting(stockId, normalizedStart, normalizedEnd, timeframe));
 
-        // 3. 없는 캔들만 계산
+        // 3. 없는 캔들만 계산 (트랜잭션 불필요 — 순수 계산)
         List<LocalDateTime> missingCandleTimes = calculateMissingCandleTimes(normalizedStart, normalizedEnd, timeframe, existingCandles);
-        
+
         List<PriceCandleDto.Response> fetchedCandles = new ArrayList<>();
         if (!missingCandleTimes.isEmpty()) {
 
             // 4. 가져와야 하는 캔들의 시간 범위 계산
             LocalDateTime earliestTime = missingCandleTimes.stream().min(LocalDateTime::compareTo).orElse(normalizedStart);
             LocalDateTime latestTime = missingCandleTimes.stream().max(LocalDateTime::compareTo).orElse(normalizedEnd);
-            
+
             // 5. 해당 범위의 모든 캔들 시각 생성
             List<LocalDateTime> allCandleTimesInRange = generateCandleTimesInRange(earliestTime, latestTime, timeframe);
-            
-            // 6. RealMarketClient가 내부적으로 청킹 처리
+
+            // 6. [트랜잭션 밖] 외부 API 호출 — DB 커넥션 미점유
             fetchedCandles = realMarketClient.fetchPriceCandles(stockId, earliestTime, latestTime, timeframe);
-            
-            // 7. API에서 받은 캔들 배치 저장 + 못 받은 캔들은 isMissing=true로 저장
+
+            // 7. [트랜잭션 2] API에서 받은 캔들 배치 저장 + 못 받은 캔들은 isMissing=true로 저장
             Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
                     .map(PriceCandle::getAt)
                     .collect(Collectors.toSet());
-            saveFetchedAndMissingCandles(fetchedCandles, allCandleTimesInRange, stockId, timeframe, existingCandleTimes);
+            List<PriceCandleDto.Response> candles = fetchedCandles;
+            transactionTemplate.executeWithoutResult(status ->
+                    saveFetchedAndMissingCandles(candles, allCandleTimesInRange, stockId, timeframe, existingCandleTimes));
         }
 
         // 8. 결과 병합 및 반환
