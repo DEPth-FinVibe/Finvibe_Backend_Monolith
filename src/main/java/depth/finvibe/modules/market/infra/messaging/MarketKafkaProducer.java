@@ -25,7 +25,7 @@ public class MarketKafkaProducer implements ReservationEventPublisher, StockPric
         String typeStr = type == ReservationType.BUY ? "BUY" : "SELL";
 
         ReservationSatisfiedEvent event = ReservationSatisfiedEvent.of(tradeId, typeStr, price);
-        kafkaTemplate.send(RESERVATION_CONDITION_MET_TOPIC, event);
+        kafkaTemplate.send(RESERVATION_CONDITION_MET_TOPIC, String.valueOf(stockId), event);
     }
 
     @Override
