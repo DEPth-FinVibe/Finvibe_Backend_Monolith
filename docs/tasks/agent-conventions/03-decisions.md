@@ -111,3 +111,39 @@
 - 별도 `docs/common-boundary-cleanup` 브랜치를 `main`에서 생성했다.
 - 별도 작업의 `01-overview.md`를 커밋 `2f38443`으로 확정했다.
 - 후속 plan과 구현은 해당 작업에서 사용자 gate를 거쳐 진행한다.
+
+## D5. 모듈 간 호출 계약
+
+### 대안
+
+1. 호출 모듈이 대상 모듈의 application port를 직접 의존
+2. 호출 모듈이 output port를 소유하고 infra adapter가 대상 모듈의 input port 또는 내부 transport 계약을 호출
+3. 모든 모듈 간 통신을 비동기 이벤트로 전환
+
+### 선택
+
+**2번: caller-owned output port + infra adapter**
+
+### 이유
+
+- 현재 asset, trade, news 등 주요 교차 모듈 호출이 이미 이 구조를 사용한다.
+- 호출 모듈의 application은 자신이 필요한 기능만 output port로 정의하므로 대상 모듈 구현을 모른다.
+- 모놀리스에서는 infra adapter가 대상 모듈의 `application/port/in`을 직접 호출해 불필요한 HTTP 통신과 중복 interface를 피할 수 있다.
+- MSA 전환 시 application 코드는 유지하고 infra adapter만 HTTP, gRPC 또는 messaging client로 교체할 수 있다.
+- 즉시 결과가 필요한 조회·검증은 동기 port를 사용하고, 상태 전파·알림은 이벤트를 사용할 수 있다.
+
+### 세부 규칙
+
+- 호출 모듈의 `application/port/out`은 호출 모듈이 소유한 원시 타입 또는 contract DTO를 반환한다.
+- 호출 모듈의 application port가 대상 모듈의 domain이나 DTO를 import하지 않는다.
+- in-process adapter는 대상 모듈의 `application/port/in`을 호출할 수 있다.
+- `api/internal`은 실제 HTTP/gRPC transport가 필요하거나 명시적인 내부 endpoint를 제공할 때 사용하며, 모든 in-process 호출에 강제하지 않는다.
+- 비동기 처리가 자연스러운 상태 변경은 event contract를 사용한다.
+
+### 현재 확인된 legacy
+
+- `asset.application.port.out.WalletClient`가 `wallet.dto.WalletDto`를 반환한다.
+- `news.application.port.out.NewsDiscussionPort`가 discussion DTO를 노출한다.
+- 일부 application과 Controller가 다른 모듈의 domain enum을 직접 import한다.
+
+이 항목은 D2의 단계적 적용 원칙에 따라 별도 경계 정리 작업으로 다룬다. 현재 컨벤션 문서 작업에서 기능 코드를 함께 변경하지 않는다.
