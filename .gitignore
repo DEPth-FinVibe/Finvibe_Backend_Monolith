@@ -40,6 +40,9 @@ out/
 .env
 *.env
 
+### Local AI tool instructions ###
+CLAUDE.md
+
 ### Local generated data ###
 data/
 !k6/data

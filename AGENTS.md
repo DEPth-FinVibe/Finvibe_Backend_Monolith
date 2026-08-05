@@ -1,46 +1,21 @@
-# Repository Guidelines
+# Finvibe Monolith Agent Guide
 
-## Project Structure & Module Organization
-This is a Gradle-based Spring Boot monolith targeting Java 21. Main code lives in `src/main/java/depth/finvibe`, organized by domain modules such as `modules/asset`, `modules/market`, `modules/discussion`, `modules/news`, and `modules/user`.
+이 문서는 에이전트가 가장 먼저 읽는 짧은 진입점이다. 모든 상세 문서를 미리 읽지 말고, 현재 작업에 필요한 문서만 불러온다.
 
-Each module generally follows a layered/hexagonal style:
-- `domain`: entities, enums, error codes
-- `application`: services and use cases
-- `application/port/in` and `application/port/out`: input/output ports
-- `infra` or `presentation/api`: adapters (persistence, controllers, messaging)
+## Progressive Disclosure
 
-Configuration and runtime assets are in `src/main/resources` (`application-*.yml`, `prompts/`, `seed/`). Tests are in `src/test/java` and test config in `src/test/resources`.
+- 질문 답변이나 읽기 전용 조사라면 저장소를 확인한 뒤 바로 답한다.
+- 코드, 설정, 스키마, 인프라 또는 문서를 변경하는 작업이라면 구현 전에 [`docs/agent/workflow.md`](docs/agent/workflow.md)를 읽고 따른다.
+- 참조 문서가 연결되어 있더라도 현재 작업과 관계없는 문서는 읽지 않는다.
+- 상세 규칙은 이 파일에 중복해서 적지 않는다. 기준 문서는 아래 라우팅 표의 파일 하나로 유지한다.
 
-## Build, Test, and Development Commands
-- `./gradlew clean compileJava test`: compile and run tests (same core command as CI).
-- `./gradlew bootRun`: run locally with default profile.
-- `SPRING_PROFILES_ACTIVE=local,oauth ./gradlew bootRun`: run with local profile overrides.
-- `./gradlew clean build`: full build including packaging.
-- `docker build -t finvibe-backend-monolith:local .`: local image build smoke check.
+## Context Routing
 
-## Coding Style & Naming Conventions
-Use Java 21 and standard Spring idioms. Follow existing style in this repo:
-- Tabs are used for indentation in Java files.
-- Packages are lowercase (`depth.finvibe...`), classes are PascalCase, methods/fields are camelCase.
-- Prefer suffixes that match role: `*Controller`, `*Service`, `*Repository`, `*UseCase`, `*ErrorCode`.
-- Keep module boundaries explicit by depending on `port/in` and `port/out` contracts.
+| 작업 상황 | 읽을 문서 |
+|---|---|
+| 저장소를 변경하는 모든 작업 | `docs/agent/workflow.md` |
+| 패키지 생성, 모듈 경계·port·adapter·영속성 구조 변경 | `docs/agent/architecture-conventions.md` |
+| Java 코드 또는 테스트 작성·수정 | `docs/agent/code-conventions.md` |
+| 예외, error code, HTTP 오류 응답 변경 | `docs/agent/error-handling-conventions.md` |
 
-No formatter/linter is enforced in Gradle currently, so keep changes consistent with neighboring files.
-
-## Testing Guidelines
-Testing uses JUnit 5 via `spring-boot-starter-test` (`useJUnitPlatform()` enabled). Name tests `*Test` or `*Tests` and mirror package structure from `src/main/java` when adding coverage. Run:
-- `./gradlew test` for all tests
-- `./gradlew test --tests "depth.finvibe.*"` for targeted runs
-
-Add integration tests for controller/repository changes and include `src/test/resources/application-test.yml` settings when needed.
-
-## Commit & Pull Request Guidelines
-Recent history follows Conventional Commit-style prefixes, commonly `feat:` and `refactor:` (occasionally `fix:`). Keep format:
-- `<type>: <short summary>` (imperative, specific)
-
-For PRs:
-- include a concise description of behavior changes
-- link related issues/tasks
-- list config/env var changes explicitly
-- confirm CI passes (`clean compileJava test`) before review
-- 모든 커밋은 한국어로 작성되어야 합니다.
+현재 작업이 여러 조건에 해당하면 해당 문서만 함께 읽는다.
