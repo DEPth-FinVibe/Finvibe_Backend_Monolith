@@ -245,3 +245,28 @@
 - 예외 테스트는 예외 타입뿐 아니라 `DomainException.errorCode`도 검증한다.
 - 테스트 Java 파일의 들여쓰기는 D7에 따라 공백 4칸으로 통일한다.
 - 테스트 동작, 검증값과 커버리지는 이 결정에서 변경하지 않는다.
+
+## D9. 오류 메시지 계약
+
+### 대안
+
+1. 현재 `message` 계약 유지
+2. `messageKey` 기반으로 즉시 전환
+3. `messageKey`를 추가하고 기존 `message`를 함께 제공하는 호환 전환
+
+### 선택
+
+**1번: 현재 `message` 계약 유지**
+
+### 이유
+
+- 현재 `DomainErrorCode`와 모든 모듈 ErrorCode가 `getCode()`, `getMessage()` 계약을 사용한다.
+- 외부 `ErrorResponse`는 `status`, `code`, `message`, 선택적 `fieldErrors`를 반환한다.
+- i18n 전환 요구가 없는 상태에서 `messageKey`를 도입하면 외부 API와 클라이언트 변경만 증가한다.
+- 오류의 안정적인 식별자는 `code`로 유지할 수 있다.
+
+### 적용 방식
+
+- 컨벤션 문서는 현재 구현과 같은 `message` 계약을 기준으로 작성한다.
+- `messageKey`를 현재 필드인 것처럼 기술하지 않는다.
+- 향후 i18n 요구가 생기면 클라이언트 호환성과 전환 기간을 포함한 별도 작업으로 계획한다.
