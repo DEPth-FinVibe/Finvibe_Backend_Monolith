@@ -151,3 +151,44 @@
 - 일부 application과 Controller가 다른 모듈의 domain enum을 직접 import한다.
 
 이 항목은 D2의 단계적 적용 원칙에 따라 별도 경계 정리 작업으로 다룬다. 현재 컨벤션 문서 작업에서 기능 코드를 함께 변경하지 않는다.
+
+## D6. Application의 프레임워크 의존 범위
+
+### 대안
+
+1. Spring과 Micrometer를 포함한 모든 프레임워크 의존을 port로 추상화
+2. Application 구성·트랜잭션·로깅·관측성은 허용하고 기능 I/O는 port로 역전
+3. Application의 기술 의존을 제한하지 않음
+
+### 선택
+
+**2번: Spring·관측성 허용, 기능 I/O는 port로 분리**
+
+### 허용
+
+- `@Service`, `@Component` 등 application component 선언
+- `@Transactional`을 통한 유스케이스 트랜잭션 경계
+- SLF4J 로깅
+- Micrometer metric 기록
+- 입력 검증과 application orchestration에 필요한 Spring 기반 지원
+
+### port로 분리
+
+- DB와 Spring Data repository
+- Redis
+- Kafka producer와 외부 messaging
+- 외부 HTTP API와 SDK
+- 파일·object storage 등 외부 I/O
+
+### 판단 기준
+
+- 프레임워크 타입이 비즈니스 규칙과 유스케이스 계약을 오염시키지 않아야 한다.
+- 관측 코드가 비즈니스 흐름을 크게 방해하거나 단위 테스트를 어렵게 만들면 별도 port/adapter 추출을 검토한다.
+- application에서 특정 infra 구현 클래스를 직접 import하지 않는다.
+
+### 현재 확인된 legacy
+
+- `asset.application.RedisIndexSyncService`가 `asset.infra.redis` 구현 세 개를 직접 import한다.
+- `news.application.port.in.NewsQueryUseCase`가 Spring Data의 `Page`, `Pageable`을 유스케이스 계약에 노출한다.
+
+이 항목은 D2에 따라 별도 작업 또는 해당 코드의 다음 변경 시 정리한다.
