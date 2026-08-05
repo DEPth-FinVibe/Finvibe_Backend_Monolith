@@ -137,7 +137,11 @@
 - 호출 모듈의 `application/port/out`은 호출 모듈이 소유한 원시 타입 또는 contract DTO를 반환한다.
 - 호출 모듈의 application port가 대상 모듈의 domain이나 DTO를 import하지 않는다.
 - in-process adapter는 대상 모듈의 `application/port/in`을 호출할 수 있다.
-- `api/internal`은 실제 HTTP/gRPC transport가 필요하거나 명시적인 내부 endpoint를 제공할 때 사용하며, 모든 in-process 호출에 강제하지 않는다.
+- `api/external`은 클라이언트에 공개하는 HTTP API다.
+- `api/internal`은 서비스 간 통신에 공개하는 내부 HTTP API다.
+- `api/internal`과 `api/external`은 전송 계층의 공개 범위를 나타내며 application port와 다른 개념이다.
+- `application/port/in`은 application이 제공하는 유스케이스 계약이고, `application/port/out`은 application이 외부에 요구하는 의존 계약이다.
+- 모놀리스의 in-process 호출에 `api/internal` HTTP 경로를 강제하지 않는다. MSA 분리 후 infra adapter가 대상 서비스의 `api/internal` endpoint를 호출한다.
 - 비동기 처리가 자연스러운 상태 변경은 event contract를 사용한다.
 
 ### 현재 확인된 legacy
