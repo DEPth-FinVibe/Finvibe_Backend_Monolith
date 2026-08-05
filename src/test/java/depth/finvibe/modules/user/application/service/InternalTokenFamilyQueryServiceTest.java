@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -23,44 +24,52 @@ import depth.finvibe.modules.user.dto.InternalTokenFamilyDto;
 @ExtendWith(MockitoExtension.class)
 class InternalTokenFamilyQueryServiceTest {
 
-	@Mock
-	private TokenFamilyRepository tokenFamilyRepository;
+    @Mock
+    private TokenFamilyRepository tokenFamilyRepository;
 
-	@Mock
-	private TokenFamilyCacheRepository tokenFamilyCacheRepository;
+    @Mock
+    private TokenFamilyCacheRepository tokenFamilyCacheRepository;
 
-	@Test
-	void returnsTokenFamilyAndRefreshesCacheWhenFound() {
-		InternalTokenFamilyQueryService service = new InternalTokenFamilyQueryService(
-			tokenFamilyRepository,
-			tokenFamilyCacheRepository
-		);
-		TokenFamily tokenFamily = TokenFamily.create(1L, LoginContext.unknown(), Instant.now());
-		tokenFamily.rotate("hashed-refresh", Instant.parse("2030-01-01T00:00:00Z"), Instant.now());
+    @Test
+    @DisplayName("토큰 패밀리가 존재하면 응답을 반환하고 캐시를 갱신한다")
+    void getTokenFamily_exists_returnsAndRefreshesCache() {
+        // given
+        InternalTokenFamilyQueryService service = new InternalTokenFamilyQueryService(
+            tokenFamilyRepository,
+            tokenFamilyCacheRepository
+        );
+        TokenFamily tokenFamily = TokenFamily.create(1L, LoginContext.unknown(), Instant.now());
+        tokenFamily.rotate("hashed-refresh", Instant.parse("2030-01-01T00:00:00Z"), Instant.now());
 
-		when(tokenFamilyRepository.findById(tokenFamily.getId())).thenReturn(Optional.of(tokenFamily));
+        when(tokenFamilyRepository.findById(tokenFamily.getId())).thenReturn(Optional.of(tokenFamily));
 
-		Optional<InternalTokenFamilyDto.Response> result = service.getTokenFamily(tokenFamily.getId());
+        // when
+        Optional<InternalTokenFamilyDto.Response> result = service.getTokenFamily(tokenFamily.getId());
 
-		assertThat(result).isPresent();
-		assertThat(result.get().getFamilyId()).isEqualTo(tokenFamily.getId());
-		assertThat(result.get().getStatus()).isEqualTo(tokenFamily.getStatus().name());
-		verify(tokenFamilyCacheRepository).save(tokenFamily);
-	}
+        // then
+        assertThat(result).isPresent();
+        assertThat(result.get().getFamilyId()).isEqualTo(tokenFamily.getId());
+        assertThat(result.get().getStatus()).isEqualTo(tokenFamily.getStatus().name());
+        verify(tokenFamilyCacheRepository).save(tokenFamily);
+    }
 
-	@Test
-	void returnsEmptyWhenTokenFamilyDoesNotExist() {
-		InternalTokenFamilyQueryService service = new InternalTokenFamilyQueryService(
-			tokenFamilyRepository,
-			tokenFamilyCacheRepository
-		);
-		UUID tokenFamilyId = UUID.randomUUID();
+    @Test
+    @DisplayName("토큰 패밀리가 없으면 빈 응답을 반환하고 캐시를 갱신하지 않는다")
+    void getTokenFamily_missing_returnsEmpty() {
+        // given
+        InternalTokenFamilyQueryService service = new InternalTokenFamilyQueryService(
+            tokenFamilyRepository,
+            tokenFamilyCacheRepository
+        );
+        UUID tokenFamilyId = UUID.randomUUID();
 
-		when(tokenFamilyRepository.findById(tokenFamilyId)).thenReturn(Optional.empty());
+        when(tokenFamilyRepository.findById(tokenFamilyId)).thenReturn(Optional.empty());
 
-		Optional<InternalTokenFamilyDto.Response> result = service.getTokenFamily(tokenFamilyId);
+        // when
+        Optional<InternalTokenFamilyDto.Response> result = service.getTokenFamily(tokenFamilyId);
 
-		assertThat(result).isEmpty();
-		verifyNoInteractions(tokenFamilyCacheRepository);
-	}
+        // then
+        assertThat(result).isEmpty();
+        verifyNoInteractions(tokenFamilyCacheRepository);
+    }
 }
