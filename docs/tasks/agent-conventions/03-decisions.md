@@ -85,3 +85,29 @@
 - `modules/news/presentation/external` -> `modules/news/api/external`
 - Controller 네 개의 package 선언 변경
 - 컴파일을 통한 component scan과 참조 검증
+
+## D4. `common` 최소화 적용 방식
+
+### 대안
+
+1. 현재 `common` 구조를 공식 기준으로 그대로 인정
+2. 기존 구조를 legacy 예외로 유지하고 신규 유입만 제한
+3. 공통 계약·오류·기반 타입은 남기고 비즈니스 domain과 모듈 전용 infra를 별도 작업에서 부분 정리
+
+### 선택
+
+**3번: `common` 경계를 별도 작업에서 부분 정리**
+
+### 이유
+
+- 이벤트 계약과 전역 오류 타입처럼 여러 모듈이 실제로 공유할 수 있는 요소까지 해체할 필요는 없다.
+- 특정 domain, JPA repository, Kafka producer와 같은 구현이 `common`에 남으면 향후 서비스 분리 시 소유권과 이동 범위가 불명확해진다.
+- 잠재 영향 범위가 최대 128개 기존 파일이므로 AI 컨벤션 문서 도입과 같은 변경으로 묶지 않는다.
+
+### 적용 방식
+
+- 현재 컨벤션 문서에는 `common`의 목표 원칙과 기존 구조의 점진 정리 방침을 함께 적는다.
+- 현재 브랜치에서는 `common` Java 코드를 이동하지 않는다.
+- 별도 `docs/common-boundary-cleanup` 브랜치를 `main`에서 생성했다.
+- 별도 작업의 `01-overview.md`를 커밋 `2f38443`으로 확정했다.
+- 후속 plan과 구현은 해당 작업에서 사용자 gate를 거쳐 진행한다.
