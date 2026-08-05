@@ -1,4 +1,4 @@
-package depth.finvibe.modules.discussion.presentation.external;
+package depth.finvibe.modules.discussion.api.external;
 
 import depth.finvibe.modules.discussion.application.port.in.DiscussionCommandUseCase;
 import depth.finvibe.modules.discussion.application.port.in.DiscussionQueryUseCase;

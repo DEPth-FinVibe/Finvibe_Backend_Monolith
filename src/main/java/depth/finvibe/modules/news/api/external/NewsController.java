@@ -1,4 +1,4 @@
-package depth.finvibe.modules.news.presentation.external;
+package depth.finvibe.modules.news.api.external;
 
 import depth.finvibe.boot.security.AuthenticatedUser;
 import depth.finvibe.boot.security.Requester;

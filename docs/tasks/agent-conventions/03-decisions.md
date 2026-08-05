@@ -60,3 +60,28 @@
 - 한동안 목표 컨벤션과 legacy 구조가 공존한다.
 - 에이전트 문서에는 목표 규칙과 기존 예외를 구분해 적어야 한다.
 - 단계별 작업이 누락되지 않도록 별도 task나 backlog로 추적해야 한다.
+
+## D3. 표현 계층 패키지 이름
+
+### 대안
+
+1. 신규 표준은 `api`로 정하고 기존 `presentation`은 legacy로 유지
+2. `api`와 `presentation`을 모두 공식 허용
+3. 기존 `presentation` Controller를 현재 작업에서 `api`로 이동
+
+### 선택
+
+**3번: 기존 Controller까지 `api`로 이동해 즉시 통일**
+
+### 이유
+
+- 전체 표현 계층을 `api`로 통일하면 새 클래스를 배치할 때 예외 규칙이 필요 없다.
+- 현재 `presentation` 아래에는 discussion과 news의 Controller 네 개만 있어 영향 범위가 작고 참조도 없다.
+- HTTP endpoint와 클래스 내용은 유지하고 Java package 경로만 변경하므로 독립적인 대규모 히스토리가 필요한 작업이 아니다.
+
+### 적용 범위
+
+- `modules/discussion/presentation/external` -> `modules/discussion/api/external`
+- `modules/news/presentation/external` -> `modules/news/api/external`
+- Controller 네 개의 package 선언 변경
+- 컴파일을 통한 component scan과 참조 검증

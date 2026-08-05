@@ -1,4 +1,4 @@
-package depth.finvibe.modules.news.presentation.external;
+package depth.finvibe.modules.news.api.external;
 
 import depth.finvibe.modules.news.application.port.in.ThemeQueryUseCase;
 import depth.finvibe.modules.news.dto.ThemeDto;
