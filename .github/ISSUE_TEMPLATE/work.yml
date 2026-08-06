@@ -1,0 +1,95 @@
+name: 작업 요청
+description: 기능, 버그, 리팩터링, 인프라, 테스트 또는 문서 변경을 등록합니다.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        작업을 시작하기 전에 읽기 전용 조사와 Overview 승인을 완료해 주세요.
+        각 항목은 관련 `docs/tasks/<task-name>` 문서와 일치해야 합니다.
+
+  - type: checkboxes
+    id: duplicate_check
+    attributes:
+      label: 중복 확인
+      options:
+        - label: 기존 Issue에 동일한 작업이 없는지 확인했습니다.
+          required: true
+
+  - type: dropdown
+    id: work_type
+    attributes:
+      label: 작업 유형
+      options:
+        - 기능
+        - 버그
+        - 리팩터링
+        - 인프라·운영
+        - 테스트
+        - 문서
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 배경과 문제
+      description: 현재 상태와 해결해야 하는 문제를 구체적으로 작성해 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: 목표
+      description: 작업 완료 후 달성되어야 하는 상태를 작성해 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: 변경 범위
+      description: 이번 작업에 포함할 시스템, 모듈과 변경 내용을 작성해 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: 제외 범위
+      description: 의도적으로 다루지 않는 항목을 작성해 주세요. 없다면 `없음`으로 표시합니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: 완료 조건
+      description: 검증 가능한 조건을 체크리스트로 작성해 주세요.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: operational_impact
+    attributes:
+      label: 운영 영향과 위험
+      description: API, DB, Kafka, 설정, 배포, 성능과 보안 영향을 작성해 주세요. 없다면 `영향 없음`과 근거를 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug_context
+    attributes:
+      label: 버그 재현 정보
+      description: 버그인 경우 재현 절차, 기대 동작, 실제 동작과 영향 범위를 작성해 주세요.
+
+  - type: input
+    id: task_document
+    attributes:
+      label: 작업 문서
+      description: 승인 후 생성할 작업 문서 경로를 작성해 주세요.
+      placeholder: docs/tasks/<task-name>
+    validations:
+      required: true
