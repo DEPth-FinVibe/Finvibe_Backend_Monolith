@@ -2,7 +2,7 @@
 
 ## 결과 요약
 
-Finvibe Backend Monolith의 AI 문서를 progressive disclosure 구조로 정리했다. `AGENTS.md`는 21줄의 진입점으로 유지하고, 작업 종류에 따라 workflow와 세부 컨벤션만 선택해 읽도록 구성했다.
+Finvibe Backend Monolith의 AI 문서를 progressive disclosure 구조로 정리했다. `AGENTS.md`는 21줄의 진입점으로 유지하고, 작업 종류에 따라 workflow와 세부 컨벤션만 선택해 읽도록 구성했다. 이후 추가된 운영 요구사항에 따라 신규 변경 작업의 GitHub Issue·PR 추적 절차와 작성 양식도 추가했다.
 
 컨벤션과 현재 코드의 차이는 무조건적인 일괄 리팩터링으로 처리하지 않았다. 작은 범위인 표현 계층과 테스트 형식은 현재 작업에서 통일했고, 영향 범위가 큰 `common` 경계 정리는 별도 브랜치와 task로 분리했다.
 
@@ -153,3 +153,83 @@ Gradle은 `MarketKafkaProducerTest`의 unchecked operation 경고를 출력했�
 ## 기존 작업 트리 보존
 
 작업 시작 전에 존재하던 미추적 분석·Kafka·migration 문서와 스크립트는 수정하거나 커밋하지 않았다.
+
+## 2026-08-06 운영 Issue·PR 절차 추가
+
+### 추가된 파일
+
+```text
+.github/
+├── ISSUE_TEMPLATE/
+│   ├── work.yml
+│   └── config.yml
+└── pull_request_template.md
+```
+
+- `work.yml`은 기능, 버그, 리팩터링, 인프라·운영, 테스트와 문서 작업을 하나의 form으로 받는다.
+- `config.yml`은 빈 Issue 생성을 막는다.
+- `pull_request_template.md`는 모든 작업이 사용하는 단일 PR 양식이다.
+
+### 적용된 추가 결정
+
+#### D10. 운영 기록의 역할 분리
+
+- GitHub Issue는 작업 등록과 추적을 담당한다.
+- 로컬 `docs/tasks/*`는 상세 조사, plan과 결정 이력을 담당한다.
+- PR은 실제 diff, 검증과 운영 영향을 담당한다.
+
+#### D11. 단일 Issue Form
+
+- 초기에는 change와 bug form을 분리하기로 했으나 관리 복잡도를 다시 검토했다.
+- 최종적으로 작업 유형 dropdown을 가진 단일 `work.yml`로 정정했다.
+- 배경, 목표, 범위, 제외 범위, 완료 조건, 운영 위험과 작업 문서 경로를 필수화했다.
+
+#### D12. 단일 PR template
+
+- 연결 Issue, 변경 목적, 주요 변경, 작업 문서, 검증, 운영 영향, 롤백과 리뷰 집중 지점을 받는다.
+- 해당 없는 항목도 이유와 함께 명시하도록 했다.
+
+#### D13. 생성 순서
+
+```text
+읽기 전용 조사
+→ Overview 임시 초안 승인
+→ Issue 생성
+→ Issue 번호가 포함된 branch 생성
+→ 정식 Overview와 Plan
+→ 결정·구현·검증·Result
+→ branch push
+→ 일반 PR 생성
+```
+
+- Draft PR은 사용하지 않는다.
+- Overview 승인 전에는 저장소 파일과 branch를 만들지 않는다.
+
+#### D14. PR 이후 책임
+
+- 에이전트는 PR을 생성하고 URL을 사용자에게 전달하는 시점까지 담당한다.
+- 승인, 병합, 종료와 branch 삭제는 사용자가 처리한다.
+
+#### D15. 적용 시작 시점
+
+- 현재 agent conventions와 common boundary 작업에는 새 규칙을 소급 적용하지 않는다.
+- 이 workflow가 `main`에 반영된 뒤 새로 시작하는 모든 변경 작업부터 Issue와 PR을 필수화한다.
+
+### Workflow 변경 결과
+
+- 기존의 `branch 생성 → Overview` 순서를 `Overview 승인 → Issue 생성 → branch 생성`으로 변경했다.
+- branch 형식을 `<type>/<issue-number>-<slug>`로 정했다.
+- `01-overview.md`에 Issue 번호와 URL을 기록하도록 했다.
+- `04-result.md`에 운영 영향과 롤백 방법을 포함하도록 했다.
+- 작업 완료 후 일반 PR을 생성하고 `Closes #<issue-number>`로 연결하도록 했다.
+- PR 없이 완료 처리하거나 사용자 요청 없이 병합하는 것을 금지했다.
+
+### 추가 검증
+
+- Issue Form과 chooser config YAML parsing: 통과
+- Issue Form 필수 top-level key와 중복되지 않는 field ID 확인: 통과
+- PR template 필수 section 확인: 통과
+- `git diff --check`: 통과
+- `./gradlew test`: `BUILD SUCCESSFUL`
+
+Gradle은 기존 deprecated API와 unchecked operation 경고를 출력했지만 실패는 없었다. 추가 변경은 GitHub template과 Markdown workflow에 한정되며 애플리케이션 동작과 외부 API 계약은 변경하지 않았다.
