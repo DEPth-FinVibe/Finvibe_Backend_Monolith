@@ -55,7 +55,7 @@ docs/tasks/agent-conventions/
 
 - 전역 계약은 유지하고 비즈니스 domain과 모듈 전용 infra만 부분 정리하는 방향을 선택했다.
 - 별도 `docs/common-boundary-cleanup` 브랜치를 만들었다.
-- 해당 브랜치에서 `01-overview.md`만 커밋 `2f38443`으로 확정했으며 plan과 구현은 시작하지 않았다.
+- 해당 브랜치에서 `01-overview.md`를 커밋 `2f38443`으로 확정했다. `02-plan.md`는 미확정 초안이며 구현은 시작하지 않았다.
 
 ### D5. 모듈 간 호출
 
@@ -119,7 +119,7 @@ Gradle은 `MarketKafkaProducerTest`의 unchecked operation 경고를 출력했�
 ### Static checks
 
 - `git diff --check`: 통과
-- D1~D9 결정 기록: 9개 확인
+- D1~D15 결정 기록: 15개 확인
 - `presentation` 아래 Java 파일: 0개
 - 이동된 discussion/news Controller: 4개 확인
 - `@Test`: 18개
