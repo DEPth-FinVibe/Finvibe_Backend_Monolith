@@ -297,3 +297,40 @@
 - Issue는 문제·범위·완료 조건을, 로컬 문서는 상세 분석·plan·결정 이력을, PR은 실제 변경·검증·운영 영향을 중심으로 기록한다.
 - 구체적인 Issue 양식, PR 양식, 생성 시점과 병합 조건은 후속 결정을 통해 확정한다.
 - 현재 진행 중인 agent conventions와 common boundary 작업의 소급 적용 방식도 후속 결정에서 정한다.
+
+## D11. Issue 작성 양식
+
+### 대안
+
+1. 작업 유형별 GitHub Issue Form 사용
+2. 모든 작업이 단일 Markdown Issue template 사용
+3. 저장소 template 없이 workflow 문서의 작성 규칙만 사용
+
+### 선택
+
+**1번: 작업 유형별 GitHub Issue Form 사용**
+
+### 구성
+
+- `.github/ISSUE_TEMPLATE/change.yml`: 기능, 리팩터링, 문서, 인프라 등 계획된 변경
+- `.github/ISSUE_TEMPLATE/bug.yml`: 장애와 버그 수정
+- `.github/ISSUE_TEMPLATE/config.yml`: 빈 Issue 생성을 막고 정해진 form 사용을 유도
+
+### 공통 필수 내용
+
+- 배경과 현재 문제
+- 목표
+- 변경 범위
+- 제외 범위
+- 검증 가능한 완료 조건
+- 운영 영향과 위험
+- 관련 `docs/tasks/<task-name>` 경로
+
+버그 form에는 재현 절차, 기대 동작, 실제 동작과 영향 범위를 추가한다.
+
+### 이유와 트레이드오프
+
+- GitHub가 필수 필드 누락을 제출 전에 검증할 수 있다.
+- 계획 작업과 버그의 문맥이 달라 각각 필요한 정보를 받을 수 있다.
+- Markdown template보다 초기 설정은 많지만 운영 Issue의 품질 편차를 줄일 수 있다.
+- 지나치게 세분화된 form을 만들지 않고 두 가지 유형으로 시작하며, 실제 사용 중 누락이 확인될 때만 확장한다.
