@@ -219,3 +219,37 @@ AI 추천: **A**. 오류 응답은 외부 API 계약이므로 문서 작업에�
 7. `docs: AI 컨벤션 result`
 
 각 구현 커밋은 관련 결정이 `03-decisions.md`에 기록된 뒤 만든다.
+
+## 추가 계획: 운영 Issue·PR 절차
+
+2026-08-06에 모든 신규 변경 작업을 운영 기준으로 추적하기 위해 GitHub Issue와 PR을 필수화하는 요구사항이 추가됐다. 기존 D1~D9 구현을 되돌리지 않고 다음 산출물을 같은 agent conventions 작업에 추가한다.
+
+### 추가 산출물
+
+```text
+.github/
+├── ISSUE_TEMPLATE/
+│   ├── work.yml
+│   └── config.yml
+└── pull_request_template.md
+```
+
+### 추가 구현 단계
+
+1. Issue·PR과 로컬 작업 문서의 역할을 구분한다.
+2. 단일 Issue Form과 단일 PR template의 필수 항목을 확정한다.
+3. Overview 승인, Issue 생성, Issue 번호 브랜치, 구현 완료 후 PR 생성 순서로 workflow를 변경한다.
+4. PR 생성 이후 승인·병합은 사용자 책임으로 분리한다.
+5. 새 규칙의 적용 시작 시점과 기존 진행 작업의 예외를 기록한다.
+6. YAML 문법, 필수 field, Markdown, 문서 경로와 전체 테스트를 검증한다.
+
+관련 결정: `D10`~`D15`
+
+### 추가 완료 조건
+
+- 모든 신규 변경 작업은 승인된 Overview와 GitHub Issue가 있어야 branch를 생성할 수 있다.
+- branch 이름은 Issue 번호를 포함한다.
+- Issue는 문제, 범위, 완료 조건과 운영 위험을 포함한다.
+- PR은 작업과 Result가 완료된 뒤 생성하며 Issue, 작업 문서, 검증, 운영 영향과 롤백 정보를 포함한다.
+- 에이전트는 PR URL을 전달한 뒤 승인·병합을 수행하지 않는다.
+- 기존 agent conventions와 common boundary 작업은 소급 적용하지 않는다.
