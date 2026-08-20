@@ -92,6 +92,25 @@ public class PriceCandle {
                 .build();
     }
 
+    public void restore(
+            BigDecimal open,
+            BigDecimal high,
+            BigDecimal low,
+            BigDecimal close,
+            BigDecimal prevDayChangePct,
+            BigDecimal volume,
+            BigDecimal value
+    ) {
+        this.isMissing = false;
+        this.open = open;
+        this.high = high;
+        this.low = low;
+        this.close = close;
+        this.prevDayChangePct = prevDayChangePct;
+        this.volume = volume;
+        this.value = value;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -1,6 +1,7 @@
 package depth.finvibe.modules.market.infra.client;
 
 import depth.finvibe.modules.market.application.port.out.RealMarketClient;
+import depth.finvibe.modules.market.application.port.out.CandleFetchResult;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.enums.RankType;
@@ -47,12 +48,12 @@ public class MockRealMarketClient implements RealMarketClient {
 	}
 
 	@Override
-	public List<PriceCandleDto.Response> fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
+	public CandleFetchResult fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
 		Stock stock = stockRepository.findById(stockId)
 				.orElseThrow(() -> new DomainException(MarketErrorCode.STOCK_NOT_FOUND));
 
 		if (startTime == null || endTime == null || startTime.isAfter(endTime)) {
-			return List.of();
+			return CandleFetchResult.failed();
 		}
 
 		List<PriceCandleDto.Response> responses = new ArrayList<>();
@@ -64,7 +65,7 @@ public class MockRealMarketClient implements RealMarketClient {
 			cursor = timeframe.nextTime(cursor);
 		}
 
-		return responses;
+		return CandleFetchResult.complete(responses);
 	}
 
 	@Override
