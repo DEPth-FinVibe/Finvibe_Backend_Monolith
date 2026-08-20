@@ -12,7 +12,6 @@ import depth.finvibe.modules.market.application.port.out.StockRankingRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.ClosingPrice;
 import depth.finvibe.modules.market.domain.CurrentPrice;
-import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.PriceCandle;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.StockRanking;
@@ -61,6 +60,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final StockRepository stockRepository;
     private final DistributedLockManager distributedLockManager;
     private final HolidayCalendarService holidayCalendarService;
+    private final MarketStatusService marketStatusService;
     private final TransactionTemplate transactionTemplate;
     private final MeterRegistry meterRegistry;
     private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
@@ -291,7 +291,7 @@ public class MarketQueryService implements MarketQueryUseCase {
         String result = "unknown";
 
         try {
-            if (MarketHours.getCurrentStatus() == MarketStatus.CLOSED && !isMockProvider()) {
+            if (marketStatusService.getMarketStatus().getStatus() == MarketStatus.CLOSED && !isMockProvider()) {
                 List<ClosingPriceDto.Response> closingPrices = getClosingPrices(List.of(stockId));
                 if (!closingPrices.isEmpty()) {
                     result = "market_closed";
@@ -384,11 +384,31 @@ public class MarketQueryService implements MarketQueryUseCase {
     @Override
     @Transactional
     public List<ClosingPriceDto.Response> getClosingPrices(List<Long> stockIds) {
+        ClosingPriceQueryResult result = queryClosingPrices(stockIds);
+        recordClosingPriceResult("legacy", result);
+        return result.items();
+    }
+
+    @Override
+    @Transactional
+    public ClosingPriceDto.BatchResponse getClosingPricesV2(List<Long> stockIds) {
+        ClosingPriceQueryResult result = queryClosingPrices(stockIds);
+        recordClosingPriceResult("v2", result);
+        return ClosingPriceDto.BatchResponse.of(
+                result.items(),
+                result.missingStockIds(),
+                result.tradingDate(),
+                result.asOf()
+        );
+    }
+
+    private ClosingPriceQueryResult queryClosingPrices(List<Long> stockIds) {
+        LocalDateTime asOf = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         if (stockIds == null || stockIds.isEmpty()) {
-            return List.of();
+            return new ClosingPriceQueryResult(List.of(), List.of(), null, asOf);
         }
 
-        if (MarketHours.getCurrentStatus() == MarketStatus.OPEN) {
+        if (marketStatusService.getMarketStatus().getStatus() == MarketStatus.OPEN) {
             throw new DomainException(MarketErrorCode.CLOSING_PRICE_NOT_AVAILABLE_DURING_MARKET_OPEN);
         }
 
@@ -406,9 +426,8 @@ public class MarketQueryService implements MarketQueryUseCase {
             log.warn("Some stockIds are missing in DB. stockIds={}", missingStockIds);
         }
 
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        LocalDate lastTradingDay = holidayCalendarService.getLastTradingDayOnOrBefore(today)
-                .orElse(Timeframe.DAY.lastCompletedTime(LocalDateTime.now()).toLocalDate());
+        LocalDate lastTradingDay = holidayCalendarService.getLastCompletedTradingDay(asOf)
+                .orElseThrow(() -> new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE));
         LocalDateTime closingAt = lastTradingDay.atTime(LocalTime.of(15, 30));
 
         List<ClosingPrice> cachedClosingPrices = closingPriceRepository
@@ -452,11 +471,44 @@ public class MarketQueryService implements MarketQueryUseCase {
             }
         }
 
-        return requestedStockIds.stream()
+        List<ClosingPriceDto.Response> items = requestedStockIds.stream()
                 .filter(stockMap::containsKey)
                 .filter(closingPriceByStockId::containsKey)
                 .map(stockId -> ClosingPriceDto.Response.from(closingPriceByStockId.get(stockId), stockMap.get(stockId)))
                 .toList();
+
+        Set<Long> returnedStockIds = items.stream()
+                .map(ClosingPriceDto.Response::getStockId)
+                .collect(Collectors.toSet());
+        List<Long> unresolvedStockIds = requestedStockIds.stream()
+                .filter(stockId -> !returnedStockIds.contains(stockId))
+                .toList();
+
+        return new ClosingPriceQueryResult(items, unresolvedStockIds, lastTradingDay, asOf);
+    }
+
+    private void recordClosingPriceResult(String endpoint, ClosingPriceQueryResult result) {
+        if (result.missingStockIds().isEmpty()) {
+            return;
+        }
+        meterRegistry.counter("market.closing.price.partial.responses", "endpoint", endpoint).increment();
+        meterRegistry.counter("market.closing.price.missing.stocks", "endpoint", endpoint)
+                .increment(result.missingStockIds().size());
+        log.warn(
+                "Closing price response is partial. endpoint={}, tradingDate={}, missingCount={}, missingStockIds={}",
+                endpoint,
+                result.tradingDate(),
+                result.missingStockIds().size(),
+                result.missingStockIds()
+        );
+    }
+
+    private record ClosingPriceQueryResult(
+            List<ClosingPriceDto.Response> items,
+            List<Long> missingStockIds,
+            LocalDate tradingDate,
+            LocalDateTime asOf
+    ) {
     }
 
     private void fetchLatestDailyCandles(List<Long> stockIds) {

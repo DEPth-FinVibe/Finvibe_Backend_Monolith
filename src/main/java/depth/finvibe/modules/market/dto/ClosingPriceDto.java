@@ -1,7 +1,9 @@
 package depth.finvibe.modules.market.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -45,6 +47,40 @@ public class ClosingPriceDto {
           .prevDayChangePct(closingPrice.getPrevDayChangePct())
           .volume(closingPrice.getVolume())
           .value(closingPrice.getValue())
+          .build();
+    }
+  }
+
+  @Getter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  @Builder
+  @Schema(name = "ClosingPriceBatchResponse", description = "종가 일괄 조회 응답")
+  public static class BatchResponse {
+
+    @Schema(description = "확보한 종가 목록")
+    private List<Response> items;
+    @Schema(description = "종가를 확보하지 못한 종목 ID")
+    private List<Long> missingStockIds;
+    @Schema(description = "일부 종목의 종가가 누락되었는지 여부", example = "false")
+    private boolean partial;
+    @Schema(description = "종가 기준 거래일", example = "2026-08-21")
+    private LocalDate tradingDate;
+    @Schema(description = "응답 생성 기준 시각(Asia/Seoul)", example = "2026-08-21T16:00:00")
+    private LocalDateTime asOf;
+
+    public static BatchResponse of(
+        List<Response> items,
+        List<Long> missingStockIds,
+        LocalDate tradingDate,
+        LocalDateTime asOf
+    ) {
+      return BatchResponse.builder()
+          .items(items)
+          .missingStockIds(missingStockIds)
+          .partial(!missingStockIds.isEmpty())
+          .tradingDate(tradingDate)
+          .asOf(asOf)
           .build();
     }
   }

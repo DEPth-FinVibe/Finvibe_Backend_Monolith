@@ -17,6 +17,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -48,6 +49,7 @@ public class RealMarketClientImpl implements RealMarketClient {
     private final KisApiClient kisApiClient;
     private final List<KisFileClient> kisFileClient;
     private final StockRepository stockRepository;
+    private final MeterRegistry meterRegistry;
 
     @Override
     public List<PriceCandleDto.Response> fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
@@ -493,6 +495,7 @@ public class RealMarketClientImpl implements RealMarketClient {
                             .build());
                 }
             } catch (Exception e) {
+                meterRegistry.counter("market.kis.bulk.price.batch.failures").increment();
                 log.error("Failed to fetch current prices for batch starting at index {}", i, e);
                 // 에러가 발생해도 다음 배치 계속 처리
             }
