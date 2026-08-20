@@ -58,9 +58,14 @@ public class MarketStatusService implements MarketStatusQueryUseCase {
             LocalDate date,
             ZonedDateTime now
     ) {
-        LocalDate tradingDate = reason == MarketStatusReason.TRADING_HOURS
-                ? date
-                : holidayCalendarService.getLastCompletedTradingDay(now.toLocalDateTime()).orElse(null);
+        LocalDate tradingDate;
+        if (reason == MarketStatusReason.TRADING_HOURS) {
+            tradingDate = date;
+        } else if (reason == MarketStatusReason.CALENDAR_UNAVAILABLE) {
+            tradingDate = null;
+        } else {
+            tradingDate = holidayCalendarService.getLastCompletedTradingDay(now.toLocalDateTime()).orElse(null);
+        }
         return MarketStatusDto.Response.of(status, reason, tradingDate, now.toLocalDateTime());
     }
 }

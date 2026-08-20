@@ -72,8 +72,6 @@ class MarketStatusServiceTest {
   void getMarketStatusAt_calendarUnavailable_failClosed() {
     LocalDate date = LocalDate.of(2026, 8, 21);
     when(holidayCalendarService.getTradingDayStatus(date)).thenReturn(TradingDayStatus.UNKNOWN);
-    when(holidayCalendarService.getLastCompletedTradingDay(org.mockito.ArgumentMatchers.any()))
-        .thenReturn(Optional.empty());
 
     MarketStatusDto.Response response = service.getMarketStatusAt(
         ZonedDateTime.of(2026, 8, 21, 10, 0, 0, 0, KOREA_ZONE)
