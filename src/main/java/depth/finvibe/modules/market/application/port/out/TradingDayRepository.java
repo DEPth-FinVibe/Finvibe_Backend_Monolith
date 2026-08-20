@@ -16,6 +16,11 @@ public interface TradingDayRepository {
   Optional<LocalDate> findLastOpenDayOnOrBefore(LocalDate date);
 
   /**
+   * 해당 날짜의 개장 여부. 달력 레코드가 없으면 empty.
+   */
+  Optional<Boolean> findOpenDay(LocalDate date);
+
+  /**
    * 해당 연월에 저장된 거래일 레코드 수.
    */
   long countByYearMonth(int year, int month);

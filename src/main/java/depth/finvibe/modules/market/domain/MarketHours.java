@@ -30,4 +30,8 @@ public final class MarketHours {
     boolean isOpen = !time.isBefore(MARKET_OPEN_TIME) && time.isBefore(MARKET_CLOSE_TIME);
     return isOpen ? MarketStatus.OPEN : MarketStatus.CLOSED;
   }
+
+  public static boolean isSessionCompletedAt(LocalTime time) {
+    return !time.isBefore(MARKET_CLOSE_TIME);
+  }
 }
