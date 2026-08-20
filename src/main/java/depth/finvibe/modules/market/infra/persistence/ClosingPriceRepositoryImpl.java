@@ -35,7 +35,7 @@ public class ClosingPriceRepositoryImpl implements ClosingPriceRepository {
 
   @Override
   @Transactional
-  public void deleteAll() {
-    jpaRepository.deleteAllInBatch();
+  public long deleteByTradingDateBefore(LocalDate cutoffDate) {
+    return jpaRepository.deleteByTradingDateBefore(cutoffDate);
   }
 }

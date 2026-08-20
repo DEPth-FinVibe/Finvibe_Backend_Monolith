@@ -10,5 +10,5 @@ public interface ClosingPriceRepository {
 
   void saveAll(List<ClosingPrice> closingPrices);
 
-  void deleteAll();
+  long deleteByTradingDateBefore(LocalDate cutoffDate);
 }
