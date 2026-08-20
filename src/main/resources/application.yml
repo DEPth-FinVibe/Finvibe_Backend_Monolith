@@ -85,6 +85,9 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:testsecret12312312313123123123}
 
 market:
+  # kis = 실제 KIS OpenAPI 실시간 시세, mock = 시뮬레이션 시세
+  # mock 전환은 SPRING_PROFILES_ACTIVE 에 mock-market 프로파일을 추가하거나 MARKET_PROVIDER=mock 으로 설정
+  provider: ${MARKET_PROVIDER:kis}
   kis:
     base-url: ${KIS_BASE_URL:https://openapi.koreainvestment.com:9443}
     user-id: ${KIS_USER_ID:}
