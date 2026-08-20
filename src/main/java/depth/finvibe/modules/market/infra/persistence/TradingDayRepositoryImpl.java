@@ -30,6 +30,11 @@ public class TradingDayRepositoryImpl implements TradingDayRepository {
   }
 
   @Override
+  public Optional<Boolean> findOpenDay(LocalDate date) {
+    return jpaRepository.findById(date).map(tradingDay -> tradingDay.getOpenDay());
+  }
+
+  @Override
   public long countByYearMonth(int year, int month) {
     return queryRepository.countByYearMonth(year, month);
   }

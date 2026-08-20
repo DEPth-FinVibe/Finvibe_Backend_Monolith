@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 import depth.finvibe.modules.market.application.port.in.CategoryQueryUseCase;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.application.port.in.MarketStatusQueryUseCase;
-import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.enums.MarketIndexType;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
 import depth.finvibe.modules.market.domain.enums.Timeframe;
@@ -111,7 +110,8 @@ public class MarketController {
     private LocalDateTime resolveEffectiveEndTime(Timeframe timeframe, LocalDateTime normalizedEndTime) {
         LocalDateTime nowInKst = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 
-        if (timeframe == Timeframe.MINUTE && MarketHours.getCurrentStatus() == MarketStatus.OPEN) {
+        if (timeframe == Timeframe.MINUTE
+                && marketStatusQueryUseCase.getMarketStatus().getStatus() == MarketStatus.OPEN) {
             LocalDateTime oneMinuteAgo = nowInKst.minusMinutes(1).withSecond(0).withNano(0);
             return normalizedEndTime.isAfter(oneMinuteAgo) ? oneMinuteAgo : normalizedEndTime;
         }
@@ -129,6 +129,14 @@ public class MarketController {
     ) {
         List<ClosingPriceDto.Response> closingPrices = marketQueryUseCase.getClosingPrices(stockIds);
         return ResponseEntity.ok(closingPrices);
+    }
+
+    @GetMapping("/v2/stocks/closing-prices")
+    @Operation(summary = "종가 v2 조회", description = "종가와 누락 종목, 기준 거래일을 함께 조회합니다.")
+    public ResponseEntity<ClosingPriceDto.BatchResponse> getClosingPricesV2(
+            @Parameter(description = "종목 ID 목록", example = "1,2,3") @RequestParam List<Long> stockIds
+    ) {
+        return ResponseEntity.ok(marketQueryUseCase.getClosingPricesV2(stockIds));
     }
 
     @GetMapping("/stocks/top-by-value")

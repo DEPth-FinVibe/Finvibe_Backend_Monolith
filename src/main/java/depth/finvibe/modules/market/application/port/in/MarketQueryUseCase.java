@@ -34,6 +34,8 @@ public interface MarketQueryUseCase {
 
     List<ClosingPriceDto.Response> getClosingPrices(List<Long> stockIds);
 
+    ClosingPriceDto.BatchResponse getClosingPricesV2(List<Long> stockIds);
+
     List<StockDto.Response> getTopStocksByValue();
 
     List<StockDto.Response> getTopStocksByVolume();

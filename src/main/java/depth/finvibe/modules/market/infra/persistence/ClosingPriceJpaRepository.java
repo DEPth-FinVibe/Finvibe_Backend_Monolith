@@ -9,4 +9,6 @@ import depth.finvibe.modules.market.domain.ClosingPrice;
 
 public interface ClosingPriceJpaRepository extends JpaRepository<ClosingPrice, Long> {
   List<ClosingPrice> findByStockIdInAndTradingDate(List<Long> stockIds, LocalDate tradingDate);
+
+  long deleteByTradingDateBefore(LocalDate cutoffDate);
 }
