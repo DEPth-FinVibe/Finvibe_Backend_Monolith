@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -27,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
 import depth.finvibe.modules.market.application.port.out.MarketDataStreamPort;
+import depth.finvibe.modules.market.application.port.out.MarketDataSubscriptionResult;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import depth.finvibe.modules.market.infra.client.KisCredentialAllocator;
 import depth.finvibe.modules.market.infra.client.KisRateLimiter;
@@ -45,6 +47,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HHmmss");
 
     private final Map<String, KisWebsocketSession> sessions = new ConcurrentHashMap<>();
+    private final Set<String> connectingAppKeys = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> symbolToStockId = new ConcurrentHashMap<>();
     private final Map<Long, String> stockIdToSymbol = new ConcurrentHashMap<>();
 
@@ -81,14 +84,17 @@ public class KisConnectionPool implements MarketDataStreamPort {
         this.eventPublisher = eventPublisher;
         this.meterRegistry = meterRegistry;
 
-        Gauge.builder("kis.sessions.available", sessions, Map::size)
+        Gauge.builder("kis.sessions.available", this, KisConnectionPool::getAvailableSessionCount)
                 .description("연결된 KIS WebSocket 세션 수")
                 .register(meterRegistry);
         Gauge.builder("kis.subscriptions.active", stockIdToSymbol, Map::size)
                 .description("KIS WebSocket 활성 구독 종목 수")
                 .register(meterRegistry);
-        Gauge.builder("kis.subscriptions.capacity", sessions, s -> s.size() * MAX_SUBSCRIPTIONS_PER_SESSION)
+        Gauge.builder("kis.subscriptions.capacity", this, KisConnectionPool::getSubscriptionCapacity)
                 .description("현재 세션으로 구독 가능한 최대 종목 수 (세션 수 × 41)")
+                .register(meterRegistry);
+        Gauge.builder("kis.subscriptions.remaining", this, KisConnectionPool::getRemainingSubscriptionCapacity)
+                .description("현재 연결 세션의 남은 구독 슬롯 수")
                 .register(meterRegistry);
 
         noSessionCounter = Counter.builder("kis.subscribe.no.session")
@@ -131,7 +137,11 @@ public class KisConnectionPool implements MarketDataStreamPort {
     public void synchronizeSessions() {
         List<Credential> allocatedCredentials = credentialAllocator.getAllocatedCredentials();
         if (allocatedCredentials.isEmpty()) {
-            log.warn("할당된 KIS Credential이 없어 WebSocket 세션을 종료합니다.");
+            if (sessions.isEmpty()) {
+                log.debug("할당된 KIS Credential이 없어 WebSocket 세션 준비를 기다립니다.");
+            } else {
+                log.warn("할당된 KIS Credential이 없어 WebSocket 세션을 종료합니다.");
+            }
             closeAllSessions();
             return;
         }
@@ -141,7 +151,8 @@ public class KisConnectionPool implements MarketDataStreamPort {
                 .collect(java.util.stream.Collectors.toSet());
 
         for (Credential credential : allocatedCredentials) {
-            if (!sessions.containsKey(credential.appKey())) {
+            if (!sessions.containsKey(credential.appKey())
+                    && !connectingAppKeys.contains(credential.appKey())) {
                 tryRegisterSession(credential.appKey(), credential.appSecret());
             }
         }
@@ -154,24 +165,39 @@ public class KisConnectionPool implements MarketDataStreamPort {
     }
 
     public void tryRegisterSession(String appKey, String appSecret) {
-        KisWebSocketApprovalKeyClient approvalKeyClient =
-                new KisWebSocketApprovalKeyClient(appKey, appSecret, properties.baseUrl());
+        if (!connectingAppKeys.add(appKey)) {
+            return;
+        }
 
-        rateLimiter.acquire(appKey);
-        String approvalKey = approvalKeyClient.requestApprovalKey();
-        KisWebsocketSession newSession = new KisWebsocketSession(approvalKey, this::onPriceUpdated, objectMapper);
+        try {
+            KisWebSocketApprovalKeyClient approvalKeyClient =
+                    new KisWebSocketApprovalKeyClient(appKey, appSecret, properties.baseUrl());
 
-        CompletableFuture<KisWebsocketSession> connectFuture = newSession.connect(properties.websocket().url());
-        connectFuture
-                .thenAccept(session -> handleSessionRegistrationSuccess(appKey, session))
-                .exceptionally(ex -> handleSessionRegistrationFailure(appKey, ex));
+            rateLimiter.acquire(appKey);
+            String approvalKey = approvalKeyClient.requestApprovalKey();
+            KisWebsocketSession newSession = new KisWebsocketSession(approvalKey, this::onPriceUpdated, objectMapper);
+
+            CompletableFuture<KisWebsocketSession> connectFuture = newSession.connect(properties.websocket().url());
+            connectFuture.whenComplete((session, error) -> {
+                connectingAppKeys.remove(appKey);
+                if (error == null) {
+                    handleSessionRegistrationSuccess(appKey, session);
+                } else {
+                    handleSessionRegistrationFailure(appKey, error);
+                }
+            });
+        } catch (RuntimeException ex) {
+            connectingAppKeys.remove(appKey);
+            handleSessionRegistrationFailure(appKey, ex);
+        }
     }
 
-    public void subscribe(Long stockId, String symbol) {
+    public MarketDataSubscriptionResult subscribe(Long stockId, String symbol) {
         // 이미 구독 중인 경우 중복 구독 방지 (멱등성 보장)
         if (isSubscribed(stockId)) {
             log.trace("이미 구독 중인 종목 - stockId: {}, symbol: {}", stockId, symbol);
-            return;
+            recordSubscriptionResult(MarketDataSubscriptionResult.ALREADY_SUBSCRIBED);
+            return MarketDataSubscriptionResult.ALREADY_SUBSCRIBED;
         }
 
         symbolToStockId.put(symbol, stockId);
@@ -179,24 +205,31 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
         KisWebsocketSession targetSession = findSessionWithAvailableSlot();
         if (targetSession == null) {
-            noSessionCounter.increment();
-            log.error("구독 가능한 KIS WebSocket 세션이 없습니다. - stockId: {}, symbol: {}", stockId, symbol);
             // 매핑 정보 롤백
-            symbolToStockId.remove(symbol);
-            stockIdToSymbol.remove(stockId);
-            return;
+            symbolToStockId.remove(symbol, stockId);
+            stockIdToSymbol.remove(stockId, symbol);
+            if (getAvailableSessionCount() == 0) {
+                noSessionCounter.increment();
+                recordSubscriptionResult(MarketDataSubscriptionResult.NO_SESSION);
+                return MarketDataSubscriptionResult.NO_SESSION;
+            }
+            recordSubscriptionResult(MarketDataSubscriptionResult.NO_CAPACITY);
+            return MarketDataSubscriptionResult.NO_CAPACITY;
         }
 
         try {
             targetSession.subscribe(symbol);
             log.debug("KIS WebSocket 종목 구독 성공 - stockId: {}, symbol: {}, 현재 구독 수: {}",
                     stockId, symbol, targetSession.getSubscriptionCount());
+            recordSubscriptionResult(MarketDataSubscriptionResult.SUBSCRIBED);
+            return MarketDataSubscriptionResult.SUBSCRIBED;
         } catch (Exception ex) {
             log.error("KIS WebSocket 종목 구독 실패 - stockId: {}, symbol: {}", stockId, symbol, ex);
             // 구독 실패 시 매핑 정보 롤백
-            symbolToStockId.remove(symbol);
-            stockIdToSymbol.remove(stockId);
-            throw ex;
+            symbolToStockId.remove(symbol, stockId);
+            stockIdToSymbol.remove(stockId, symbol);
+            recordSubscriptionResult(MarketDataSubscriptionResult.SEND_FAILED);
+            return MarketDataSubscriptionResult.SEND_FAILED;
         }
     }
 
@@ -215,15 +248,25 @@ public class KisConnectionPool implements MarketDataStreamPort {
     }
 
     private void handleSessionRegistrationSuccess(String appKey, KisWebsocketSession session) {
+        boolean stillAllocated = credentialAllocator.getAllocatedCredentials().stream()
+                .anyMatch(credential -> credential.appKey().equals(appKey));
+        if (!stillAllocated) {
+            session.close();
+            log.info("할당이 해제된 KIS WebSocket 연결을 등록하지 않습니다. - AppKey: {}", maskAppKey(appKey));
+            return;
+        }
         sessions.put(appKey, session);
         sessionConnectSuccessCounter.increment();
-        log.info("KIS WebSocket 세션 등록 성공 - AppKey: {}", appKey);
+        log.info("KIS WebSocket 세션 등록 성공 - AppKey: {}", maskAppKey(appKey));
     }
 
-    private Void handleSessionRegistrationFailure(String appKey, Throwable ex) {
+    private void handleSessionRegistrationFailure(String appKey, Throwable ex) {
         sessionConnectFailureCounter.increment();
-        log.error("KIS WebSocket 세션 등록 실패 - AppKey: {}", appKey, ex);
-        return null;
+        log.error("KIS WebSocket 세션 등록 실패 - AppKey: {}", maskAppKey(appKey), ex);
+    }
+
+    private void recordSubscriptionResult(MarketDataSubscriptionResult result) {
+        meterRegistry.counter("kis.subscribe.results", "result", result.name().toLowerCase(Locale.ROOT)).increment();
     }
 
     private void closeSession(String appKey) {
@@ -234,7 +277,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
         removeSessionSubscriptions(session);
         session.close();
-        log.info("KIS WebSocket 세션 종료 - AppKey: {}", appKey);
+        log.info("KIS WebSocket 세션 종료 - AppKey: {}", maskAppKey(appKey));
     }
 
     private void removeSessionSubscriptions(KisWebsocketSession session) {
@@ -393,10 +436,25 @@ public class KisConnectionPool implements MarketDataStreamPort {
   /**
    * 현재 사용 가능한 세션 수를 반환합니다.
    *
-   * @return 등록된 세션 수
+   * @return 연결된 세션 수
    */
   public int getAvailableSessionCount() {
-    return sessions.size();
+    return (int) sessions.values().stream()
+            .filter(KisWebsocketSession::getIsConnected)
+            .count();
+  }
+
+  @Override
+  public int getSubscriptionCapacity() {
+    return getAvailableSessionCount() * MAX_SUBSCRIPTIONS_PER_SESSION;
+  }
+
+  @Override
+  public int getRemainingSubscriptionCapacity() {
+    return sessions.values().stream()
+            .filter(KisWebsocketSession::getIsConnected)
+            .mapToInt(session -> Math.max(0, MAX_SUBSCRIPTIONS_PER_SESSION - session.getSubscriptionCount()))
+            .sum();
   }
 
   /**
@@ -416,7 +474,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
 
       if (!session.getIsConnected()) {
         log.warn("닫힌 WebSocket 세션 제거 - AppKey: {}, 구독 수: {}",
-                appKey, session.getSubscriptionCount());
+                maskAppKey(appKey), session.getSubscriptionCount());
         removeSessionSubscriptions(session);
         iterator.remove();
         removedCount++;
@@ -446,7 +504,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
           closedCount++;
         }
       } catch (Exception ex) {
-        log.warn("KIS WebSocket 세션 종료 중 오류 - AppKey: {}", appKey, ex);
+        log.warn("KIS WebSocket 세션 종료 중 오류 - AppKey: {}", maskAppKey(appKey), ex);
       }
     }
 
@@ -458,5 +516,12 @@ public class KisConnectionPool implements MarketDataStreamPort {
       log.info("KIS WebSocket 세션 전체 종료 완료 - 종료된 세션 수: {}", closedCount);
     }
 
+  }
+
+  private String maskAppKey(String appKey) {
+    if (appKey == null || appKey.length() < 8) {
+      return "***";
+    }
+    return appKey.substring(0, 4) + "****" + appKey.substring(appKey.length() - 4);
   }
 }
