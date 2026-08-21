@@ -20,11 +20,17 @@ public interface MarketDataStreamPort {
 	/** 모든 세션을 종료합니다. */
 	void closeAllSessions();
 
-	/** 현재 사용 가능한 세션 수를 반환합니다. */
+	/** 현재 연결된 세션 수를 반환합니다. */
 	int getAvailableSessionCount();
 
+	/** 현재 연결된 세션의 총 구독 용량을 반환합니다. */
+	int getSubscriptionCapacity();
+
+	/** 현재 연결된 세션에서 남은 구독 슬롯 수를 반환합니다. */
+	int getRemainingSubscriptionCapacity();
+
 	/** 특정 종목 실시간 가격 구독을 시작합니다. */
-	void subscribe(Long stockId, String symbol);
+	MarketDataSubscriptionResult subscribe(Long stockId, String symbol);
 
 	/** 특정 종목 실시간 가격 구독을 해제합니다. */
 	void unsubscribe(Long stockId, String symbol);

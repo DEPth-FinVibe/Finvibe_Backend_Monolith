@@ -27,6 +27,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.application.port.out.MarketDataStreamPort;
+import depth.finvibe.modules.market.application.port.out.MarketDataSubscriptionResult;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import lombok.extern.slf4j.Slf4j;
 
@@ -136,10 +137,24 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	}
 
 	@Override
-	public void subscribe(Long stockId, String symbol) {
+	public int getSubscriptionCapacity() {
+		return initialized ? Integer.MAX_VALUE : 0;
+	}
+
+	@Override
+	public int getRemainingSubscriptionCapacity() {
+		return getSubscriptionCapacity();
+	}
+
+	@Override
+	public MarketDataSubscriptionResult subscribe(Long stockId, String symbol) {
+		if (subscribedStocks.containsKey(stockId)) {
+			return MarketDataSubscriptionResult.ALREADY_SUBSCRIBED;
+		}
 		subscribedStocks.put(stockId, symbol);
 		currentPrices.putIfAbsent(stockId, BASE_PRICE);
 		log.debug("[Mock] 구독 추가 — stockId: {}, symbol: {}", stockId, symbol);
+		return MarketDataSubscriptionResult.SUBSCRIBED;
 	}
 
 	@Override

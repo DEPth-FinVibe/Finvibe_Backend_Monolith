@@ -1,8 +1,6 @@
 package depth.finvibe.modules.market.infra.scheduler;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
 import depth.finvibe.modules.market.application.port.out.HoldingStockRepository;
+import depth.finvibe.modules.market.application.port.out.MarketDataSubscriptionResult;
 import depth.finvibe.modules.market.application.port.out.ReservationRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.MarketHours;
@@ -50,7 +49,6 @@ import depth.finvibe.common.investment.lock.LockAcquisitionException;
 @Profile("!loadtest")
 @RequiredArgsConstructor
 public class KisSubscriptionSynchronizer {
-    private static final int MAX_SUBSCRIPTIONS_PER_SESSION = 41;
     private static final int UNCHANGED_SYNC_DEBUG_INTERVAL = 12;
     private static final Duration SUBSCRIPTION_LOCK_WAIT = Duration.ofMillis(0);
     private static final Duration SUBSCRIPTION_LOCK_LEASE = Duration.ofSeconds(3);
@@ -72,6 +70,7 @@ public class KisSubscriptionSynchronizer {
     // FIFO 방식으로 구독 순서를 추적 (LinkedHashSet)
     private final LinkedHashSet<Long> subscriptionOrder = new LinkedHashSet<>();
     private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
+    private final SubscriptionCandidatePlanner candidatePlanner = new SubscriptionCandidatePlanner();
 
     private MarketStatus lastMarketStatus;
     private boolean sessionsUnavailable;
@@ -83,10 +82,13 @@ public class KisSubscriptionSynchronizer {
     private volatile int latestHoldingStockCount;
     private volatile int latestWatcherStockCount;
     private volatile int latestMaxSubscriptions;
+    private volatile int latestCapacityOverflowCount;
 
     private Timer syncTimer;
     private Counter syncErrorCounter;
     private Counter lockFailureCounter;
+    private Counter sessionUnavailableCycleCounter;
+    private Counter capacityLimitedCycleCounter;
 
     @PostConstruct
     public void initMetrics() {
@@ -99,11 +101,20 @@ public class KisSubscriptionSynchronizer {
         lockFailureCounter = Counter.builder("kis.sync.lock.failures")
                 .description("분산 락 획득 실패 수")
                 .register(meterRegistry);
+        sessionUnavailableCycleCounter = Counter.builder("kis.sync.session.unavailable.cycles")
+                .description("연결된 WebSocket 세션 용량이 0이라 조기 종료한 동기화 주기 수")
+                .register(meterRegistry);
+        capacityLimitedCycleCounter = Counter.builder("kis.sync.capacity.limited.cycles")
+                .description("활성 후보 수가 현재 노드 quota를 초과한 동기화 주기 수")
+                .register(meterRegistry);
         Gauge.builder("kis.sync.subscriptions.active", subscriptionOrder, LinkedHashSet::size)
                 .description("이 노드가 보유한 활성 구독 수")
                 .register(meterRegistry);
         Gauge.builder("kis.sync.subscriptions.capacity", this, s -> s.latestMaxSubscriptions)
                 .description("이 노드에 할당된 최대 구독 수 (quota)")
+                .register(meterRegistry);
+        Gauge.builder("kis.sync.capacity.overflow", this, s -> s.latestCapacityOverflowCount)
+                .description("활성 후보 중 현재 노드 quota를 초과한 수")
                 .register(meterRegistry);
         Gauge.builder("kis.stocks.reservation", this, s -> s.latestReservationStockCount)
                 .description("전체 활성 예약 종목 수")
@@ -170,51 +181,50 @@ public class KisSubscriptionSynchronizer {
 
             reconcileSubscriptionOrder();
 
-            List<Long> reservationStockIds = reservationRepository.findReservedStockIds();
-            List<Long> holdingStockIds = holdingStockRepository.findAllDistinctStockIds();
-            List<Long> watcherStockIds = currentStockWatcherRepository.findActiveStockIds();
-            List<Long> activeStockIds = buildActiveStockIds(reservationStockIds, holdingStockIds, watcherStockIds);
-
-            if (activeStockIds.isEmpty()) {
-                handleEmptyActiveStocks(nodeId);
+            if (!isMockProvider() && marketDataStreamPort.getSubscriptionCapacity() == 0) {
+                latestMaxSubscriptions = 0;
+                latestCapacityOverflowCount = 0;
+                sessionUnavailableCycleCounter.increment();
                 return;
             }
 
-            // 보유 종목과 예약 종목은 구독 해제 및 quota 제한으로부터 보호
-            Set<Long> protectedStockIds = new HashSet<>(reservationStockIds.size() + holdingStockIds.size());
-            protectedStockIds.addAll(reservationStockIds);
-            protectedStockIds.addAll(holdingStockIds);
+            List<Long> reservationStockIds = reservationRepository.findReservedStockIds();
+            List<Long> holdingStockIds = holdingStockRepository.findAllDistinctStockIds();
+            List<Long> watcherStockIds = currentStockWatcherRepository.findActiveStockIds();
+            SubscriptionCandidatePlanner.CandidatePlan candidatePlan = candidatePlanner.plan(
+                    reservationStockIds,
+                    watcherStockIds,
+                    holdingStockIds,
+                    marketDataStreamPort.getSubscribedStockIds()
+            );
+            List<Long> activeStockIds = candidatePlan.stockIds();
 
-            // 동기화 사이클 통계 갱신 (Gauge 노출용)
+            // 동기화 사이클 통계 갱신 (Gauge에서 참조)
             latestReservationStockCount = reservationStockIds.size();
             latestHoldingStockCount = holdingStockIds.size();
             latestWatcherStockCount = watcherStockIds.size();
 
-            // 세션 용량이 보유 종목 수를 커버할 수 있는지 경고
-            int sessionCapacity = getSessionCapacity();
-            if (holdingStockIds.size() > sessionCapacity) {
-                log.warn("현재 노드의 KIS WebSocket 세션 용량이 보유 종목 수보다 부족합니다. " +
-                                "보유 종목 수: {}, 세션 용량: {} (세션: {}개, 세션당 최대: {}) " +
-                                "일부 보유 종목이 다른 노드에서 구독되어야 합니다.",
-                        holdingStockIds.size(), sessionCapacity,
-                        marketDataStreamPort.getAvailableSessionCount(), MAX_SUBSCRIPTIONS_PER_SESSION);
+            if (activeStockIds.isEmpty()) {
+                latestMaxSubscriptions = 0;
+                latestCapacityOverflowCount = 0;
+                handleEmptyActiveStocks(nodeId);
+                return;
             }
 
             // 노드당 최대 구독 수 계산
             int maxSubscriptionsForNode = calculateMaxSubscriptionsForNode(activeStockIds.size());
             latestMaxSubscriptions = maxSubscriptionsForNode;
+            latestCapacityOverflowCount = Math.max(0, activeStockIds.size() - maxSubscriptionsForNode);
+            if (latestCapacityOverflowCount > 0) {
+                capacityLimitedCycleCounter.increment();
+            }
 
-            Map<Long, String> stockIdToSymbol = buildStockIdToSymbolMap(activeStockIds);
-            SubscriptionResult result = processActiveStocks(
-                    activeStockIds,
-                    stockIdToSymbol,
-                    maxSubscriptionsForNode,
-                    nodeId,
-                    Set.copyOf(reservationStockIds),
-                    Set.copyOf(holdingStockIds),
-                    protectedStockIds
-            );
             cleanupInactiveStocks(activeStockIds, nodeId);
+            SubscriptionResult result = processActiveStocks(
+                    candidatePlan,
+                    maxSubscriptionsForNode,
+                    nodeId
+            );
 
             logSyncComplete(result, activeStockIds.size(), maxSubscriptionsForNode);
 
@@ -279,7 +289,7 @@ public class KisSubscriptionSynchronizer {
             return 0;
         }
 
-        // 세션당 최대 구독 수 제한
+        // 연결된 세션의 실제 구독 용량 제한
         int maxBySession = getSessionCapacity();
 
         // 노드 간 공평 분배
@@ -298,7 +308,7 @@ public class KisSubscriptionSynchronizer {
             return UNBOUNDED_SUBSCRIPTION_CAPACITY;
         }
 
-        return marketDataStreamPort.getAvailableSessionCount() * MAX_SUBSCRIPTIONS_PER_SESSION;
+        return marketDataStreamPort.getSubscriptionCapacity();
     }
 
     private void handleEmptyActiveStocks(String nodeId) {
@@ -307,88 +317,34 @@ public class KisSubscriptionSynchronizer {
         releaseAllSubscriptions(nodeId);
     }
 
-    private Map<Long, String> buildStockIdToSymbolMap(List<Long> stockIds) {
-        if (stockIds.isEmpty()) {
-            return Map.of();
-        }
-
-        Set<Long> uniqueStockIds = new LinkedHashSet<>(stockIds);
-        Map<Long, String> result = new HashMap<>(uniqueStockIds.size());
-
-        List<Long> missingStockIds = uniqueStockIds.stream()
-                .filter(stockId -> !stockSymbolCache.containsKey(stockId))
-                .toList();
-
-        if (!missingStockIds.isEmpty()) {
-            List<Stock> stocks = stockRepository.findAllById(missingStockIds);
-            for (Stock stock : stocks) {
-                stockSymbolCache.put(stock.getId(), stock.getSymbol());
-            }
-        }
-
-        for (Long stockId : uniqueStockIds) {
-            String symbol = stockSymbolCache.get(stockId);
-            if (symbol != null) {
-                result.put(stockId, symbol);
-            }
-        }
-
-        return result;
-    }
-
     private SubscriptionResult processActiveStocks(
-            List<Long> activeStockIds,
-            Map<Long, String> stockIdToSymbol,
+            SubscriptionCandidatePlanner.CandidatePlan candidatePlan,
             int maxSubscriptionsForNode,
-            String nodeId,
-            Set<Long> reservationStockIds,
-            Set<Long> holdingStockIds,
-            Set<Long> protectedStockIds
+            String nodeId
     ) {
-        log.debug("KIS WebSocket 구독 동기화 시작 - 활성 종목 수: {}, 최대 구독 수: {}, 보유 종목 수: {}",
-                activeStockIds.size(), maxSubscriptionsForNode, holdingStockIds.size());
+        log.debug("KIS WebSocket 구독 동기화 시작 - 활성 종목 수: {}, 최대 구독 수: {}",
+                candidatePlan.candidates().size(), maxSubscriptionsForNode);
 
         int successCount = 0;
         int skipCount = 0;
-        int releasedCount = 0;
+        int releasedCount = releaseExcessSubscriptions(
+                maxSubscriptionsForNode,
+                candidatePlan.tierByStockId(),
+                nodeId
+        );
 
-        // 1. 초과 구독 해제 (보유/예약 종목은 해제하지 않음)
-        releasedCount = releaseExcessSubscriptions(maxSubscriptionsForNode, stockIdToSymbol, nodeId, protectedStockIds);
-
-        // 2. Phase 1: 보유 종목 우선 구독 (quota 제한 없음)
-        int holdingSuccess = 0;
-        for (Long stockId : holdingStockIds) {
-            if (handleStockSubscription(stockId, stockIdToSymbol, nodeId)) {
-                holdingSuccess++;
+        for (SubscriptionCandidatePlanner.Candidate candidate : candidatePlan.candidates()) {
+            SubscriptionAttempt attempt = handleStockSubscription(
+                    candidate,
+                    candidatePlan.tierByStockId(),
+                    maxSubscriptionsForNode,
+                    nodeId
+            );
+            if (attempt.isSuccess()) {
+                successCount++;
+            } else if (attempt.isSkipped()) {
+                skipCount++;
             }
-        }
-        successCount += holdingSuccess;
-        log.debug("Phase 1(보유 종목) 구독 완료 - 성공: {}/{}", holdingSuccess, holdingStockIds.size());
-
-        // 3. Phase 2: 나머지 종목(watcher + 예약) best-effort 구독 (quota 적용)
-        int otherSuccess = 0;
-        int otherSkippedByQuota = 0;
-        for (Long stockId : activeStockIds) {
-            if (holdingStockIds.contains(stockId)) {
-                continue; // Phase 1에서 이미 처리
-            }
-
-            // 최대 구독 수 체크 (보유 종목이 아닌 경우에만 적용)
-            if (subscriptionOrder.size() >= maxSubscriptionsForNode) {
-                otherSkippedByQuota++;
-                continue;
-            }
-
-            if (handleStockSubscription(stockId, stockIdToSymbol, nodeId)) {
-                otherSuccess++;
-            }
-        }
-        successCount += otherSuccess;
-        skipCount = otherSkippedByQuota;
-
-        if (otherSkippedByQuota > 0) {
-            log.debug("Phase 2(watcher) quota 도달 - 현재: {}, 최대: {}, 스킵: {}",
-                    subscriptionOrder.size(), maxSubscriptionsForNode, otherSkippedByQuota);
         }
 
         return new SubscriptionResult(successCount, skipCount, releasedCount);
@@ -397,109 +353,70 @@ public class KisSubscriptionSynchronizer {
     /**
      * 단일 종목의 구독을 처리합니다. 이미 소유 중이거나 신규 구독을 시도합니다.
      *
-     * @param stockId         종목 ID
-     * @param stockIdToSymbol 종목 ID-심볼 매핑
+     * @param candidate       우선순위가 포함된 구독 후보
+     * @param tierByStockId   활성 종목별 우선순위
+     * @param maxSubscriptions 현재 노드 최대 구독 수
      * @param nodeId          현재 노드 ID
      * @return 구독 성공 시 true
      */
-    private boolean handleStockSubscription(
-            Long stockId,
-            Map<Long, String> stockIdToSymbol,
+    private SubscriptionAttempt handleStockSubscription(
+            SubscriptionCandidatePlanner.Candidate candidate,
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            int maxSubscriptions,
             String nodeId
     ) {
+        Long stockId = candidate.stockId();
         boolean ownedByNode = ownershipManager.isOwnedByNode(stockId, nodeId);
         if (subscriptionOrder.contains(stockId) && !ownedByNode) {
-            releaseLocalSubscription(stockId, stockIdToSymbol, nodeId);
+            releaseLocalSubscription(stockId, nodeId);
         }
 
         if (ownedByNode) {
-            SubscriptionAttempt attempt = ensureOwnedSubscription(stockId, stockIdToSymbol, nodeId);
-            return attempt.isSuccess();
+            return ensureOwnedSubscription(candidate, tierByStockId, maxSubscriptions, nodeId);
         }
 
-        SubscriptionAttempt attempt = trySubscribeStock(stockId, stockIdToSymbol, nodeId);
-        return attempt.isSuccess();
+        if (subscriptionOrder.size() >= maxSubscriptions
+                && candidatePlanner.findLowerTierEviction(
+                        subscriptionOrder,
+                        tierByStockId,
+                        candidate.tier()
+                ) == null) {
+            return SubscriptionAttempt.skipped();
+        }
+
+        return trySubscribeStock(candidate, tierByStockId, maxSubscriptions, nodeId);
     }
 
     /**
-     * 초과 구독을 FIFO 방식으로 해제합니다.
+     * quota 축소 시 낮은 tier의 가장 최근 구독부터 해제합니다.
      *
      * @param maxSubscriptions 최대 구독 수
-     * @param stockIdToSymbol  종목 ID-심볼 매핑
      * @return 해제된 구독 수
      */
     private int releaseExcessSubscriptions(
             int maxSubscriptions,
-            Map<Long, String> stockIdToSymbol,
-            String nodeId,
-            Set<Long> protectedStockIds
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            String nodeId
     ) {
         int releasedCount = 0;
 
         while (subscriptionOrder.size() > maxSubscriptions) {
-            Long oldestStockId = findOldestEvictable(protectedStockIds);
-            if (oldestStockId == null) {
-                log.debug("모든 구독이 보호(보유/예약)되어 초과 구독 해제 불가 - 현재: {}, 최대: {}",
-                        subscriptionOrder.size(), maxSubscriptions);
+            Long stockId = candidatePlanner.findQuotaEviction(subscriptionOrder, tierByStockId);
+            if (stockId == null) {
                 break;
             }
-            String symbol = stockIdToSymbol.get(oldestStockId);
-
-            if (symbol == null) {
-                symbol = resolveSymbol(oldestStockId, stockIdToSymbol);
-            }
-
-            if (symbol != null) {
-                try {
-                    marketDataStreamPort.unsubscribe(oldestStockId, symbol);
-                    ownershipManager.releaseOwnership(oldestStockId, nodeId);
-                    subscriptionOrder.remove(oldestStockId);
-                    releasedCount++;
-                    log.info("할당량 초과로 구독 해제 (FIFO) - stockId: {}, symbol: {}, 남은 구독: {}",
-                            oldestStockId, symbol, subscriptionOrder.size());
-                } catch (Exception ex) {
-                    log.error("초과 구독 해제 실패 - stockId: {}", oldestStockId, ex);
-                    subscriptionOrder.remove(oldestStockId); // 실패해도 추적 목록에서 제거
-                }
-            } else {
-                log.warn("초과 구독 해제 중 심볼을 찾을 수 없음 - stockId: {}", oldestStockId);
-                ownershipManager.releaseOwnership(oldestStockId, nodeId);
-                subscriptionOrder.remove(oldestStockId);
-            }
+            releaseLocalSubscription(stockId, nodeId);
+            releasedCount++;
         }
 
         return releasedCount;
     }
 
-    private Long findOldestEvictable(Set<Long> protectedStockIds) {
-        for (Long stockId : subscriptionOrder) {
-            if (!protectedStockIds.contains(stockId)) {
-                return stockId;
-            }
-        }
-        return null;
-    }
-
-    private List<Long> buildActiveStockIds(
-            List<Long> reservationStockIds,
-            List<Long> holdingStockIds,
-            List<Long> watcherStockIds
-    ) {
-        LinkedHashSet<Long> merged = new LinkedHashSet<>(reservationStockIds);
-        merged.addAll(holdingStockIds);
-        merged.addAll(watcherStockIds);
-        return merged.stream().toList();
-    }
-
     private void releaseLocalSubscription(
             Long stockId,
-            Map<Long, String> stockIdToSymbol,
             String nodeId
     ) {
-        String symbol = stockIdToSymbol.get(stockId);
-        if (symbol == null) {
-            symbol = resolveSymbol(stockId, stockIdToSymbol);
-        }
+        String symbol = resolveSymbol(stockId);
 
         try {
             if (symbol != null) {
@@ -514,72 +431,96 @@ public class KisSubscriptionSynchronizer {
     }
 
     private SubscriptionAttempt ensureOwnedSubscription(
-            Long stockId,
-            Map<Long, String> stockIdToSymbol,
+            SubscriptionCandidatePlanner.Candidate candidate,
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            int maxSubscriptions,
             String nodeId
     ) {
+        Long stockId = candidate.stockId();
         ownershipManager.renewOwnership(stockId, nodeId);
 
         if (subscriptionOrder.contains(stockId)) {
             return SubscriptionAttempt.skipped();
         }
 
-        String symbol = stockIdToSymbol.get(stockId);
+        return withSubscriptionLock(stockId, () -> {
+            if (subscriptionOrder.contains(stockId)) {
+                return SubscriptionAttempt.skipped();
+            }
+            return subscribeOwnedStock(candidate, tierByStockId, maxSubscriptions, nodeId);
+        });
+    }
+
+    private SubscriptionAttempt trySubscribeStock(
+            SubscriptionCandidatePlanner.Candidate candidate,
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            int maxSubscriptions,
+            String nodeId
+    ) {
+        Long stockId = candidate.stockId();
+        return withSubscriptionLock(stockId, () -> {
+            if (!ownershipManager.tryAcquireOwnership(stockId, nodeId)) {
+                return SubscriptionAttempt.skipped();
+            }
+            return subscribeOwnedStock(candidate, tierByStockId, maxSubscriptions, nodeId);
+        });
+    }
+
+    private SubscriptionAttempt subscribeOwnedStock(
+            SubscriptionCandidatePlanner.Candidate candidate,
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            int maxSubscriptions,
+            String nodeId
+    ) {
+        Long stockId = candidate.stockId();
+        if (!makeRoomFor(candidate, tierByStockId, maxSubscriptions, nodeId)) {
+            ownershipManager.releaseOwnership(stockId, nodeId);
+            return SubscriptionAttempt.skipped();
+        }
+
+        String symbol = resolveSymbol(stockId);
         if (symbol == null) {
             log.warn("종목 심볼을 찾을 수 없어 소유권을 해제합니다 - stockId: {}", stockId);
             ownershipManager.releaseOwnership(stockId, nodeId);
             return SubscriptionAttempt.failed();
         }
 
-        return withSubscriptionLock(stockId, () -> {
-            if (subscriptionOrder.contains(stockId)) {
-                return SubscriptionAttempt.skipped();
-            }
+        MarketDataSubscriptionResult result = marketDataStreamPort.subscribe(stockId, symbol);
+        if (result.isSuccess() && marketDataStreamPort.isSubscribed(stockId)) {
+            subscriptionOrder.add(stockId);
+            logNewSubscription(stockId, symbol, result);
+            return result == MarketDataSubscriptionResult.SUBSCRIBED
+                    ? SubscriptionAttempt.success()
+                    : SubscriptionAttempt.skipped();
+        }
 
-            try {
-                marketDataStreamPort.subscribe(stockId, symbol);
-                subscriptionOrder.add(stockId);
-                logNewSubscription(stockId, symbol);
-                return SubscriptionAttempt.success();
-            } catch (Exception ex) {
-                log.error("기존 소유 종목 구독 처리 실패 - stockId: {}", stockId, ex);
-                ownershipManager.releaseOwnership(stockId, nodeId);
-                subscriptionOrder.remove(stockId);
-                return SubscriptionAttempt.failed();
-            }
-        });
+        ownershipManager.releaseOwnership(stockId, nodeId);
+        subscriptionOrder.remove(stockId);
+        log.debug("KIS 실시간 구독 거절 - stockId: {}, symbol: {}, result: {}", stockId, symbol, result);
+        return SubscriptionAttempt.failed();
     }
 
-    private SubscriptionAttempt trySubscribeStock(
-            Long stockId,
-            Map<Long, String> stockIdToSymbol,
+    private boolean makeRoomFor(
+            SubscriptionCandidatePlanner.Candidate candidate,
+            Map<Long, SubscriptionCandidatePlanner.Tier> tierByStockId,
+            int maxSubscriptions,
             String nodeId
     ) {
-        return withSubscriptionLock(stockId, () -> {
-            if (!ownershipManager.tryAcquireOwnership(stockId, nodeId)) {
-                return SubscriptionAttempt.skipped();
-            }
+        if (subscriptionOrder.size() < maxSubscriptions) {
+            return true;
+        }
 
-            String symbol = stockIdToSymbol.get(stockId);
+        Long evictionStockId = candidatePlanner.findLowerTierEviction(
+                subscriptionOrder,
+                tierByStockId,
+                candidate.tier()
+        );
+        if (evictionStockId == null) {
+            return false;
+        }
 
-            if (symbol == null) {
-                log.warn("종목 심볼을 찾을 수 없어 구독을 건너뜁니다 - stockId: {}", stockId);
-                ownershipManager.releaseOwnership(stockId, nodeId);
-                return SubscriptionAttempt.failed();
-            }
-
-            try {
-                marketDataStreamPort.subscribe(stockId, symbol);
-                subscriptionOrder.add(stockId);
-                logNewSubscription(stockId, symbol);
-                return SubscriptionAttempt.success();
-            } catch (Exception ex) {
-                log.error("종목 구독 처리 실패 - stockId: {}", stockId, ex);
-                ownershipManager.releaseOwnership(stockId, nodeId);
-                subscriptionOrder.remove(stockId);
-                return SubscriptionAttempt.failed();
-            }
-        });
+        releaseLocalSubscription(evictionStockId, nodeId);
+        return subscriptionOrder.size() < maxSubscriptions;
     }
 
     private SubscriptionAttempt withSubscriptionLock(Long stockId, Supplier<SubscriptionAttempt> task) {
@@ -598,8 +539,12 @@ public class KisSubscriptionSynchronizer {
         }
     }
 
-    private void logNewSubscription(Long stockId, String symbol) {
-        if (!marketDataStreamPort.isSubscribed(stockId)) {
+    private void logNewSubscription(
+            Long stockId,
+            String symbol,
+            MarketDataSubscriptionResult result
+    ) {
+        if (result == MarketDataSubscriptionResult.SUBSCRIBED) {
             log.debug("KIS 실시간 신규 구독 성공 - stockId: {}, symbol: {}", stockId, symbol);
         }
     }
@@ -616,20 +561,18 @@ public class KisSubscriptionSynchronizer {
             return;
         }
 
-        Map<Long, String> inactiveStockIdToSymbol = buildStockIdToSymbolMap(inactiveStockIds);
-        unsubscribeStocks(inactiveStockIds, inactiveStockIdToSymbol, nodeId);
+        unsubscribeStocks(inactiveStockIds, nodeId);
     }
 
     private void unsubscribeStocks(
             List<Long> stockIds,
-            Map<Long, String> stockIdToSymbol,
             String nodeId
     ) {
         int unsubscribeCount = 0;
 
         for (Long stockId : stockIds) {
             try {
-                String symbol = stockIdToSymbol.get(stockId);
+                String symbol = resolveSymbol(stockId);
                 if (symbol != null) {
                     marketDataStreamPort.unsubscribe(stockId, symbol);
                     unsubscribeCount++;
@@ -659,7 +602,7 @@ public class KisSubscriptionSynchronizer {
         );
 
         if (!currentSnapshot.equals(lastSyncLogSnapshot)) {
-            log.info("KIS WebSocket 구독 상태 변경 - 성공: {}, 스킵(다른 노드): {}, 해제(FIFO): {}, 전체: {}, 최대: {}, 현재: {}",
+            log.info("KIS WebSocket 구독 상태 변경 - 성공: {}, 스킵: {}, 해제: {}, 전체: {}, 최대: {}, 현재: {}",
                     result.successCount(), result.skipCount(), result.releasedCount(),
                     totalCount, maxSubscriptions, subscriptionOrder.size());
             lastSyncLogSnapshot = currentSnapshot;
@@ -696,11 +639,10 @@ public class KisSubscriptionSynchronizer {
         }
 
         log.info("활성 종목이 없어 모든 구독을 해제합니다 - 구독 수: {}", subscribedStockIds.size());
-        Map<Long, String> stockIdToSymbol = buildStockIdToSymbolMap(subscribedStockIds.stream().toList());
 
         for (Long stockId : subscribedStockIds) {
             try {
-                String symbol = stockIdToSymbol.get(stockId);
+                String symbol = resolveSymbol(stockId);
                 if (symbol != null) {
                     marketDataStreamPort.unsubscribe(stockId, symbol);
                 }
@@ -745,13 +687,8 @@ public class KisSubscriptionSynchronizer {
         }
     }
 
-    private String resolveSymbol(Long stockId, Map<Long, String> stockIdToSymbol) {
-        String cachedSymbol = stockIdToSymbol.get(stockId);
-        if (cachedSymbol != null) {
-            return cachedSymbol;
-        }
-
-        cachedSymbol = stockSymbolCache.get(stockId);
+    private String resolveSymbol(Long stockId) {
+        String cachedSymbol = stockSymbolCache.get(stockId);
         if (cachedSymbol != null) {
             return cachedSymbol;
         }
