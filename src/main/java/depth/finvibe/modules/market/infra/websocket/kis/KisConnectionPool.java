@@ -400,6 +400,7 @@ public class KisConnectionPool implements MarketDataStreamPort {
                 .close(toBigDecimal(response.getCurrentStockPrice()))
                 .prevDayChangePct(toBigDecimal(response.getPreviousDayChangeRate()))
                 .volume(toBigDecimal(response.getCumulativeVolume()))
+                .executionVolume(toBigDecimal(response.getExecutionVolume()))
                 .value(toBigDecimal(response.getCumulativeTradingAmount()))
                 .build();
     }

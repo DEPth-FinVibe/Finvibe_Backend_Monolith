@@ -47,6 +47,22 @@ public class PriceCandleRepositoryImpl implements PriceCandleRepository {
     }
 
     @Override
+    @Transactional
+    public void upsertRealtimeMinuteCandle(PriceCandle candle) {
+        jpaRepository.upsertRealtimeMinuteCandle(
+                candle.getStockId(),
+                candle.getAt(),
+                candle.getOpen(),
+                candle.getHigh(),
+                candle.getLow(),
+                candle.getClose(),
+                candle.getPrevDayChangePct(),
+                candle.getVolume(),
+                candle.getValue()
+        );
+    }
+
+    @Override
     public boolean existsByStockIdAndTimeframe(Long stockId, Timeframe timeframe) {
         return jpaRepository.existsByStockIdAndTimeframe(stockId, timeframe);
     }
@@ -55,4 +71,3 @@ public class PriceCandleRepositoryImpl implements PriceCandleRepository {
         return timeframe.normalizeStart(startTime);
     }
 }
-
