@@ -21,6 +21,8 @@ public interface PriceCandleRepository {
 
     void saveAll(List<PriceCandle> fetchedResult);
 
+    void upsertRealtimeMinuteCandle(PriceCandle candle);
+
     /**
      * 특정 Stock과 Timeframe으로 데이터 존재 여부 확인
      */

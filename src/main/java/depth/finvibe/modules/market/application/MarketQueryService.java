@@ -3,6 +3,7 @@ package depth.finvibe.modules.market.application;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
+import depth.finvibe.modules.market.application.port.out.CandleFetchResult;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
 import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;
@@ -12,6 +13,7 @@ import depth.finvibe.modules.market.application.port.out.StockRankingRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.ClosingPrice;
 import depth.finvibe.modules.market.domain.CurrentPrice;
+import depth.finvibe.modules.market.domain.MarketHours;
 import depth.finvibe.modules.market.domain.PriceCandle;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.StockRanking;
@@ -19,6 +21,7 @@ import depth.finvibe.modules.market.domain.enums.MarketIndexType;
 import depth.finvibe.modules.market.domain.enums.MarketStatus;
 import depth.finvibe.modules.market.domain.enums.RankType;
 import depth.finvibe.modules.market.domain.enums.Timeframe;
+import depth.finvibe.modules.market.domain.enums.TradingDayStatus;
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.ClosingPriceDto;
 import depth.finvibe.modules.market.dto.CurrentPriceDto;
@@ -26,6 +29,7 @@ import depth.finvibe.modules.market.dto.PriceCandleDto;
 import depth.finvibe.modules.market.dto.StockDto;
 import depth.finvibe.common.error.DomainException;
 import depth.finvibe.common.investment.lock.DistributedLockManager;
+import depth.finvibe.common.investment.lock.LockAcquisitionException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,18 +37,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -63,6 +65,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final MarketStatusService marketStatusService;
     private final TransactionTemplate transactionTemplate;
     private final MeterRegistry meterRegistry;
+    private final Clock marketClock;
     private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
     private final Map<Long, ReentrantLock> currentPriceMissLocks = new ConcurrentHashMap<>();
     @Value("${market.provider:kis}")
@@ -70,18 +73,17 @@ public class MarketQueryService implements MarketQueryUseCase {
 
     @Override
     public List<PriceCandleDto.Response> getStockCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
-
-        // 분산 락 키: 종목ID + 시간프레임 (단일 락)
         String lockKey = String.format("stock:candle:%d:%s", stockId, timeframe);
-
-        // 분산 락 적용: 대기 10초, 보유 60초 (API 호출 및 배치 저장 고려)
-        // 트랜잭션을 DB 작업에만 한정하여 API 호출 중 커넥션 점유를 방지
-        return distributedLockManager.executeWithLock(
-                lockKey,
-                Duration.ofSeconds(10),
-                Duration.ofSeconds(60),
-                () -> fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe)
-        );
+        try {
+            return distributedLockManager.executeWithLock(
+                    lockKey,
+                    Duration.ofSeconds(10),
+                    Duration.ofSeconds(60),
+                    () -> fetchStockCandlesWithLock(stockId, startTime, endTime, timeframe)
+            );
+        } catch (LockAcquisitionException ex) {
+            return fallbackToCachedCandles(stockId, startTime, endTime, timeframe, "lock", ex);
+        }
     }
 
     @Override
@@ -104,104 +106,193 @@ public class MarketQueryService implements MarketQueryUseCase {
                 .toList();
     }
 
-    /**
-     * 분산 락 내에서 실행되는 실제 캔들 조회 로직
-     * DB 읽기/쓰기를 각각 짧은 트랜잭션으로 감싸고, 외부 API 호출은 트랜잭션 밖에서 수행한다.
-     * 이로써 KIS API 응답 대기 중 DB 커넥션이 점유되지 않는다.
-     */
     private List<PriceCandleDto.Response> fetchStockCandlesWithLock(
             Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
-
-        // 1. Timeframe에 따라 시간 범위 정규화
         LocalDateTime normalizedStart = timeframe.normalizeStart(startTime);
         LocalDateTime normalizedEnd = timeframe.normalizeEnd(endTime);
+        List<PriceCandle> existingCandles = findExistingCandles(
+                stockId,
+                normalizedStart,
+                normalizedEnd,
+                timeframe
+        );
+        LocalDateTime providerEnd = capProviderEnd(normalizedStart, normalizedEnd, timeframe);
+        if (providerEnd == null) {
+            return toActualCandleDtos(existingCandles);
+        }
+        List<LocalDateTime> missingCandleTimes = calculateMissingCandleTimes(
+                normalizedStart,
+                providerEnd,
+                timeframe,
+                existingCandles
+        );
 
-        // 2. [트랜잭션 1] DB에서 기존 캔들 조회
-        List<PriceCandle> existingCandles = transactionTemplate.execute(status ->
-                priceCandleRepository.findExisting(stockId, normalizedStart, normalizedEnd, timeframe));
-
-        // 3. 없는 캔들만 계산 (트랜잭션 불필요 — 순수 계산)
-        List<LocalDateTime> missingCandleTimes = calculateMissingCandleTimes(normalizedStart, normalizedEnd, timeframe, existingCandles);
-
-        List<PriceCandleDto.Response> fetchedCandles = new ArrayList<>();
-        if (!missingCandleTimes.isEmpty()) {
-
-            // 4. 가져와야 하는 캔들의 시간 범위 계산
-            LocalDateTime earliestTime = missingCandleTimes.stream().min(LocalDateTime::compareTo).orElse(normalizedStart);
-            LocalDateTime latestTime = missingCandleTimes.stream().max(LocalDateTime::compareTo).orElse(normalizedEnd);
-
-            // 5. 해당 범위의 모든 캔들 시각 생성
-            List<LocalDateTime> allCandleTimesInRange = generateCandleTimesInRange(earliestTime, latestTime, timeframe);
-
-            // 6. [트랜잭션 밖] 외부 API 호출 — DB 커넥션 미점유
-            fetchedCandles = realMarketClient.fetchPriceCandles(stockId, earliestTime, latestTime, timeframe);
-
-            // 7. [트랜잭션 2] API에서 받은 캔들 배치 저장 + 못 받은 캔들은 isMissing=true로 저장
-            Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
-                    .map(PriceCandle::getAt)
-                    .collect(Collectors.toSet());
-            List<PriceCandleDto.Response> candles = fetchedCandles;
-            transactionTemplate.executeWithoutResult(status ->
-                    saveFetchedAndMissingCandles(candles, allCandleTimesInRange, stockId, timeframe, existingCandleTimes));
+        if (missingCandleTimes.isEmpty()) {
+            return toActualCandleDtos(existingCandles);
         }
 
-        // 8. 결과 병합 및 반환
+        LocalDateTime earliestTime = missingCandleTimes.getFirst();
+        LocalDateTime latestTime = missingCandleTimes.getLast();
+        CandleFetchResult fetchResult = realMarketClient.fetchPriceCandles(
+                stockId,
+                earliestTime,
+                latestTime,
+                timeframe
+        );
+
+        if (fetchResult.isFailed() || fetchResult.candles().isEmpty()) {
+            recordCandleProviderFailure(stockId, timeframe, earliestTime, latestTime);
+            return fallbackToExistingCandles(existingCandles, stockId, timeframe, "provider");
+        }
+
+        if (fetchResult.isPartial()) {
+            meterRegistry.counter("market.candle.provider.partial", "timeframe", timeframe.name()).increment();
+            log.warn(
+                    "Candle provider returned partial data. stockId={}, timeframe={}, startTime={}, endTime={}, count={}",
+                    stockId,
+                    timeframe,
+                    earliestTime,
+                    latestTime,
+                    fetchResult.candles().size()
+            );
+        }
+
+        List<PriceCandleDto.Response> fetchedCandles = fetchResult.candles();
+        transactionTemplate.executeWithoutResult(status -> saveFetchedCandles(fetchedCandles, existingCandles));
         return mergeAndSortCandles(existingCandles, fetchedCandles);
     }
 
-    private List<PriceCandleDto.Response> mergeAndSortCandles(List<PriceCandle> existingCandles, List<PriceCandleDto.Response> fetchedCandles) {
-        // isMissing=true인 캔들은 제외하고 실제 데이터만 변환
-        List<PriceCandleDto.Response> existingCandleDtos = existingCandles.stream()
+    private List<PriceCandle> findExistingCandles(
+            Long stockId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Timeframe timeframe
+    ) {
+        List<PriceCandle> candles = transactionTemplate.execute(status ->
+                priceCandleRepository.findExisting(stockId, startTime, endTime, timeframe));
+        return candles == null ? List.of() : candles;
+    }
+
+    private List<PriceCandleDto.Response> fallbackToCachedCandles(
+            Long stockId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Timeframe timeframe,
+            String reason,
+            RuntimeException cause
+    ) {
+        List<PriceCandle> existingCandles = findExistingCandles(
+                stockId,
+                timeframe.normalizeStart(startTime),
+                timeframe.normalizeEnd(endTime),
+                timeframe
+        );
+        log.warn(
+                "Candle query fallback after {} failure. stockId={}, timeframe={}, startTime={}, endTime={}",
+                reason,
+                stockId,
+                timeframe,
+                startTime,
+                endTime,
+                cause
+        );
+        return fallbackToExistingCandles(existingCandles, stockId, timeframe, reason);
+    }
+
+    private List<PriceCandleDto.Response> fallbackToExistingCandles(
+            List<PriceCandle> existingCandles,
+            Long stockId,
+            Timeframe timeframe,
+            String reason
+    ) {
+        List<PriceCandleDto.Response> cachedCandles = toActualCandleDtos(existingCandles);
+        if (!cachedCandles.isEmpty()) {
+            meterRegistry.counter(
+                    "market.candle.cache.fallback",
+                    "timeframe",
+                    timeframe.name(),
+                    "reason",
+                    reason
+            ).increment();
+            return cachedCandles;
+        }
+
+        meterRegistry.counter(
+                "market.candle.unavailable",
+                "timeframe",
+                timeframe.name(),
+                "reason",
+                reason
+        ).increment();
+        log.warn("Candle data is temporarily unavailable. stockId={}, timeframe={}, reason={}",
+                stockId, timeframe, reason);
+        throw new DomainException(MarketErrorCode.CANDLE_TEMPORARILY_UNAVAILABLE);
+    }
+
+    private void recordCandleProviderFailure(
+            Long stockId,
+            Timeframe timeframe,
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    ) {
+        meterRegistry.counter("market.candle.provider.failures", "timeframe", timeframe.name()).increment();
+        log.warn(
+                "Candle provider failed or returned no usable data. stockId={}, timeframe={}, startTime={}, endTime={}",
+                stockId,
+                timeframe,
+                startTime,
+                endTime
+        );
+    }
+
+    private List<PriceCandleDto.Response> toActualCandleDtos(List<PriceCandle> candles) {
+        return candles.stream()
                 .filter(candle -> !candle.getIsMissing())
                 .map(PriceCandleDto.Response::from)
                 .toList();
+    }
 
-        // DB에서 가져온 캔들의 시각을 Set으로 변환 (중복 체크용)
-        Set<LocalDateTime> existingTimes = existingCandleDtos.stream()
-                .map(PriceCandleDto.Response::getAt)
-                .collect(Collectors.toSet());
+    private List<PriceCandleDto.Response> mergeAndSortCandles(
+            List<PriceCandle> existingCandles,
+            List<PriceCandleDto.Response> fetchedCandles
+    ) {
+        Map<LocalDateTime, PriceCandleDto.Response> merged = toActualCandleDtos(existingCandles).stream()
+                .collect(Collectors.toMap(PriceCandleDto.Response::getAt, candle -> candle));
+        fetchedCandles.forEach(candle -> merged.put(candle.getAt(), candle));
 
-        // API에서 가져온 캔들 중 DB에 없는 것만 필터링
-        List<PriceCandleDto.Response> uniqueFetchedCandles = fetchedCandles.stream()
-                .filter(candle -> !existingTimes.contains(candle.getAt()))
-                .toList();
-
-        // 중복 제거된 결과를 병합하고 정렬
-        return Stream.concat(existingCandleDtos.stream(), uniqueFetchedCandles.stream())
+        return merged.values().stream()
                 .sorted(Comparator.comparing(PriceCandleDto.Response::getAt))
                 .toList();
     }
 
-    private void saveFetchedAndMissingCandles(
-            List<PriceCandleDto.Response> fetchedCandles, 
-            List<LocalDateTime> allCandleTimesInRange,
-            Long stockId, 
-            Timeframe timeframe,
-            Set<LocalDateTime> existingTimes) {
-        
-        // fetch된 캔들들의 시각 추출
-        List<LocalDateTime> fetchedTimes = fetchedCandles.stream()
-                .map(PriceCandleDto.Response::getAt)
-                .toList();
+    private void saveFetchedCandles(
+            List<PriceCandleDto.Response> fetchedCandles,
+            List<PriceCandle> existingCandles
+    ) {
+        Map<LocalDateTime, PriceCandle> existingByTime = existingCandles.stream()
+                .collect(Collectors.toMap(PriceCandle::getAt, candle -> candle));
+        List<PriceCandle> changedCandles = new ArrayList<>();
 
-        // 1. API에서 받은 캔들 중 DB에 없는 것만 필터링
-        List<PriceCandle> newCandles = fetchedCandles.stream()
-                .filter(dto -> !existingTimes.contains(dto.getAt()))
-                .map(this::createPriceCandleFrom)
-                .collect(Collectors.toCollection(ArrayList::new));
+        for (PriceCandleDto.Response fetchedCandle : fetchedCandles) {
+            PriceCandle existing = existingByTime.get(fetchedCandle.getAt());
+            if (existing == null) {
+                changedCandles.add(createPriceCandleFrom(fetchedCandle));
+                continue;
+            }
+            existing.restore(
+                    fetchedCandle.getOpen(),
+                    fetchedCandle.getHigh(),
+                    fetchedCandle.getLow(),
+                    fetchedCandle.getClose(),
+                    fetchedCandle.getPrevDayChangePct(),
+                    fetchedCandle.getVolume(),
+                    fetchedCandle.getValue()
+            );
+            changedCandles.add(existing);
+        }
 
-        // 2. API에서 못 받은 시각들 찾기
-        Set<LocalDateTime> fetchedTimeSet = new HashSet<>(fetchedTimes);
-        List<PriceCandle> missingCandles = allCandleTimesInRange.stream()
-                .filter(time -> !fetchedTimeSet.contains(time) && !existingTimes.contains(time))
-                .map(time -> PriceCandle.createMissing(stockId, timeframe, time))
-                .toList();
-
-        // 3. 실제 캔들 + 빈 캔들 모두 배치 저장
-        newCandles.addAll(missingCandles);
-
-        if (!newCandles.isEmpty()) {
-            priceCandleRepository.saveAll(newCandles);
+        if (!changedCandles.isEmpty()) {
+            priceCandleRepository.saveAll(changedCandles);
         }
     }
 
@@ -221,30 +312,121 @@ public class MarketQueryService implements MarketQueryUseCase {
                 .build();
     }
 
-    private List<LocalDateTime> calculateMissingCandleTimes(LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe, List<PriceCandle> existingCandles) {
+    private List<LocalDateTime> calculateMissingCandleTimes(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Timeframe timeframe,
+            List<PriceCandle> existingCandles
+    ) {
         List<LocalDateTime> shouldHaveCandleTimes = generateCandleTimesInRange(startTime, endTime, timeframe);
 
         Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
+                .filter(candle -> !candle.getIsMissing())
+                .filter(candle -> !requiresAuthoritativeMinuteRefresh(timeframe))
                 .map(PriceCandle::getAt)
                 .collect(Collectors.toSet());
 
-        // DB에 존재하는 캔들(실제 데이터 + isMissing=true 모두) 제외
         return shouldHaveCandleTimes.stream()
                 .filter(time -> !existingCandleTimes.contains(time))
                 .toList();
     }
 
+    private LocalDateTime capProviderEnd(
+            LocalDateTime normalizedStart,
+            LocalDateTime normalizedEnd,
+            Timeframe timeframe
+    ) {
+        if (timeframe != Timeframe.MINUTE || !isKisProvider()) {
+            return normalizedEnd;
+        }
+
+        LocalDateTime lastCompletedMinute = timeframe.lastCompletedTime(LocalDateTime.now(marketClock));
+        LocalDateTime providerEnd = normalizedEnd.isBefore(lastCompletedMinute)
+                ? normalizedEnd
+                : lastCompletedMinute;
+        return providerEnd.isBefore(normalizedStart) ? null : providerEnd;
+    }
+
+    private boolean requiresAuthoritativeMinuteRefresh(Timeframe timeframe) {
+        return timeframe == Timeframe.MINUTE && isKisProvider();
+    }
+
+    private boolean isKisProvider() {
+        return "kis".equalsIgnoreCase(marketProvider);
+    }
+
     private List<LocalDateTime> generateCandleTimesInRange(LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
+        return switch (timeframe) {
+            case MINUTE -> generateMinuteCandleTimes(startTime, endTime);
+            case DAY -> generateDailyCandleTimes(startTime, endTime);
+            case WEEK, MONTH, YEAR -> generatePeriodCandleTimes(startTime, endTime, timeframe);
+        };
+    }
+
+    private List<LocalDateTime> generateMinuteCandleTimes(LocalDateTime startTime, LocalDateTime endTime) {
         List<LocalDateTime> candleTimes = new ArrayList<>();
-        
-        // startTime을 Timeframe에 맞춰 정규화 (방어적 처리)
+        LocalDate currentDate = startTime.toLocalDate();
+        LocalDate endDate = endTime.toLocalDate();
+
+        while (!currentDate.isAfter(endDate)) {
+            if (shouldQueryTradingDate(currentDate)) {
+                LocalDateTime sessionStart = MarketHours.sessionStart(currentDate);
+                LocalDateTime sessionEnd = MarketHours.sessionEnd(currentDate);
+                LocalDateTime current = sessionStart.isAfter(startTime) ? sessionStart : Timeframe.MINUTE.normalizeStart(startTime);
+                LocalDateTime effectiveEnd = sessionEnd.isBefore(endTime) ? sessionEnd : Timeframe.MINUTE.normalizeStart(endTime);
+
+                while (!current.isAfter(effectiveEnd)) {
+                    candleTimes.add(current);
+                    current = current.plusMinutes(1);
+                }
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        return candleTimes;
+    }
+
+    private List<LocalDateTime> generateDailyCandleTimes(LocalDateTime startTime, LocalDateTime endTime) {
+        List<LocalDateTime> candleTimes = new ArrayList<>();
+        LocalDate currentDate = startTime.toLocalDate();
+        LocalDate endDate = endTime.toLocalDate();
+
+        while (!currentDate.isAfter(endDate)) {
+            if (shouldQueryTradingDate(currentDate)) {
+                candleTimes.add(currentDate.atStartOfDay());
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        return candleTimes;
+    }
+
+    private boolean shouldQueryTradingDate(LocalDate date) {
+        if (!MarketHours.isWeekday(date)) {
+            return false;
+        }
+
+        TradingDayStatus status = holidayCalendarService.getTradingDayStatus(date);
+        if (status == TradingDayStatus.CLOSED) {
+            return false;
+        }
+        if (status == TradingDayStatus.UNKNOWN) {
+            meterRegistry.counter("market.candle.calendar.unknown").increment();
+            log.warn("Use weekday fallback for candle query because calendar status is unknown. date={}", date);
+        }
+        return true;
+    }
+
+    private List<LocalDateTime> generatePeriodCandleTimes(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Timeframe timeframe
+    ) {
+        List<LocalDateTime> candleTimes = new ArrayList<>();
         LocalDateTime current = timeframe.normalizeStart(startTime);
 
         while (!current.isAfter(endTime)) {
             candleTimes.add(current);
             current = timeframe.nextTime(current);
         }
-
         return candleTimes;
     }
 

@@ -29,7 +29,8 @@ public class MarketErrorHttpMapper implements DomainErrorHttpMapper {
                  NO_STOCKS_IN_CATEGORY,
                  STOCK_NOT_FOUND -> HttpStatus.NOT_FOUND;
 
-            case NO_PRICE_DATA_AVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case NO_PRICE_DATA_AVAILABLE,
+                 CANDLE_TEMPORARILY_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
     }
 }

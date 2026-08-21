@@ -24,6 +24,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.application.port.out.RealMarketClient;
+import depth.finvibe.modules.market.application.port.out.CandleFetchResult;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.Stock;
 import depth.finvibe.modules.market.domain.enums.RankType;
@@ -52,9 +53,9 @@ public class RealMarketClientImpl implements RealMarketClient {
     private final MeterRegistry meterRegistry;
 
     @Override
-    public List<PriceCandleDto.Response> fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
+    public CandleFetchResult fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
         if (startTime == null || endTime == null) {
-            return List.of();
+            return CandleFetchResult.failed();
         }
 
         Stock stock = stockRepository.findById(stockId)
@@ -107,7 +108,7 @@ public class RealMarketClientImpl implements RealMarketClient {
         }
     }
 
-    private List<PriceCandleDto.Response> fetchIntradayCandles(
+    private CandleFetchResult fetchIntradayCandles(
             String symbol,
             Long stockId,
             LocalDateTime startTime,
@@ -117,14 +118,16 @@ public class RealMarketClientImpl implements RealMarketClient {
         LocalDateTime normalizedEnd = endTime.withSecond(0).withNano(0);
 
         if (normalizedStart.isAfter(normalizedEnd)) {
-            return List.of();
+            return CandleFetchResult.complete(List.of());
         }
 
         Map<LocalDateTime, PriceCandleDto.Response> minuteCandles = new HashMap<>();
         List<LocalDate> tradingDates = getTradingDates(normalizedStart.toLocalDate(), normalizedEnd.toLocalDate());
         if (tradingDates.isEmpty()) {
-            return List.of();
+            return CandleFetchResult.complete(List.of());
         }
+
+        int failedCallCount = 0;
 
         for (LocalDate tradingDate : tradingDates) {
             LocalDateTime sessionStart = tradingDate.atTime(LocalTime.of(9, 0));
@@ -149,53 +152,77 @@ public class RealMarketClientImpl implements RealMarketClient {
                         )
                 );
 
-                if (response == null || response.getOutput2() == null) {
+                if (!isSuccessfulResponse(response == null ? null : response.getRt_cd())
+                        || response.getOutput2() == null
+                        || response.getOutput2().isEmpty()) {
+                    failedCallCount++;
                     continue;
                 }
 
-                BigDecimal previousClosePrice = toBigDecimal(
-                        response.getOutput1() == null ? null : response.getOutput1().getStck_prdy_clpr());
+                BigDecimal previousClosePrice = null;
+                try {
+                    previousClosePrice = toBigDecimal(
+                            response.getOutput1() == null ? null : response.getOutput1().getStck_prdy_clpr());
+                } catch (RuntimeException ex) {
+                    failedCallCount++;
+                    log.warn("Ignore malformed previous close price. symbol={}", symbol, ex);
+                }
 
                 for (KisDto.TimeDailyChartPriceOutput2 item : response.getOutput2()) {
-                    LocalDateTime candleAt = parseDateTime(
-                            item.getStck_bsop_date(),
-                            item.getStck_cntg_hour()
-                    );
-                    if (candleAt == null) {
-                        continue;
-                    }
-                    LocalDateTime normalized = normalizeIntradayAt(candleAt);
+                    try {
+                        LocalDateTime candleAt = parseDateTime(
+                                item.getStck_bsop_date(),
+                                item.getStck_cntg_hour()
+                        );
+                        if (candleAt == null) {
+                            continue;
+                        }
+                        LocalDateTime normalized = normalizeIntradayAt(candleAt);
 
-                    if (normalized.isBefore(normalizedStart) || normalized.isAfter(normalizedEnd)) {
-                        continue;
-                    }
+                        if (normalized.isBefore(normalizedStart) || normalized.isAfter(normalizedEnd)) {
+                            continue;
+                        }
 
-                    if (normalized.isBefore(sessionStart) || normalized.isAfter(sessionEnd)) {
-                        continue;
-                    }
+                        if (normalized.isBefore(sessionStart) || normalized.isAfter(sessionEnd)) {
+                            continue;
+                        }
 
-                    minuteCandles.putIfAbsent(normalized, PriceCandleDto.Response.builder()
-                            .open(toBigDecimal(item.getStck_oprc()))
-                            .close(toBigDecimal(item.getStck_prpr()))
-                            .high(toBigDecimal(item.getStck_hgpr()))
-                            .low(toBigDecimal(item.getStck_lwpr()))
-                            .volume(toBigDecimal(item.getCntg_vol()))
-                            .value(toBigDecimal(item.getAcml_tr_pbmn()))
-                            .stockId(stockId)
-                            .timeframe(Timeframe.MINUTE)
-                            .at(normalized)
-                            .prevDayChangePct(calculateChangeRate(toBigDecimal(item.getStck_prpr()), previousClosePrice))
-                            .build());
+                        minuteCandles.putIfAbsent(normalized, PriceCandleDto.Response.builder()
+                                .open(toBigDecimal(item.getStck_oprc()))
+                                .close(toBigDecimal(item.getStck_prpr()))
+                                .high(toBigDecimal(item.getStck_hgpr()))
+                                .low(toBigDecimal(item.getStck_lwpr()))
+                                .volume(toBigDecimal(item.getCntg_vol()))
+                                .value(toBigDecimal(item.getAcml_tr_pbmn()))
+                                .stockId(stockId)
+                                .timeframe(Timeframe.MINUTE)
+                                .at(normalized)
+                                .prevDayChangePct(calculateChangeRate(
+                                        toBigDecimal(item.getStck_prpr()),
+                                        previousClosePrice
+                                ))
+                                .build());
+                    } catch (RuntimeException ex) {
+                        failedCallCount++;
+                        log.warn(
+                                "Skip malformed intraday candle. symbol={}, date={}, time={}",
+                                symbol,
+                                item == null ? null : item.getStck_bsop_date(),
+                                item == null ? null : item.getStck_cntg_hour(),
+                                ex
+                        );
+                    }
                 }
             }
         }
 
-        return minuteCandles.values().stream()
+        List<PriceCandleDto.Response> candles = minuteCandles.values().stream()
                 .sorted((left, right) -> left.getAt().compareTo(right.getAt()))
                 .collect(Collectors.toList());
+        return toFetchResult(candles, failedCallCount);
     }
 
-    private List<PriceCandleDto.Response> fetchDailyCandles(
+    private CandleFetchResult fetchDailyCandles(
             String symbol,
             Long stockId,
             LocalDateTime startTime,
@@ -215,20 +242,38 @@ public class RealMarketClientImpl implements RealMarketClient {
         LocalDate startDate = startTime.toLocalDate();
         LocalDate cursorEndDate = endTime.toLocalDate();
         int callCount = 0;
+        int failedCallCount = 0;
 
         while (!cursorEndDate.isBefore(startDate) && callCount < DAILY_CHART_MAX_CALL_COUNT) {
             callCount++;
 
-            KisDto.DailyItemChartPriceResponse response = kisApiClient.fetchDailyItemChartPrice(
-                    "J",
-                    symbol,
-                    startDate.format(DateTimeFormatter.BASIC_ISO_DATE),
-                    cursorEndDate.format(DateTimeFormatter.BASIC_ISO_DATE),
-                    periodCode,
-                    "1"
-            );
+            KisDto.DailyItemChartPriceResponse response;
+            try {
+                response = kisApiClient.fetchDailyItemChartPrice(
+                        "J",
+                        symbol,
+                        startDate.format(DateTimeFormatter.BASIC_ISO_DATE),
+                        cursorEndDate.format(DateTimeFormatter.BASIC_ISO_DATE),
+                        periodCode,
+                        "1"
+                );
+            } catch (RuntimeException ex) {
+                failedCallCount++;
+                log.warn(
+                        "Failed to fetch daily candles. symbol={}, timeframe={}, startDate={}, endDate={}",
+                        symbol,
+                        timeframe,
+                        startDate,
+                        cursorEndDate,
+                        ex
+                );
+                break;
+            }
 
-            if (response == null || response.getOutput2() == null || response.getOutput2().isEmpty()) {
+            if (!isSuccessfulResponse(response == null ? null : response.getRt_cd())
+                    || response.getOutput2() == null
+                    || response.getOutput2().isEmpty()) {
+                failedCallCount++;
                 break;
             }
 
@@ -236,32 +281,43 @@ public class RealMarketClientImpl implements RealMarketClient {
             LocalDate oldestDateInBatch = cursorEndDate;
 
             for (KisDto.DailyItemChartPriceOutput2 item : items) {
-                LocalDateTime candleAt = parseDateTime(item.getStck_bsop_date(), null);
-                if (candleAt == null) {
-                    continue;
-                }
-                LocalDateTime normalizedAt = normalizeDateAt(candleAt, timeframe);
+                try {
+                    LocalDateTime candleAt = parseDateTime(item.getStck_bsop_date(), null);
+                    if (candleAt == null) {
+                        continue;
+                    }
+                    LocalDateTime normalizedAt = normalizeDateAt(candleAt, timeframe);
 
-                if (normalizedAt.isBefore(startTime) || normalizedAt.isAfter(endTime)) {
-                    continue;
-                }
+                    if (normalizedAt.isBefore(startTime) || normalizedAt.isAfter(endTime)) {
+                        continue;
+                    }
 
-                results.putIfAbsent(normalizedAt, PriceCandleDto.Response.builder()
-                        .open(toBigDecimal(item.getStck_oprc()))
-                        .close(toBigDecimal(item.getStck_clpr()))
-                        .high(toBigDecimal(item.getStck_hgpr()))
-                        .low(toBigDecimal(item.getStck_lwpr()))
-                        .volume(toBigDecimal(item.getAcml_vol()))
-                        .value(toBigDecimal(item.getAcml_tr_pbmn()))
-                        .stockId(stockId)
-                        .timeframe(timeframe)
-                        .at(normalizedAt)
-                        .prevDayChangePct(calculateDailyChangeRate(item))
-                        .build());
+                    results.putIfAbsent(normalizedAt, PriceCandleDto.Response.builder()
+                            .open(toBigDecimal(item.getStck_oprc()))
+                            .close(toBigDecimal(item.getStck_clpr()))
+                            .high(toBigDecimal(item.getStck_hgpr()))
+                            .low(toBigDecimal(item.getStck_lwpr()))
+                            .volume(toBigDecimal(item.getAcml_vol()))
+                            .value(toBigDecimal(item.getAcml_tr_pbmn()))
+                            .stockId(stockId)
+                            .timeframe(timeframe)
+                            .at(normalizedAt)
+                            .prevDayChangePct(calculateDailyChangeRate(item))
+                            .build());
 
-                LocalDate candleDate = candleAt.toLocalDate();
-                if (candleDate.isBefore(oldestDateInBatch)) {
-                    oldestDateInBatch = candleDate;
+                    LocalDate candleDate = candleAt.toLocalDate();
+                    if (candleDate.isBefore(oldestDateInBatch)) {
+                        oldestDateInBatch = candleDate;
+                    }
+                } catch (RuntimeException ex) {
+                    failedCallCount++;
+                    log.warn(
+                            "Skip malformed daily candle. symbol={}, timeframe={}, date={}",
+                            symbol,
+                            timeframe,
+                            item == null ? null : item.getStck_bsop_date(),
+                            ex
+                    );
                 }
             }
 
@@ -281,9 +337,24 @@ public class RealMarketClientImpl implements RealMarketClient {
                     symbol, timeframe, startTime, endTime);
         }
 
-        return results.values().stream()
+        List<PriceCandleDto.Response> candles = results.values().stream()
                 .sorted((left, right) -> left.getAt().compareTo(right.getAt()))
                 .collect(Collectors.toList());
+        return toFetchResult(candles, failedCallCount);
+    }
+
+    private CandleFetchResult toFetchResult(List<PriceCandleDto.Response> candles, int failedCallCount) {
+        if (failedCallCount == 0) {
+            return CandleFetchResult.complete(candles);
+        }
+        if (candles.isEmpty()) {
+            return CandleFetchResult.failed();
+        }
+        return CandleFetchResult.partial(candles);
+    }
+
+    private boolean isSuccessfulResponse(String resultCode) {
+        return "0".equals(resultCode);
     }
 
     private LocalDateTime normalizeIntradayAt(LocalDateTime at) {

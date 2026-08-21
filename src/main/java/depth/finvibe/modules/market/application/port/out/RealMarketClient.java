@@ -13,7 +13,7 @@ import java.util.List;
 public interface RealMarketClient {
     List<StockDto.RealMarketStockResponse> fetchStocksInRealMarket();
 
-    List<PriceCandleDto.Response> fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe);
+    CandleFetchResult fetchPriceCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe);
 
     List<StockDto.RankingResponse> fetchStockRankings();
 

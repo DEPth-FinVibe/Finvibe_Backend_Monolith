@@ -1,6 +1,8 @@
 package depth.finvibe.modules.market.domain;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,5 +35,18 @@ public final class MarketHours {
 
   public static boolean isSessionCompletedAt(LocalTime time) {
     return !time.isBefore(MARKET_CLOSE_TIME);
+  }
+
+  public static boolean isWeekday(LocalDate date) {
+    DayOfWeek dayOfWeek = date.getDayOfWeek();
+    return dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY;
+  }
+
+  public static LocalDateTime sessionStart(LocalDate date) {
+    return date.atTime(MARKET_OPEN_TIME);
+  }
+
+  public static LocalDateTime sessionEnd(LocalDate date) {
+    return date.atTime(MARKET_CLOSE_TIME);
   }
 }

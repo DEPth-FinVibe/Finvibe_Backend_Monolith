@@ -15,7 +15,11 @@ public enum MarketErrorCode implements DomainErrorCode {
     STOCK_NOT_FOUND("MARKET_STOCK_NOT_FOUND", "해당 종목을 찾을 수 없습니다."),
     CLOSING_PRICE_NOT_AVAILABLE_DURING_MARKET_OPEN("MARKET_CLOSING_PRICE_NOT_AVAILABLE_DURING_MARKET_OPEN", "장중에는 종가를 조회할 수 없습니다."),
     INVALID_TIME_RANGE("MARKET_INVALID_TIME_RANGE", "종료 시각은 현재 시각보다 미래일 수 없습니다."),
-    INVALID_START_END_TIME("MARKET_INVALID_START_END_TIME", "시작 시각은 종료 시각보다 이전이어야 합니다.");
+    INVALID_START_END_TIME("MARKET_INVALID_START_END_TIME", "시작 시각은 종료 시각보다 이전이어야 합니다."),
+    CANDLE_TEMPORARILY_UNAVAILABLE(
+            "MARKET_CANDLE_TEMPORARILY_UNAVAILABLE",
+            "캔들 데이터를 일시적으로 조회할 수 없습니다."
+    );
 
     private final String code;
     private final String message;

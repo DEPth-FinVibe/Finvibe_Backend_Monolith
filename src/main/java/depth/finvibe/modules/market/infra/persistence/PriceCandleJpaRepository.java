@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 public interface PriceCandleJpaRepository extends JpaRepository<PriceCandle, Long> {
@@ -46,4 +47,35 @@ public interface PriceCandleJpaRepository extends JpaRepository<PriceCandle, Lon
     );
 
     boolean existsByStockIdAndTimeframe(Long stockId, Timeframe timeframe);
+
+    @Modifying
+    @Query(value = """
+            insert into price_candle (
+                stock_id, timeframe, at, is_missing, open, high, low, close,
+                prev_day_change_pct, volume, `value`
+            ) values (
+                :stockId, 'MINUTE', :at, false, :open, :high, :low, :close,
+                :prevDayChangePct, :volume, :value
+            )
+            on duplicate key update
+                is_missing = false,
+                open = coalesce(open, values(open)),
+                high = greatest(coalesce(high, values(high)), values(high)),
+                low = least(coalesce(low, values(low)), values(low)),
+                close = values(close),
+                prev_day_change_pct = values(prev_day_change_pct),
+                volume = greatest(coalesce(volume, 0), values(volume)),
+                `value` = greatest(coalesce(`value`, 0), values(`value`))
+            """, nativeQuery = true)
+    void upsertRealtimeMinuteCandle(
+            @Param("stockId") Long stockId,
+            @Param("at") LocalDateTime at,
+            @Param("open") java.math.BigDecimal open,
+            @Param("high") java.math.BigDecimal high,
+            @Param("low") java.math.BigDecimal low,
+            @Param("close") java.math.BigDecimal close,
+            @Param("prevDayChangePct") java.math.BigDecimal prevDayChangePct,
+            @Param("volume") java.math.BigDecimal volume,
+            @Param("value") java.math.BigDecimal value
+    );
 }
