@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,7 +56,8 @@ class MarketQueryServiceClosingPriceTest {
         holidayCalendarService,
         marketStatusService,
         mock(TransactionTemplate.class),
-        meterRegistry
+        meterRegistry,
+        Clock.system(ZoneId.of("Asia/Seoul"))
     );
   }
 

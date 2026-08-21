@@ -38,6 +38,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -46,7 +47,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -65,6 +65,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final MarketStatusService marketStatusService;
     private final TransactionTemplate transactionTemplate;
     private final MeterRegistry meterRegistry;
+    private final Clock marketClock;
     private final Map<Long, String> stockSymbolCache = new ConcurrentHashMap<>();
     private final Map<Long, ReentrantLock> currentPriceMissLocks = new ConcurrentHashMap<>();
     @Value("${market.provider:kis}")
@@ -115,9 +116,13 @@ public class MarketQueryService implements MarketQueryUseCase {
                 normalizedEnd,
                 timeframe
         );
+        LocalDateTime providerEnd = capProviderEnd(normalizedStart, normalizedEnd, timeframe);
+        if (providerEnd == null) {
+            return toActualCandleDtos(existingCandles);
+        }
         List<LocalDateTime> missingCandleTimes = calculateMissingCandleTimes(
                 normalizedStart,
-                normalizedEnd,
+                providerEnd,
                 timeframe,
                 existingCandles
         );
@@ -251,17 +256,11 @@ public class MarketQueryService implements MarketQueryUseCase {
             List<PriceCandle> existingCandles,
             List<PriceCandleDto.Response> fetchedCandles
     ) {
-        List<PriceCandleDto.Response> existingCandleDtos = toActualCandleDtos(existingCandles);
+        Map<LocalDateTime, PriceCandleDto.Response> merged = toActualCandleDtos(existingCandles).stream()
+                .collect(Collectors.toMap(PriceCandleDto.Response::getAt, candle -> candle));
+        fetchedCandles.forEach(candle -> merged.put(candle.getAt(), candle));
 
-        Set<LocalDateTime> existingTimes = existingCandleDtos.stream()
-                .map(PriceCandleDto.Response::getAt)
-                .collect(Collectors.toSet());
-
-        List<PriceCandleDto.Response> uniqueFetchedCandles = fetchedCandles.stream()
-                .filter(candle -> !existingTimes.contains(candle.getAt()))
-                .toList();
-
-        return Stream.concat(existingCandleDtos.stream(), uniqueFetchedCandles.stream())
+        return merged.values().stream()
                 .sorted(Comparator.comparing(PriceCandleDto.Response::getAt))
                 .toList();
     }
@@ -280,18 +279,16 @@ public class MarketQueryService implements MarketQueryUseCase {
                 changedCandles.add(createPriceCandleFrom(fetchedCandle));
                 continue;
             }
-            if (existing.getIsMissing()) {
-                existing.restore(
-                        fetchedCandle.getOpen(),
-                        fetchedCandle.getHigh(),
-                        fetchedCandle.getLow(),
-                        fetchedCandle.getClose(),
-                        fetchedCandle.getPrevDayChangePct(),
-                        fetchedCandle.getVolume(),
-                        fetchedCandle.getValue()
-                );
-                changedCandles.add(existing);
-            }
+            existing.restore(
+                    fetchedCandle.getOpen(),
+                    fetchedCandle.getHigh(),
+                    fetchedCandle.getLow(),
+                    fetchedCandle.getClose(),
+                    fetchedCandle.getPrevDayChangePct(),
+                    fetchedCandle.getVolume(),
+                    fetchedCandle.getValue()
+            );
+            changedCandles.add(existing);
         }
 
         if (!changedCandles.isEmpty()) {
@@ -325,12 +322,37 @@ public class MarketQueryService implements MarketQueryUseCase {
 
         Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
                 .filter(candle -> !candle.getIsMissing())
+                .filter(candle -> !requiresAuthoritativeMinuteRefresh(timeframe))
                 .map(PriceCandle::getAt)
                 .collect(Collectors.toSet());
 
         return shouldHaveCandleTimes.stream()
                 .filter(time -> !existingCandleTimes.contains(time))
                 .toList();
+    }
+
+    private LocalDateTime capProviderEnd(
+            LocalDateTime normalizedStart,
+            LocalDateTime normalizedEnd,
+            Timeframe timeframe
+    ) {
+        if (timeframe != Timeframe.MINUTE || !isKisProvider()) {
+            return normalizedEnd;
+        }
+
+        LocalDateTime lastCompletedMinute = timeframe.lastCompletedTime(LocalDateTime.now(marketClock));
+        LocalDateTime providerEnd = normalizedEnd.isBefore(lastCompletedMinute)
+                ? normalizedEnd
+                : lastCompletedMinute;
+        return providerEnd.isBefore(normalizedStart) ? null : providerEnd;
+    }
+
+    private boolean requiresAuthoritativeMinuteRefresh(Timeframe timeframe) {
+        return timeframe == Timeframe.MINUTE && isKisProvider();
+    }
+
+    private boolean isKisProvider() {
+        return "kis".equalsIgnoreCase(marketProvider);
     }
 
     private List<LocalDateTime> generateCandleTimesInRange(LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {

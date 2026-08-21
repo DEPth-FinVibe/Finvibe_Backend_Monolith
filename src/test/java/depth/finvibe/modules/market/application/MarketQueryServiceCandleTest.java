@@ -12,8 +12,10 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -46,6 +48,7 @@ import org.mockito.quality.Strictness;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -84,7 +87,8 @@ class MarketQueryServiceCandleTest {
                 holidayCalendarService,
                 mock(MarketStatusService.class),
                 transactionTemplate,
-                meterRegistry
+                meterRegistry,
+                Clock.fixed(TRADING_DATE.atTime(10, 1, 30).atZone(ZoneId.of("Asia/Seoul")).toInstant(), ZoneId.of("Asia/Seoul"))
         );
 
         doAnswer(invocation -> invocation.<Supplier<?>>getArgument(3).get())
@@ -171,6 +175,42 @@ class MarketQueryServiceCandleTest {
         assertThat(missing.getIsMissing()).isFalse();
         assertThat(missing.getClose()).isEqualByComparingTo("70500");
         verify(priceCandleRepository).saveAll(List.of(missing));
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 기존 캐시가 있어도 완료 구간을 REST 결과로 보정한다")
+    void getStockCandles_kisMinute_replacesCompletedCachedCandle() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        PriceCandle cached = actualCandle(NINE_OCLOCK);
+        PriceCandleDto.Response authoritative = candleResponse(NINE_OCLOCK);
+        when(priceCandleRepository.findExisting(STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+                .thenReturn(List.of(cached));
+        when(realMarketClient.fetchPriceCandles(STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+                .thenReturn(CandleFetchResult.complete(List.of(authoritative)));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE);
+
+        assertThat(result).singleElement()
+                .extracting(PriceCandleDto.Response::getClose)
+                .isEqualTo(new BigDecimal("70500"));
+        assertThat(cached.getClose()).isEqualByComparingTo("70500");
+        verify(priceCandleRepository).saveAll(List.of(cached));
+    }
+
+    @Test
+    @DisplayName("KIS REST는 현재 진행 중인 분봉을 조회하지 않는다")
+    void getStockCandles_kisMinute_currentMinute_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime currentMinute = TRADING_DATE.atTime(10, 1);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, currentMinute, currentMinute, Timeframe.MINUTE)).thenReturn(List.of());
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, currentMinute, currentMinute, Timeframe.MINUTE);
+
+        assertThat(result).isEmpty();
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
     }
 
     @Test
