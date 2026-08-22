@@ -109,18 +109,21 @@ class MarketQueryServiceCandleTest {
     @Test
     @DisplayName("KIS 전체 실패 시 실제 캐시가 있으면 캐시를 반환한다")
     void getStockCandles_providerFailed_cached_returnsCache() {
-        PriceCandle cached = actualCandle(NINE_OCLOCK);
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime cachedMinute = TRADING_DATE.atTime(9, 59);
+        LocalDateTime missingMinute = TRADING_DATE.atTime(10, 0);
+        PriceCandle cached = actualCandle(cachedMinute);
         when(priceCandleRepository.findExisting(
-                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK.plusMinutes(1), Timeframe.MINUTE))
+                STOCK_ID, cachedMinute, missingMinute, Timeframe.MINUTE))
                 .thenReturn(List.of(cached));
         when(realMarketClient.fetchPriceCandles(
-                STOCK_ID, NINE_OCLOCK.plusMinutes(1), NINE_OCLOCK.plusMinutes(1), Timeframe.MINUTE))
+                STOCK_ID, cachedMinute, missingMinute, Timeframe.MINUTE))
                 .thenReturn(CandleFetchResult.failed());
 
         List<PriceCandleDto.Response> result = service.getStockCandles(
-                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK.plusMinutes(1), Timeframe.MINUTE);
+                STOCK_ID, cachedMinute, missingMinute, Timeframe.MINUTE);
 
-        assertThat(result).extracting(PriceCandleDto.Response::getAt).containsExactly(NINE_OCLOCK);
+        assertThat(result).extracting(PriceCandleDto.Response::getAt).containsExactly(cachedMinute);
         assertThat(meterRegistry.counter(
                 "market.candle.cache.fallback", "timeframe", "MINUTE", "reason", "provider").count())
                 .isEqualTo(1.0);
@@ -250,6 +253,43 @@ class MarketQueryServiceCandleTest {
                 .extracting(PriceCandleDto.Response::getAt)
                 .isEqualTo(NINE_OCLOCK);
         verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 정상 캔들이 있는 거래일의 오래된 내부 공백을 재조회하지 않는다")
+    void getStockCandles_kisMinute_coveredDateGap_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime rangeEnd = NINE_OCLOCK.plusMinutes(2);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, NINE_OCLOCK, rangeEnd, Timeframe.MINUTE))
+                .thenReturn(List.of(actualCandle(NINE_OCLOCK), actualCandle(rangeEnd)));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, NINE_OCLOCK, rangeEnd, Timeframe.MINUTE);
+
+        assertThat(result).extracting(PriceCandleDto.Response::getAt)
+                .containsExactly(NINE_OCLOCK, rangeEnd);
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 기존 결측 마커만 있는 거래일을 계속 복구한다")
+    void getStockCandles_kisMinute_missingMarkerOnly_queriesProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        PriceCandle missing = PriceCandle.createMissing(STOCK_ID, Timeframe.MINUTE, NINE_OCLOCK);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+                .thenReturn(List.of(missing));
+        when(realMarketClient.fetchPriceCandles(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+                .thenReturn(CandleFetchResult.complete(List.of(candleResponse(NINE_OCLOCK))));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE);
+
+        assertThat(result).hasSize(1);
+        verify(realMarketClient).fetchPriceCandles(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE);
     }
 
     @Test

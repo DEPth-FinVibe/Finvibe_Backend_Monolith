@@ -323,17 +323,36 @@ public class MarketQueryService implements MarketQueryUseCase {
         List<LocalDateTime> shouldHaveCandleTimes = generateCandleTimesInRange(startTime, endTime, timeframe);
         Optional<MinuteRefreshWindow> minuteRefreshWindow = resolveMinuteRefreshWindow(timeframe);
 
-        Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
+        List<PriceCandle> actualCandles = existingCandles.stream()
                 .filter(candle -> !candle.getIsMissing())
+                .toList();
+        Set<LocalDateTime> existingCandleTimes = actualCandles.stream()
                 .filter(candle -> minuteRefreshWindow
                         .map(window -> !window.contains(candle.getAt()))
                         .orElse(true))
                 .map(PriceCandle::getAt)
                 .collect(Collectors.toSet());
+        Set<LocalDate> coveredMinuteDates = actualCandles.stream()
+                .map(candle -> candle.getAt().toLocalDate())
+                .collect(Collectors.toSet());
 
         return shouldHaveCandleTimes.stream()
+                .filter(time -> minuteRefreshWindow
+                        .map(window -> window.contains(time))
+                        .orElse(false)
+                        || !isCoveredMinuteDate(time, timeframe, coveredMinuteDates))
                 .filter(time -> !existingCandleTimes.contains(time))
                 .toList();
+    }
+
+    private boolean isCoveredMinuteDate(
+            LocalDateTime time,
+            Timeframe timeframe,
+            Set<LocalDate> coveredMinuteDates
+    ) {
+        return timeframe == Timeframe.MINUTE
+                && isKisProvider()
+                && coveredMinuteDates.contains(time.toLocalDate());
     }
 
     private LocalDateTime capProviderEnd(
