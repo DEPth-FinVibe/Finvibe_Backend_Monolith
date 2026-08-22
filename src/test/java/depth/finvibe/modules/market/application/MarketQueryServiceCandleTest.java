@@ -24,6 +24,7 @@ import depth.finvibe.common.error.DomainException;
 import depth.finvibe.common.investment.lock.DistributedLockManager;
 import depth.finvibe.common.investment.lock.LockAcquisitionException;
 import depth.finvibe.modules.market.application.port.out.CandleFetchResult;
+import depth.finvibe.modules.market.application.port.out.CandleRefreshVerificationRepository;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
@@ -61,6 +62,8 @@ class MarketQueryServiceCandleTest {
     @Mock
     private PriceCandleRepository priceCandleRepository;
     @Mock
+    private CandleRefreshVerificationRepository candleRefreshVerificationRepository;
+    @Mock
     private RealMarketClient realMarketClient;
     @Mock
     private DistributedLockManager distributedLockManager;
@@ -77,6 +80,7 @@ class MarketQueryServiceCandleTest {
         meterRegistry = new SimpleMeterRegistry();
         service = new MarketQueryService(
                 priceCandleRepository,
+                candleRefreshVerificationRepository,
                 realMarketClient,
                 mock(CurrentPriceRepository.class),
                 mock(ClosingPriceRepository.class),
@@ -235,6 +239,51 @@ class MarketQueryServiceCandleTest {
         assertThat(result).hasSize(4);
         verify(realMarketClient).fetchPriceCandles(
                 STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE);
+        verify(candleRefreshVerificationRepository).markVerified(STOCK_ID, refreshEnd);
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 마지막 완료 분이 이미 검증됐으면 최근 3분을 다시 조회하지 않는다")
+    void getStockCandles_kisMinute_alreadyVerified_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime refreshStart = TRADING_DATE.atTime(9, 58);
+        LocalDateTime refreshEnd = TRADING_DATE.atTime(10, 0);
+        when(candleRefreshVerificationRepository.isVerified(STOCK_ID, refreshEnd)).thenReturn(true);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE))
+                .thenReturn(List.of(
+                        actualCandle(refreshStart),
+                        actualCandle(refreshStart.plusMinutes(1)),
+                        actualCandle(refreshEnd)
+                ));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE);
+
+        assertThat(result).hasSize(3);
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("KIS 최근 분봉 조회가 부분 성공이면 완료 분 검증 상태를 기록하지 않는다")
+    void getStockCandles_kisMinute_partialRefresh_doesNotMarkVerified() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime refreshStart = TRADING_DATE.atTime(9, 58);
+        LocalDateTime refreshEnd = TRADING_DATE.atTime(10, 0);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE))
+                .thenReturn(List.of(
+                        actualCandle(refreshStart),
+                        actualCandle(refreshStart.plusMinutes(1)),
+                        actualCandle(refreshEnd)
+                ));
+        when(realMarketClient.fetchPriceCandles(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE))
+                .thenReturn(CandleFetchResult.partial(List.of(candleResponse(refreshEnd))));
+
+        service.getStockCandles(STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE);
+
+        verify(candleRefreshVerificationRepository, never()).markVerified(any(), any());
     }
 
     @Test

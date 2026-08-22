@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import depth.finvibe.modules.market.application.port.in.MarketQueryUseCase;
 import depth.finvibe.modules.market.application.port.out.CandleFetchResult;
+import depth.finvibe.modules.market.application.port.out.CandleRefreshVerificationRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
 import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;
@@ -56,6 +57,7 @@ public class MarketQueryService implements MarketQueryUseCase {
     private static final int AUTHORITATIVE_MINUTE_REFRESH_COUNT = 3;
 
     private final PriceCandleRepository priceCandleRepository;
+    private final CandleRefreshVerificationRepository candleRefreshVerificationRepository;
     private final RealMarketClient realMarketClient;
     private final CurrentPriceRepository currentPriceRepository;
     private final ClosingPriceRepository closingPriceRepository;
@@ -123,6 +125,7 @@ public class MarketQueryService implements MarketQueryUseCase {
             return toActualCandleDtos(existingCandles);
         }
         List<LocalDateTime> missingCandleTimes = calculateMissingCandleTimes(
+                stockId,
                 normalizedStart,
                 providerEnd,
                 timeframe,
@@ -161,6 +164,13 @@ public class MarketQueryService implements MarketQueryUseCase {
 
         List<PriceCandleDto.Response> fetchedCandles = fetchResult.candles();
         transactionTemplate.executeWithoutResult(status -> saveFetchedCandles(fetchedCandles, existingCandles));
+        markMinuteRefreshVerifiedIfComplete(
+                stockId,
+                timeframe,
+                earliestTime,
+                latestTime,
+                fetchResult
+        );
         return mergeAndSortCandles(existingCandles, fetchedCandles);
     }
 
@@ -315,13 +325,14 @@ public class MarketQueryService implements MarketQueryUseCase {
     }
 
     private List<LocalDateTime> calculateMissingCandleTimes(
+            Long stockId,
             LocalDateTime startTime,
             LocalDateTime endTime,
             Timeframe timeframe,
             List<PriceCandle> existingCandles
     ) {
         List<LocalDateTime> shouldHaveCandleTimes = generateCandleTimesInRange(startTime, endTime, timeframe);
-        Optional<MinuteRefreshWindow> minuteRefreshWindow = resolveMinuteRefreshWindow(timeframe);
+        Optional<MinuteRefreshWindow> minuteRefreshWindow = resolveMinuteRefreshWindow(stockId, timeframe);
 
         List<PriceCandle> actualCandles = existingCandles.stream()
                 .filter(candle -> !candle.getIsMissing())
@@ -371,7 +382,12 @@ public class MarketQueryService implements MarketQueryUseCase {
         return providerEnd.isBefore(normalizedStart) ? null : providerEnd;
     }
 
-    private Optional<MinuteRefreshWindow> resolveMinuteRefreshWindow(Timeframe timeframe) {
+    private Optional<MinuteRefreshWindow> resolveMinuteRefreshWindow(Long stockId, Timeframe timeframe) {
+        return calculateMinuteRefreshWindow(timeframe)
+                .filter(window -> !candleRefreshVerificationRepository.isVerified(stockId, window.end()));
+    }
+
+    private Optional<MinuteRefreshWindow> calculateMinuteRefreshWindow(Timeframe timeframe) {
         if (timeframe != Timeframe.MINUTE || !isKisProvider()) {
             return Optional.empty();
         }
@@ -394,6 +410,23 @@ public class MarketQueryService implements MarketQueryUseCase {
             refreshStart = sessionStart;
         }
         return Optional.of(new MinuteRefreshWindow(refreshStart, lastCompletedMinute));
+    }
+
+    private void markMinuteRefreshVerifiedIfComplete(
+            Long stockId,
+            Timeframe timeframe,
+            LocalDateTime fetchedStart,
+            LocalDateTime fetchedEnd,
+            CandleFetchResult fetchResult
+    ) {
+        if (fetchResult.status() != CandleFetchResult.Status.COMPLETE) {
+            return;
+        }
+
+        calculateMinuteRefreshWindow(timeframe)
+                .filter(window -> !fetchedStart.isAfter(window.start()))
+                .filter(window -> !fetchedEnd.isBefore(window.end()))
+                .ifPresent(window -> candleRefreshVerificationRepository.markVerified(stockId, window.end()));
     }
 
     private boolean isKisProvider() {

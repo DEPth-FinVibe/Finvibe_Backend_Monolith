@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import depth.finvibe.common.investment.lock.DistributedLockManager;
 import depth.finvibe.modules.market.application.port.out.ClosingPriceRepository;
+import depth.finvibe.modules.market.application.port.out.CandleRefreshVerificationRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.application.port.out.CurrentStockWatcherRepository;
 import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;
@@ -46,6 +47,7 @@ class MarketQueryServiceClosingPriceTest {
     meterRegistry = new SimpleMeterRegistry();
     service = new MarketQueryService(
         mock(PriceCandleRepository.class),
+        mock(CandleRefreshVerificationRepository.class),
         realMarketClient,
         mock(CurrentPriceRepository.class),
         closingPriceRepository,
