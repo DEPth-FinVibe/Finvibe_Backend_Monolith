@@ -178,24 +178,78 @@ class MarketQueryServiceCandleTest {
     }
 
     @Test
-    @DisplayName("KIS 분봉은 기존 캐시가 있어도 완료 구간을 REST 결과로 보정한다")
-    void getStockCandles_kisMinute_replacesCompletedCachedCandle() {
+    @DisplayName("KIS 분봉은 기존 캐시가 있어도 마지막 완료 분을 REST 결과로 보정한다")
+    void getStockCandles_kisMinute_replacesLatestCompletedCachedCandle() {
         ReflectionTestUtils.setField(service, "marketProvider", "kis");
-        PriceCandle cached = actualCandle(NINE_OCLOCK);
-        PriceCandleDto.Response authoritative = candleResponse(NINE_OCLOCK);
-        when(priceCandleRepository.findExisting(STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+        LocalDateTime lastCompletedMinute = TRADING_DATE.atTime(10, 0);
+        PriceCandle cached = actualCandle(lastCompletedMinute);
+        PriceCandleDto.Response authoritative = candleResponse(lastCompletedMinute);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, lastCompletedMinute, lastCompletedMinute, Timeframe.MINUTE))
                 .thenReturn(List.of(cached));
-        when(realMarketClient.fetchPriceCandles(STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+        when(realMarketClient.fetchPriceCandles(
+                STOCK_ID, lastCompletedMinute, lastCompletedMinute, Timeframe.MINUTE))
                 .thenReturn(CandleFetchResult.complete(List.of(authoritative)));
 
         List<PriceCandleDto.Response> result = service.getStockCandles(
-                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE);
+                STOCK_ID, lastCompletedMinute, lastCompletedMinute, Timeframe.MINUTE);
 
         assertThat(result).singleElement()
                 .extracting(PriceCandleDto.Response::getClose)
                 .isEqualTo(new BigDecimal("70500"));
         assertThat(cached.getClose()).isEqualByComparingTo("70500");
         verify(priceCandleRepository).saveAll(List.of(cached));
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 마지막 3개 완료 분봉만 REST 보정 범위에 포함한다")
+    void getStockCandles_kisMinute_refreshesLastThreeCompletedCandles() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime firstCachedMinute = TRADING_DATE.atTime(9, 57);
+        LocalDateTime refreshStart = TRADING_DATE.atTime(9, 58);
+        LocalDateTime refreshEnd = TRADING_DATE.atTime(10, 0);
+        List<PriceCandle> cachedCandles = List.of(
+                actualCandle(firstCachedMinute),
+                actualCandle(refreshStart),
+                actualCandle(refreshStart.plusMinutes(1)),
+                actualCandle(refreshEnd)
+        );
+        List<PriceCandleDto.Response> refreshedCandles = List.of(
+                candleResponse(refreshStart),
+                candleResponse(refreshStart.plusMinutes(1)),
+                candleResponse(refreshEnd)
+        );
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, firstCachedMinute, refreshEnd, Timeframe.MINUTE))
+                .thenReturn(cachedCandles);
+        when(realMarketClient.fetchPriceCandles(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE))
+                .thenReturn(CandleFetchResult.complete(refreshedCandles));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, firstCachedMinute, refreshEnd, Timeframe.MINUTE);
+
+        assertThat(result).hasSize(4);
+        verify(realMarketClient).fetchPriceCandles(
+                STOCK_ID, refreshStart, refreshEnd, Timeframe.MINUTE);
+    }
+
+    @Test
+    @DisplayName("KIS 분봉은 최근 3분보다 오래된 완료 캐시를 다시 조회하지 않는다")
+    void getStockCandles_kisMinute_olderCompletedCache_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        PriceCandle cached = actualCandle(NINE_OCLOCK);
+        when(priceCandleRepository.findExisting(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE))
+                .thenReturn(List.of(cached));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, NINE_OCLOCK, NINE_OCLOCK, Timeframe.MINUTE);
+
+        assertThat(result).singleElement()
+                .extracting(PriceCandleDto.Response::getAt)
+                .isEqualTo(NINE_OCLOCK);
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
     }
 
     @Test

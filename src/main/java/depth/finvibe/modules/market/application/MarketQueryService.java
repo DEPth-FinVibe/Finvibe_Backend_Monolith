@@ -53,6 +53,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MarketQueryService implements MarketQueryUseCase {
 
+    private static final int AUTHORITATIVE_MINUTE_REFRESH_COUNT = 3;
+
     private final PriceCandleRepository priceCandleRepository;
     private final RealMarketClient realMarketClient;
     private final CurrentPriceRepository currentPriceRepository;
@@ -319,10 +321,13 @@ public class MarketQueryService implements MarketQueryUseCase {
             List<PriceCandle> existingCandles
     ) {
         List<LocalDateTime> shouldHaveCandleTimes = generateCandleTimesInRange(startTime, endTime, timeframe);
+        Optional<MinuteRefreshWindow> minuteRefreshWindow = resolveMinuteRefreshWindow(timeframe);
 
         Set<LocalDateTime> existingCandleTimes = existingCandles.stream()
                 .filter(candle -> !candle.getIsMissing())
-                .filter(candle -> !requiresAuthoritativeMinuteRefresh(timeframe))
+                .filter(candle -> minuteRefreshWindow
+                        .map(window -> !window.contains(candle.getAt()))
+                        .orElse(true))
                 .map(PriceCandle::getAt)
                 .collect(Collectors.toSet());
 
@@ -347,12 +352,40 @@ public class MarketQueryService implements MarketQueryUseCase {
         return providerEnd.isBefore(normalizedStart) ? null : providerEnd;
     }
 
-    private boolean requiresAuthoritativeMinuteRefresh(Timeframe timeframe) {
-        return timeframe == Timeframe.MINUTE && isKisProvider();
+    private Optional<MinuteRefreshWindow> resolveMinuteRefreshWindow(Timeframe timeframe) {
+        if (timeframe != Timeframe.MINUTE || !isKisProvider()) {
+            return Optional.empty();
+        }
+
+        LocalDateTime now = LocalDateTime.now(marketClock);
+        LocalDate today = now.toLocalDate();
+        LocalDateTime sessionStart = MarketHours.sessionStart(today);
+        LocalDateTime sessionEnd = MarketHours.sessionEnd(today);
+        LocalDateTime lastCompletedMinute = timeframe.lastCompletedTime(now);
+        if (lastCompletedMinute.isAfter(sessionEnd)) {
+            lastCompletedMinute = sessionEnd;
+        }
+        if (lastCompletedMinute.isBefore(sessionStart)) {
+            return Optional.empty();
+        }
+
+        LocalDateTime refreshStart = lastCompletedMinute
+                .minusMinutes(AUTHORITATIVE_MINUTE_REFRESH_COUNT - 1L);
+        if (refreshStart.isBefore(sessionStart)) {
+            refreshStart = sessionStart;
+        }
+        return Optional.of(new MinuteRefreshWindow(refreshStart, lastCompletedMinute));
     }
 
     private boolean isKisProvider() {
         return "kis".equalsIgnoreCase(marketProvider);
+    }
+
+    private record MinuteRefreshWindow(LocalDateTime start, LocalDateTime end) {
+
+        private boolean contains(LocalDateTime time) {
+            return !time.isBefore(start) && !time.isAfter(end);
+        }
     }
 
     private List<LocalDateTime> generateCandleTimesInRange(LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
