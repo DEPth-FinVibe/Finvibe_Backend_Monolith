@@ -8,4 +8,3 @@ public interface CandleRefreshVerificationRepository {
 
     void markVerified(Long stockId, LocalDateTime completedMinute);
 }
-

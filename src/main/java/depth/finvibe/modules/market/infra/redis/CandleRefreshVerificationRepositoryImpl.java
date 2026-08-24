@@ -50,4 +50,3 @@ public class CandleRefreshVerificationRepositoryImpl implements CandleRefreshVer
         return KEY_PREFIX + "{stock:" + stockId + "}";
     }
 }
-

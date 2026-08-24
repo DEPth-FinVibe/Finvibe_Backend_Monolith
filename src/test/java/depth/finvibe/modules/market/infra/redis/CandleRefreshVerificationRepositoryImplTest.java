@@ -68,4 +68,3 @@ class CandleRefreshVerificationRepositoryImplTest {
         assertThat(verified).isFalse();
     }
 }
-
