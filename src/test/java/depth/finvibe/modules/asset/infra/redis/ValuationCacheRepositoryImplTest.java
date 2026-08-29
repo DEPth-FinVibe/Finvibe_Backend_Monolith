@@ -46,6 +46,15 @@ class ValuationCacheRepositoryImplTest {
     }
 
     @Test
+    void treatsMalformedUserUpdatedAtAsCacheMiss() {
+        when(hashOperations.entries("usr:1")).thenReturn(Map.of(
+            "pv", "1000", "cv", "1050", "pr", "5.0", "pc", "2", "ua", "not-an-instant"
+        ));
+
+        assertThat(repository.findUser("1")).isEmpty();
+    }
+
+    @Test
     void readsValidValuesAndSkipsDeletedPortfolio() {
         when(hashOperations.entries(anyString())).thenAnswer(invocation -> {
             String key = invocation.getArgument(0);

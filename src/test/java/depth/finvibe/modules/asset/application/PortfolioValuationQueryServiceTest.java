@@ -122,6 +122,23 @@ class PortfolioValuationQueryServiceTest {
         });
     }
 
+    @Test
+    void cacheRefillFailureDoesNotBlockDatabaseResponse() {
+        when(portfolioGroupRepository.findAllByUserId(USER_ID)).thenReturn(List.of());
+        UserSnapshot database = userSnapshot();
+        when(valuationCacheRepository.findUser(CACHE_USER_ID)).thenReturn(Optional.empty());
+        when(valuationSnapshotRepository.findUser(CACHE_USER_ID)).thenReturn(Optional.of(database));
+        org.mockito.Mockito.doThrow(new IllegalStateException("redis still down"))
+            .when(valuationCacheRepository)
+            .cacheUserIfNewer(database);
+
+        var response = service.getValuations(USER_ID);
+
+        assertThat(response.user().currentValue()).isEqualTo(1050L);
+        assertThat(response.user().updatedAt()).isEqualTo(UPDATED_AT);
+        assertThat(response.portfolios()).isEmpty();
+    }
+
     private void mockPortfolios(Long... ids) {
         List<PortfolioGroup> portfolios = java.util.Arrays.stream(ids)
             .map(id -> {
