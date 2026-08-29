@@ -22,7 +22,8 @@ public class PersonalDetails {
     })
     private PhoneNumber phoneNumber;
 
-    @Column(nullable = false)
+    // 가입 시 수집하지 않는 선택 정보다.
+    @Column(nullable = true)
     private LocalDate birthDate;
 
     @Column(nullable = false)
@@ -63,6 +64,10 @@ public class PersonalDetails {
     }
 
     private static void validateBirthday(LocalDate birthDate) {
+        //생년월일은 선택 정보라 없으면 검증하지 않는다.
+        if (birthDate == null) {
+            return;
+        }
         //120세 이상, 미래에서 온 생일 방지
         LocalDate today = LocalDate.now();
         LocalDate earliestValidDate = today.minusYears(120);

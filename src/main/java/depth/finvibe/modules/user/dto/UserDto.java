@@ -54,13 +54,13 @@ public class UserDto {
         @Schema(description = "이름", example = "홍길동")
         private String name;
 
-        @NotNull
+        // 선택 입력이다. 값이 들어오면 형식만 검증한다.
         @Past
-        @Schema(description = "생년월일", example = "1990-01-01")
+        @Schema(description = "생년월일(선택)", example = "1990-01-01")
         private LocalDate birthDate;
 
         @Pattern(regexp = "^010-\\d{4}-\\d{4}$", message = "휴대폰 번호는 010-0000-0000 형식이어야 합니다.")
-        @Schema(description = "휴대폰 번호", example = "010-1234-5678")
+        @Schema(description = "휴대폰 번호(선택)", example = "010-1234-5678")
         private String phoneNumber;
     }
 
@@ -82,13 +82,13 @@ public class UserDto {
         @Schema(description = "이름", example = "홍길동")
         private String name;
 
-        @NotNull
+        // 선택 입력이다. 값이 들어오면 형식만 검증한다.
         @Past
-        @Schema(description = "생년월일", example = "1990-01-01")
+        @Schema(description = "생년월일(선택)", example = "1990-01-01")
         private LocalDate birthDate;
 
         @Pattern(regexp = "^010-\\d{4}-\\d{4}$", message = "휴대폰 번호는 010-0000-0000 형식이어야 합니다.")
-        @Schema(description = "휴대폰 번호", example = "010-1234-5678")
+        @Schema(description = "휴대폰 번호(선택)", example = "010-1234-5678")
         private String phoneNumber;
 
         @NotEmpty
@@ -179,7 +179,7 @@ public class UserDto {
         @Schema(description = "생년월일", example = "1990-01-01")
         private LocalDate birthDate;
 
-        @Schema(description = "휴대폰 번호", example = "010-1234-5678")
+        @Schema(description = "휴대폰 번호(선택)", example = "010-1234-5678")
         private String phoneNumber;
     }
 
@@ -306,7 +306,7 @@ public class UserDto {
         @Schema(description = "생년월일", example = "1990-01-01")
         private LocalDate birthDate;
 
-        @Schema(description = "휴대폰 번호", example = "010-1234-5678")
+        @Schema(description = "휴대폰 번호(선택)", example = "010-1234-5678")
         private String phoneNumber;
 
         public static UserResponse from(User user) {

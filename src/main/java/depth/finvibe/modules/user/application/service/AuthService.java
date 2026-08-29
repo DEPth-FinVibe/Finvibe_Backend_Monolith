@@ -110,7 +110,7 @@ public class AuthService implements AuthCommandUseCase {
 	}
 
 	private User createUserFromRequest(UserDto.OAuthSignUpRequest request) {
-		PhoneNumber phoneNumber = PhoneNumber.parse(request.getPhoneNumber());
+		PhoneNumber phoneNumber = PhoneNumber.parseNullable(request.getPhoneNumber());
 		PersonalDetails personalDetails = PersonalDetails.of(
 			phoneNumber, request.getBirthDate(),
 			request.getName(),
@@ -338,7 +338,7 @@ public class AuthService implements AuthCommandUseCase {
 
 	private User createUserFromRequest(UserDto.SignUpRequest request) {
 		PersonalDetails personalDetails = PersonalDetails.of(
-			PhoneNumber.parse(request.getPhoneNumber()),
+			PhoneNumber.parseNullable(request.getPhoneNumber()),
 			request.getBirthDate(),
 			request.getName(),
 			request.getNickname(),

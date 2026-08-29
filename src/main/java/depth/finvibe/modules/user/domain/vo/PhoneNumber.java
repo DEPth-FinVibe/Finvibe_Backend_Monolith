@@ -15,6 +15,17 @@ public class PhoneNumber {
     private String secondPart;
     private String thirdPart;
 
+    /**
+     * 값이 없으면 {@code null}을 돌려준다. 휴대폰 번호는 선택 정보라
+     * 미입력과 잘못된 형식을 구분해야 하는 경로에서 쓴다.
+     */
+    public static PhoneNumber parseNullable(String phoneNumberStr) {
+        if (phoneNumberStr == null || phoneNumberStr.isBlank()) {
+            return null;
+        }
+        return parse(phoneNumberStr);
+    }
+
     public static PhoneNumber parse(String phoneNumberStr) {
         if(phoneNumberStr == null) {
             throw new DomainException(UserErrorCode.INVALID_PHONE_NUMBER_PARAMS);
