@@ -23,7 +23,9 @@ import depth.finvibe.boot.security.AuthenticatedUser;
 import depth.finvibe.boot.security.Requester;
 import depth.finvibe.modules.asset.application.port.in.AssetCommandUseCase;
 import depth.finvibe.modules.asset.application.port.in.AssetQueryUseCase;
+import depth.finvibe.modules.asset.application.port.in.PortfolioValuationQueryUseCase;
 import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
+import depth.finvibe.modules.asset.dto.PortfolioValuationDto;
 
 @RestController
 @RequestMapping("/portfolios")
@@ -32,6 +34,15 @@ import depth.finvibe.modules.asset.dto.PortfolioGroupDto;
 public class PortfolioController {
     private final AssetCommandUseCase commandUseCase;
     private final AssetQueryUseCase queryUseCase;
+    private final PortfolioValuationQueryUseCase valuationQueryUseCase;
+
+    @GetMapping("/valuations")
+    @Operation(summary = "포트폴리오 수익률 조회", description = "사용자 합계와 포트폴리오별 최신 수익률을 조회합니다.")
+    public ResponseEntity<PortfolioValuationDto.ValuationsResponse> getValuations(
+            @Parameter(hidden = true) @AuthenticatedUser Requester requester
+    ) {
+        return ResponseEntity.ok(valuationQueryUseCase.getValuations(requester.getUuid()));
+    }
 
     @GetMapping
     @Operation(summary = "포트폴리오 그룹 조회", description = "사용자의 포트폴리오 그룹 목록을 조회합니다.")
