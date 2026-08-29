@@ -2,6 +2,7 @@ package depth.finvibe.modules.market.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -13,6 +14,17 @@ import depth.finvibe.modules.market.domain.PriceCandle;
 import depth.finvibe.modules.market.domain.enums.Timeframe;
 
 public class PriceCandleDto {
+
+    /**
+     * 홈 목록의 미니 차트용 응답.
+     * 종가 배열만 담아 종목당 캔들 전체를 내려보내지 않는다.
+     */
+    @Schema(name = "StockSparklineResponse", description = "종목 스파크라인 응답")
+    public record SparklineResponse(
+            @Schema(description = "종목 ID", example = "5280") Long stockId,
+            @Schema(description = "오래된 순 종가 배열") List<BigDecimal> values
+    ) {
+    }
 
     @Getter
     @NoArgsConstructor

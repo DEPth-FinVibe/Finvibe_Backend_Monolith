@@ -46,6 +46,13 @@ public interface PriceCandleJpaRepository extends JpaRepository<PriceCandle, Lon
             LocalDateTime at
     );
 
+    List<PriceCandle> findByStockIdInAndTimeframeAndIsMissingFalseAndAtBetweenOrderByStockIdAscAtAsc(
+            List<Long> stockIds,
+            Timeframe timeframe,
+            LocalDateTime startAt,
+            LocalDateTime endAt
+    );
+
     boolean existsByStockIdAndTimeframe(Long stockId, Timeframe timeframe);
 
     @Modifying

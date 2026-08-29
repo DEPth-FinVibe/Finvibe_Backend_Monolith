@@ -34,6 +34,8 @@ import depth.finvibe.common.error.DomainException;
 @Tag(name = "시장", description = "시장 API")
 public class MarketController {
 
+    private static final int MAX_SPARKLINE_POINTS = 60;
+
     private final MarketQueryUseCase marketQueryUseCase;
     private final MarketStatusQueryUseCase marketStatusQueryUseCase;
     private final CategoryQueryUseCase categoryQueryUseCase;
@@ -129,6 +131,20 @@ public class MarketController {
     ) {
         List<ClosingPriceDto.Response> closingPrices = marketQueryUseCase.getClosingPrices(stockIds);
         return ResponseEntity.ok(closingPrices);
+    }
+
+    @GetMapping("/stocks/sparklines")
+    @Operation(
+            summary = "종목 스파크라인 일괄 조회",
+            description = "여러 종목의 일봉 종가 배열을 한 번에 조회합니다. 홈 목록의 미니 차트 전용입니다."
+    )
+    public ResponseEntity<List<PriceCandleDto.SparklineResponse>> getDailySparklines(
+            @Parameter(description = "종목 ID 목록", example = "1,2,3") @RequestParam List<Long> stockIds,
+            @Parameter(description = "종목당 종가 개수", example = "20")
+            @RequestParam(defaultValue = "20") int points
+    ) {
+        int cappedPoints = Math.min(Math.max(points, 1), MAX_SPARKLINE_POINTS);
+        return ResponseEntity.ok(marketQueryUseCase.getDailySparklines(stockIds, cappedPoints));
     }
 
     @GetMapping("/v2/stocks/closing-prices")

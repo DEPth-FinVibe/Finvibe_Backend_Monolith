@@ -26,6 +26,11 @@ public interface MarketQueryUseCase {
             LocalDateTime endTime
     );
 
+    /**
+     * 여러 종목의 일봉 종가를 한 번에 조회한다. 홈 목록의 미니 차트 전용이며 외부 시세를 호출하지 않는다.
+     */
+    List<PriceCandleDto.SparklineResponse> getDailySparklines(List<Long> stockIds, int points);
+
     List<CurrentPriceDto.Response> getCurrentPrices(List<Long> stockIds);
 
     Long getStockPriceInternal(Long stockId);

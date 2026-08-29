@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,12 +18,15 @@ import org.springframework.transaction.annotation.Transactional;
 import depth.finvibe.modules.market.application.port.in.CategoryQueryUseCase;
 import depth.finvibe.modules.market.application.port.out.BatchUpdatePriceRepository;
 import depth.finvibe.modules.market.application.port.out.CategoryRepository;
+import depth.finvibe.modules.market.application.port.out.PriceCandleRepository;
 import depth.finvibe.modules.market.application.port.out.StockRepository;
 import depth.finvibe.modules.market.domain.BatchUpdatePrice;
 import depth.finvibe.modules.market.domain.Category;
 import depth.finvibe.modules.market.domain.Stock;
+import depth.finvibe.modules.market.domain.enums.Timeframe;
 import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.CategoryDto;
+import depth.finvibe.modules.market.dto.PriceCandleDto;
 import depth.finvibe.modules.market.dto.CategoryInternalDto;
 import depth.finvibe.common.error.DomainException;
 
@@ -30,9 +34,16 @@ import depth.finvibe.common.error.DomainException;
 @RequiredArgsConstructor
 public class CategoryQueryService implements CategoryQueryUseCase {
 
+    /**
+     * 일봉 폴백을 시도할 최대 종목 수.
+     * "기타"처럼 수천 종목짜리 카테고리에서 종목별 최신 캔들을 훑지 않도록 막는다.
+     */
+    private static final int MAX_CANDLE_FALLBACK_STOCKS = 500;
+
     private final CategoryRepository categoryRepository;
     private final StockRepository stockRepository;
     private final BatchUpdatePriceRepository batchUpdatePriceRepository;
+    private final PriceCandleRepository priceCandleRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -66,7 +77,7 @@ public class CategoryQueryService implements CategoryQueryUseCase {
         }
 
         List<Long> stockIds = stocks.stream().map(Stock::getId).toList();
-        List<BatchUpdatePrice> batchPrices = batchUpdatePriceRepository.findByStockIds(stockIds);
+        List<BatchUpdatePrice> batchPrices = List.copyOf(resolvePrices(stockIds).values());
         if (batchPrices.isEmpty()) {
             throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
         }
@@ -124,13 +135,7 @@ public class CategoryQueryService implements CategoryQueryUseCase {
         }
 
         List<Long> stockIds = stocks.stream().map(Stock::getId).toList();
-        List<BatchUpdatePrice> batchPrices = batchUpdatePriceRepository.findByStockIds(stockIds);
-        if (batchPrices.isEmpty()) {
-            throw new DomainException(MarketErrorCode.NO_PRICE_DATA_AVAILABLE);
-        }
-
-        Map<Long, BatchUpdatePrice> priceByStockId = batchPrices.stream()
-                .collect(Collectors.toMap(BatchUpdatePrice::getStockId, price -> price, (first, second) -> first));
+        Map<Long, BatchUpdatePrice> priceByStockId = resolvePrices(stockIds);
 
         List<StockWithPrice> stockWithPrices = stocks.stream()
                 .map(stock -> new StockWithPrice(stock, priceByStockId.get(stock.getId())))
@@ -157,6 +162,37 @@ public class CategoryQueryService implements CategoryQueryUseCase {
                 .categoryName(category.getName())
                 .stocks(responses)
                 .build();
+    }
+
+    /**
+     * 카테고리 종목의 가격을 확보한다.
+     * <p>
+     * 현재가 배치 캐시(Redis)를 우선 쓰되, 비어 있거나 일부만 덮으면 최신 일봉 종가로 메운다.
+     * 배치 캐시는 TTL이 있는데 장중에만 갱신돼서 주말·연휴처럼 장이 오래 닫히면 통째로 비는데,
+     * 그때도 화면이 죽지 않도록 종가로 대체한다. 장이 닫혀 있으면 종가가 곧 정답이기도 하다.
+     */
+    private Map<Long, BatchUpdatePrice> resolvePrices(List<Long> stockIds) {
+        Map<Long, BatchUpdatePrice> priceByStockId = batchUpdatePriceRepository.findByStockIds(stockIds).stream()
+                .collect(Collectors.toMap(
+                        BatchUpdatePrice::getStockId,
+                        price -> price,
+                        (first, second) -> first,
+                        HashMap::new
+                ));
+
+        List<Long> uncoveredStockIds = stockIds.stream()
+                .filter(stockId -> !priceByStockId.containsKey(stockId))
+                .toList();
+
+        if (uncoveredStockIds.isEmpty() || uncoveredStockIds.size() > MAX_CANDLE_FALLBACK_STOCKS) {
+            return priceByStockId;
+        }
+
+        priceCandleRepository.findLatestByStockIdsAndTimeframe(uncoveredStockIds, Timeframe.DAY).stream()
+                .map(candle -> BatchUpdatePrice.from(PriceCandleDto.Response.from(candle)))
+                .forEach(price -> priceByStockId.putIfAbsent(price.getStockId(), price));
+
+        return priceByStockId;
     }
 
     private record StockWithPrice(Stock stock, BatchUpdatePrice batchUpdatePrice) {

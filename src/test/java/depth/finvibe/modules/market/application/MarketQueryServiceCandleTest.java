@@ -42,6 +42,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -426,6 +427,160 @@ class MarketQueryServiceCandleTest {
         verify(holidayCalendarService).getTradingDayStatus(TRADING_DATE);
         verify(holidayCalendarService, never()).getTradingDayStatus(TRADING_DATE.plusDays(1));
         verify(holidayCalendarService, never()).getTradingDayStatus(TRADING_DATE.plusDays(2));
+    }
+
+    @Test
+    @DisplayName("아직 끝나지 않은 오늘 일봉은 제공자에게 요청하지 않는다")
+    void getStockCandles_day_inProgressDay_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime dayBeforeYesterday = TRADING_DATE.minusDays(2).atStartOfDay();
+        LocalDateTime yesterday = TRADING_DATE.minusDays(1).atStartOfDay();
+        LocalDateTime today = TRADING_DATE.atStartOfDay();
+
+        when(priceCandleRepository.findExisting(STOCK_ID, dayBeforeYesterday, today, Timeframe.DAY))
+                .thenReturn(List.of(dayCandle(dayBeforeYesterday), dayCandle(yesterday)));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, dayBeforeYesterday, today, Timeframe.DAY);
+
+        assertThat(result).extracting(PriceCandleDto.Response::getAt)
+                .containsExactly(dayBeforeYesterday, yesterday);
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("확정된 결측 마커는 다시 조회하지 않는다")
+    void getStockCandles_settledMissingMarker_skipsProvider() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime longPast = LocalDate.of(2026, 1, 5).atStartOfDay();
+        PriceCandle settledMarker = PriceCandle.createMissing(STOCK_ID, Timeframe.DAY, longPast);
+
+        when(priceCandleRepository.findExisting(STOCK_ID, longPast, longPast, Timeframe.DAY))
+                .thenReturn(List.of(settledMarker));
+
+        List<PriceCandleDto.Response> result = service.getStockCandles(
+                STOCK_ID, longPast, longPast, Timeframe.DAY);
+
+        assertThat(result).isEmpty();
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("제공자가 끝내 주지 않은 슬롯은 결측으로 기록한다")
+    void getStockCandles_providerOmittedSlot_marksMissing() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime dayBeforeYesterday = TRADING_DATE.minusDays(2).atStartOfDay();
+        LocalDateTime yesterday = TRADING_DATE.minusDays(1).atStartOfDay();
+
+        when(priceCandleRepository.findExisting(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY))
+                .thenReturn(List.of());
+        when(realMarketClient.fetchPriceCandles(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY))
+                .thenReturn(CandleFetchResult.complete(List.of(dayCandleResponse(dayBeforeYesterday))));
+
+        service.getStockCandles(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY);
+
+        ArgumentCaptor<List<PriceCandle>> captor = ArgumentCaptor.forClass(List.class);
+        verify(priceCandleRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .filteredOn(PriceCandle::getIsMissing)
+                .extracting(PriceCandle::getAt)
+                .containsExactly(yesterday);
+        assertThat(meterRegistry.counter("market.candle.missing.marked", "timeframe", "DAY").count())
+                .isEqualTo(1.0);
+    }
+
+    @Test
+    @DisplayName("부분 실패 응답에서는 결측으로 기록하지 않는다")
+    void getStockCandles_partialResult_doesNotMarkMissing() {
+        ReflectionTestUtils.setField(service, "marketProvider", "kis");
+        LocalDateTime dayBeforeYesterday = TRADING_DATE.minusDays(2).atStartOfDay();
+        LocalDateTime yesterday = TRADING_DATE.minusDays(1).atStartOfDay();
+
+        when(priceCandleRepository.findExisting(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY))
+                .thenReturn(List.of());
+        when(realMarketClient.fetchPriceCandles(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY))
+                .thenReturn(CandleFetchResult.partial(List.of(dayCandleResponse(dayBeforeYesterday))));
+
+        service.getStockCandles(STOCK_ID, dayBeforeYesterday, yesterday, Timeframe.DAY);
+
+        ArgumentCaptor<List<PriceCandle>> captor = ArgumentCaptor.forClass(List.class);
+        verify(priceCandleRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).noneMatch(PriceCandle::getIsMissing);
+    }
+
+    @Test
+    @DisplayName("스파크라인은 종목별 최근 종가만 잘라 한 번에 반환한다")
+    void getDailySparklines_returnsTrimmedClosesPerStock() {
+        Long otherStockId = 5280L;
+        LocalDateTime base = TRADING_DATE.minusDays(5).atStartOfDay();
+
+        when(priceCandleRepository.findByStockIdsAndTimeframeAndAtBetween(
+                any(), any(), any(), any()))
+                .thenReturn(List.of(
+                        dayCandleWithClose(STOCK_ID, base, "100"),
+                        dayCandleWithClose(STOCK_ID, base.plusDays(1), "110"),
+                        dayCandleWithClose(STOCK_ID, base.plusDays(2), "120"),
+                        dayCandleWithClose(otherStockId, base.plusDays(1), "500")
+                ));
+
+        List<PriceCandleDto.SparklineResponse> result =
+                service.getDailySparklines(List.of(STOCK_ID, otherStockId), 2);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).stockId()).isEqualTo(STOCK_ID);
+        assertThat(result.get(0).values()).containsExactly(new BigDecimal("110"), new BigDecimal("120"));
+        assertThat(result.get(1).values()).containsExactly(new BigDecimal("500"));
+        verify(realMarketClient, never()).fetchPriceCandles(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("스파크라인은 데이터가 없는 종목도 빈 배열로 응답한다")
+    void getDailySparklines_missingStock_returnsEmptyValues() {
+        when(priceCandleRepository.findByStockIdsAndTimeframeAndAtBetween(any(), any(), any(), any()))
+                .thenReturn(List.of());
+
+        List<PriceCandleDto.SparklineResponse> result =
+                service.getDailySparklines(List.of(STOCK_ID), 20);
+
+        assertThat(result).singleElement()
+                .satisfies(response -> {
+                    assertThat(response.stockId()).isEqualTo(STOCK_ID);
+                    assertThat(response.values()).isEmpty();
+                });
+    }
+
+    private PriceCandle dayCandle(LocalDateTime at) {
+        return dayCandleWithClose(STOCK_ID, at, "70500");
+    }
+
+    private PriceCandle dayCandleWithClose(Long stockId, LocalDateTime at, String close) {
+        return PriceCandle.create(
+                stockId,
+                Timeframe.DAY,
+                at,
+                new BigDecimal("70000"),
+                new BigDecimal("71000"),
+                new BigDecimal("69000"),
+                new BigDecimal(close),
+                new BigDecimal("1.25"),
+                new BigDecimal("1000"),
+                new BigDecimal("70500000")
+        );
+    }
+
+    private PriceCandleDto.Response dayCandleResponse(LocalDateTime at) {
+        return PriceCandleDto.Response.builder()
+                .stockId(STOCK_ID)
+                .timeframe(Timeframe.DAY)
+                .at(at)
+                .open(new BigDecimal("70000"))
+                .high(new BigDecimal("71000"))
+                .low(new BigDecimal("69000"))
+                .close(new BigDecimal("70500"))
+                .prevDayChangePct(new BigDecimal("1.25"))
+                .volume(new BigDecimal("1000"))
+                .value(new BigDecimal("70500000"))
+                .build();
     }
 
     private PriceCandle actualCandle(LocalDateTime at) {

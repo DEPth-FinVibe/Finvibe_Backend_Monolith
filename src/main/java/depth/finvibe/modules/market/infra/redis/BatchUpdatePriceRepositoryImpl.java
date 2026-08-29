@@ -20,7 +20,9 @@ import tools.jackson.databind.ObjectMapper;
 public class BatchUpdatePriceRepositoryImpl implements BatchUpdatePriceRepository {
 
     private static final String KEY_PREFIX = "market:batch-price:";
-    private static final Duration BATCH_PRICE_TTL = Duration.ofHours(24);
+    // 갱신은 매시 배치가 담당하고 TTL은 정리용이다.
+    // 24시간이면 주말(금요일 장 마감 ~ 월요일 개장, 약 66시간)을 못 버텨 캐시가 통째로 비므로 연휴까지 감안해 잡는다.
+    private static final Duration BATCH_PRICE_TTL = Duration.ofHours(96);
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;

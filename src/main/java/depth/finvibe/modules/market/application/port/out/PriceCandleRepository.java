@@ -19,6 +19,16 @@ public interface PriceCandleRepository {
      */
     List<PriceCandle> findByStockIdsAndTimeframeAndAt(List<Long> stockIds, Timeframe timeframe, LocalDateTime at);
 
+    /**
+     * 여러 종목의 구간 캔들을 한 번에 조회. 홈 스파크라인처럼 종목별 왕복을 없애야 하는 경우에 쓴다.
+     */
+    List<PriceCandle> findByStockIdsAndTimeframeAndAtBetween(
+            List<Long> stockIds,
+            Timeframe timeframe,
+            LocalDateTime startTime,
+            LocalDateTime endTime
+    );
+
     void saveAll(List<PriceCandle> fetchedResult);
 
     void upsertRealtimeMinuteCandle(PriceCandle candle);

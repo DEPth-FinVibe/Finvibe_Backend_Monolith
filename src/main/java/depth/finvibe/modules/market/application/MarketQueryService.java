@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -74,6 +75,12 @@ public class MarketQueryService implements MarketQueryUseCase {
     private final Map<Long, ReentrantLock> currentPriceMissLocks = new ConcurrentHashMap<>();
     @Value("${market.provider:kis}")
     private String marketProvider;
+    // 필드 초기값은 Spring 주입 없이 생성되는 경우(단위 테스트)의 기본값이다.
+    @Value("${market.candle.missing-marker.settle-days:7}")
+    private int missingMarkerSettleDays = 7;
+
+    /** 스파크라인 조회 시 휴장일을 감안해 요청 포인트 수의 몇 배 구간까지 훑을지. */
+    private static final int SPARKLINE_LOOKBACK_MULTIPLIER = 3;
 
     @Override
     public List<PriceCandleDto.Response> getStockCandles(Long stockId, LocalDateTime startTime, LocalDateTime endTime, Timeframe timeframe) {
@@ -108,6 +115,49 @@ public class MarketQueryService implements MarketQueryUseCase {
                 .filter(candle -> !candle.getIsMissing())
                 .map(PriceCandleDto.Response::from)
                 .toList();
+    }
+
+    /**
+     * 홈 목록의 미니 차트용 종가 배열을 종목별로 한 번에 조회한다.
+     * <p>
+     * 종목마다 캔들 API를 부르면 화면 하나에 요청이 10개 넘게 발생한다.
+     * 여기서는 DB만 조회하고 외부 시세는 호출하지 않는다. 적재는 배치 워밍업이 담당한다.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<PriceCandleDto.SparklineResponse> getDailySparklines(List<Long> stockIds, int points) {
+        if (stockIds == null || stockIds.isEmpty() || points <= 0) {
+            return List.of();
+        }
+
+        List<Long> distinctStockIds = stockIds.stream().distinct().toList();
+
+        // 휴장을 감안해 요청 포인트 수보다 넉넉한 구간을 훑고 뒤에서 잘라낸다.
+        LocalDateTime end = Timeframe.DAY.normalizeStart(LocalDateTime.now(marketClock));
+        LocalDateTime start = end.minusDays((long) points * SPARKLINE_LOOKBACK_MULTIPLIER);
+
+        Map<Long, List<PriceCandle>> candlesByStockId = priceCandleRepository
+                .findByStockIdsAndTimeframeAndAtBetween(distinctStockIds, Timeframe.DAY, start, end)
+                .stream()
+                .collect(Collectors.groupingBy(PriceCandle::getStockId));
+
+        return distinctStockIds.stream()
+                .map(stockId -> toSparkline(stockId, candlesByStockId.getOrDefault(stockId, List.of()), points))
+                .toList();
+    }
+
+    private PriceCandleDto.SparklineResponse toSparkline(Long stockId, List<PriceCandle> candles, int points) {
+        List<BigDecimal> closes = candles.stream()
+                .sorted(Comparator.comparing(PriceCandle::getAt))
+                .map(PriceCandle::getClose)
+                .filter(Objects::nonNull)
+                .toList();
+
+        List<BigDecimal> tail = closes.size() <= points
+                ? closes
+                : closes.subList(closes.size() - points, closes.size());
+
+        return new PriceCandleDto.SparklineResponse(stockId, tail);
     }
 
     private List<PriceCandleDto.Response> fetchStockCandlesWithLock(
@@ -163,7 +213,10 @@ public class MarketQueryService implements MarketQueryUseCase {
         }
 
         List<PriceCandleDto.Response> fetchedCandles = fetchResult.candles();
-        transactionTemplate.executeWithoutResult(status -> saveFetchedCandles(fetchedCandles, existingCandles));
+        // 일부 호출이 실패한 PARTIAL 응답은 "없는 것"과 "못 받은 것"을 구분할 수 없어 결측으로 기록하지 않는다.
+        List<LocalDateTime> unresolvedTimes = fetchResult.isPartial() ? List.of() : missingCandleTimes;
+        transactionTemplate.executeWithoutResult(status ->
+                saveFetchedCandles(stockId, timeframe, unresolvedTimes, fetchedCandles, existingCandles));
         markMinuteRefreshVerifiedIfComplete(
                 stockId,
                 timeframe,
@@ -278,6 +331,9 @@ public class MarketQueryService implements MarketQueryUseCase {
     }
 
     private void saveFetchedCandles(
+            Long stockId,
+            Timeframe timeframe,
+            List<LocalDateTime> requestedTimes,
             List<PriceCandleDto.Response> fetchedCandles,
             List<PriceCandle> existingCandles
     ) {
@@ -303,9 +359,43 @@ public class MarketQueryService implements MarketQueryUseCase {
             changedCandles.add(existing);
         }
 
+        changedCandles.addAll(buildMissingMarkers(stockId, timeframe, requestedTimes, fetchedCandles, existingByTime));
+
         if (!changedCandles.isEmpty()) {
             priceCandleRepository.saveAll(changedCandles);
         }
+    }
+
+    /**
+     * 요청했지만 제공자가 끝내 주지 않은 슬롯을 결측으로 남긴다.
+     * 이 기록이 없으면 같은 구간을 조회할 때마다 외부 호출이 반복된다.
+     */
+    private List<PriceCandle> buildMissingMarkers(
+            Long stockId,
+            Timeframe timeframe,
+            List<LocalDateTime> requestedTimes,
+            List<PriceCandleDto.Response> fetchedCandles,
+            Map<LocalDateTime, PriceCandle> existingByTime
+    ) {
+        if (requestedTimes.isEmpty()) {
+            return List.of();
+        }
+
+        Set<LocalDateTime> fetchedTimes = fetchedCandles.stream()
+                .map(PriceCandleDto.Response::getAt)
+                .collect(Collectors.toSet());
+
+        List<PriceCandle> markers = requestedTimes.stream()
+                .filter(time -> !fetchedTimes.contains(time))
+                .filter(time -> !existingByTime.containsKey(time))
+                .map(time -> PriceCandle.createMissing(stockId, timeframe, time))
+                .toList();
+
+        if (!markers.isEmpty()) {
+            meterRegistry.counter("market.candle.missing.marked", "timeframe", timeframe.name())
+                    .increment(markers.size());
+        }
+        return markers;
     }
 
     private PriceCandle createPriceCandleFrom(PriceCandleDto.Response dto) {
@@ -343,6 +433,12 @@ public class MarketQueryService implements MarketQueryUseCase {
                         .orElse(true))
                 .map(PriceCandle::getAt)
                 .collect(Collectors.toSet());
+        // 확정된 결측 마커는 다시 물어도 답이 같으므로 재조회 대상에서 뺀다.
+        Set<LocalDateTime> settledMissingTimes = existingCandles.stream()
+                .filter(PriceCandle::getIsMissing)
+                .filter(this::isSettledMissingSlot)
+                .map(PriceCandle::getAt)
+                .collect(Collectors.toSet());
         Set<LocalDate> coveredMinuteDates = actualCandles.stream()
                 .map(candle -> candle.getAt().toLocalDate())
                 .collect(Collectors.toSet());
@@ -353,6 +449,7 @@ public class MarketQueryService implements MarketQueryUseCase {
                         .orElse(false)
                         || !isCoveredMinuteDate(time, timeframe, coveredMinuteDates))
                 .filter(time -> !existingCandleTimes.contains(time))
+                .filter(time -> !settledMissingTimes.contains(time))
                 .toList();
     }
 
@@ -366,19 +463,31 @@ public class MarketQueryService implements MarketQueryUseCase {
                 && coveredMinuteDates.contains(time.toLocalDate());
     }
 
+    /**
+     * 결측 마커를 최종 확정으로 볼지 판단한다.
+     * <p>
+     * 최근 슬롯은 제공자 쪽에 데이터가 뒤늦게 채워지는 경우가 있어 계속 재조회한다.
+     * 반면 충분히 지난 슬롯(달력에 없던 임시 휴장, 거래가 없던 날 등)은 다시 물어도 답이 같아,
+     * 매 조회마다 외부를 호출하지 않도록 확정으로 취급한다.
+     */
+    private boolean isSettledMissingSlot(PriceCandle candle) {
+        LocalDateTime settledBefore = LocalDateTime.now(marketClock).minusDays(missingMarkerSettleDays);
+        return candle.getAt().isBefore(settledBefore);
+    }
+
     private LocalDateTime capProviderEnd(
             LocalDateTime normalizedStart,
             LocalDateTime normalizedEnd,
             Timeframe timeframe
     ) {
-        if (timeframe != Timeframe.MINUTE || !isKisProvider()) {
+        if (!isKisProvider()) {
             return normalizedEnd;
         }
 
-        LocalDateTime lastCompletedMinute = timeframe.lastCompletedTime(LocalDateTime.now(marketClock));
-        LocalDateTime providerEnd = normalizedEnd.isBefore(lastCompletedMinute)
+        LocalDateTime lastCompletedSlot = lastCompletedSlotStart(timeframe);
+        LocalDateTime providerEnd = normalizedEnd.isBefore(lastCompletedSlot)
                 ? normalizedEnd
-                : lastCompletedMinute;
+                : lastCompletedSlot;
         return providerEnd.isBefore(normalizedStart) ? null : providerEnd;
     }
 
@@ -427,6 +536,26 @@ public class MarketQueryService implements MarketQueryUseCase {
                 .filter(window -> !fetchedStart.isAfter(window.start()))
                 .filter(window -> !fetchedEnd.isBefore(window.end()))
                 .ifPresent(window -> candleRefreshVerificationRepository.markVerified(stockId, window.end()));
+    }
+
+    /**
+     * 외부 제공자에게 요청할 수 있는 마지막 캔들 시각.
+     * <p>
+     * 아직 진행 중인 캔들은 제공자도 줄 수 없다. 이를 결측으로 판단하면
+     * 매 조회마다 외부 호출이 발생하므로 요청 범위에서 잘라낸다.
+     * 일/주/월/년봉은 정규장이 끝나야 그날치가 확정되므로 장 종료 여부로 판단한다.
+     */
+    private LocalDateTime lastCompletedSlotStart(Timeframe timeframe) {
+        LocalDateTime now = LocalDateTime.now(marketClock);
+
+        if (timeframe == Timeframe.MINUTE) {
+            return timeframe.lastCompletedTime(now);
+        }
+
+        LocalDate lastCompletedDate = MarketHours.isSessionCompletedAt(now.toLocalTime())
+                ? now.toLocalDate()
+                : now.toLocalDate().minusDays(1);
+        return timeframe.normalizeStart(lastCompletedDate.atStartOfDay());
     }
 
     private boolean isKisProvider() {
