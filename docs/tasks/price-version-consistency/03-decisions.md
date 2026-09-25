@@ -149,3 +149,18 @@
 - 선택: **FE 버전 비교만** (사용자 선택)
 - 내용: 리스너의 기존 구독 직후 스냅샷(`initial: true`)을 유지한다. FE는 `event`·`quote` 메시지 모두 `priceVersion`이 저장된 값보다 작으면 무시한다. 버전이 없는 메시지(배포 과도기)는 기존처럼 반영한다.
 - 이유: 병합 규칙 하나로 스냅샷과 실시간 틱의 도착 순서 역전이 해결되고, 서버 추가 변경이 없다.
+
+## D10. REST 현재가 조회 시각의 시간대 (배포 전 점검 중 추가)
+
+- 결정일: 2026-09-25
+- 배경: 운영 JVM은 `eclipse-temurin:21-jre`의 기본 시간대인 UTC이고, 시간대 설정이 없다. `RealMarketClientImpl.bulkFetchCurrentPrices`는 `at`을 `LocalDateTime.now()`, 즉 UTC wall clock으로 채운다. 반면 KIS 실시간 틱의 `at`은 KST wall clock이다. S1은 `at`을 KST로 해석하므로, 이대로 배포하면 REST 복구 틱의 버전이 9시간 과거가 된다.
+  - KIS 구독에서 빠진 종목은 마지막 실시간 틱 뒤 최대 9시간 동안 복구 틱이 모두 버려져 현재가가 멈춘다.
+  - `refreshCurrentPriceOnMiss`는 저장이 거부되면 매 요청마다 KIS REST를 다시 호출한다.
+  - 기존에도 같은 원인으로 워커가 REST 복구 틱을 오래된 틱으로 버리고 있었다.
+- 검토한 선택지: 조회 시각을 KST로 명시 / JVM 기본 시간대를 KST로 / REST 틱은 저장된 버전 + 1
+- 선택: **조회 시각을 KST로 명시** (사용자 선택)
+- 적용: `LocalDateTime.now(Asia/Seoul)`로 바꾸고, UTC JVM을 가정한 회귀 테스트를 추가했다.
+
+### 범위 밖으로 남긴 같은 원인의 문제
+
+- `StaleCurrentPriceRecoveryService`는 KST로 변환한 마지막 갱신 시각을 `LocalDateTime.now()`(UTC) 기준 임계값과 비교한다. 그래서 현재가 키가 만료되기 전에는 stale로 판정되지 않는다. 후속 과제로 분리한다.

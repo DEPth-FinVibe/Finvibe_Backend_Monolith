@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
@@ -41,6 +42,8 @@ import depth.finvibe.common.error.DomainException;
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "market.provider", havingValue = "kis", matchIfMissing = true)
 public class RealMarketClientImpl implements RealMarketClient {
+
+    private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
 
     private static final int DAILY_CHART_BATCH_LIMIT = 100;
     private static final int DAILY_CHART_MAX_CALL_COUNT = 50;
@@ -561,7 +564,8 @@ public class RealMarketClientImpl implements RealMarketClient {
                             .value(toBigDecimal(item.getAcml_tr_pbmn()))
                             .stockId(stockId)
                             .timeframe(Timeframe.MINUTE) // 현재가 조회이므로 MINUTE로 설정
-                            .at(LocalDateTime.now().withSecond(0).withNano(0)) // 현재 시점
+                            // KIS 실시간 틱과 같은 KST wall clock이어야 priceVersion 비교가 맞다. JVM 기본 시간대(운영 UTC)를 쓰면 9시간 과거가 된다.
+                            .at(LocalDateTime.now(MARKET_ZONE).withSecond(0).withNano(0))
                             .prevDayChangePct(toBigDecimal(item.getPrdy_ctrt()))
                             .build());
                 }
