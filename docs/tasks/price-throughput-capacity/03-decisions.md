@@ -96,3 +96,16 @@
 
 - 사용자가 `redis-cluster-v2`를 두 노드에 분산(4:2)했다. 하지만 운영 앱은 모두 v1(`redis-cluster-*.redis-cluster-headless`)에 연결되어 있다.
 - 파드별 CPU(v1 0.26~0.64코어, v2 0.01~0.03코어)와 수신 트래픽(v1 3.3~9.2MB/s, v2 0.01MB/s)으로 v2에 트래픽이 없음을 확인했다. 그래서 이번 부하에는 영향이 없었다.
+
+## D7. 첫 개선 대상
+
+- 결정일: 2026-09-26
+- 검토한 선택지: v1 Redis 노드 분산 / 워커 처리량 먼저 / 모놀리식·발생기 먼저
+- 선택: **운영 v1 Redis(`redis-cluster`)를 두 노드에 분산** (사용자 선택)
+- 이유: 같은 노드의 CPU 경합(94%)이 워커 지연의 원인일 수 있다. 이것을 먼저 없애야 워커 개선 효과를 정확히 잴 수 있다. 마스터·레플리카가 한 노드에 있는 가용성 문제도 함께 해소한다.
+
+### 확인한 제약
+
+- 스테이트풀셋에는 이미 선호형 분산 설정(preferred anti-affinity, `whenUnsatisfiable: ScheduleAnyway`)이 있다. 강제력이 없어 6개가 한 노드에 몰렸다.
+- `nodes.conf`와 데이터가 노드에 묶인 PVC(`/data`)에 있다. 파드를 옮기려면 그 파드의 PVC를 지워야 한다. 이때 인스턴스는 새 노드 ID로 빈 채 시작하므로 `CLUSTER FORGET`과 `--cluster add-node --cluster-slave`로 다시 붙여야 한다.
+- 매니페스트에서 anti-affinity를 강제형으로 바꾸면 PVC 노드 고정과 충돌해 파드가 `Pending`에 빠질 수 있다. 이 방법은 쓰지 않는다.
