@@ -1,5 +1,7 @@
 package depth.finvibe.modules.market.infra.websocket.mock;
 
+import java.util.List;
+
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -14,6 +16,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     stocks-per-tick: 0       # 틱당 이벤트를 발행할 종목 수 (기본값: 0 = 전체)
  *     publish-threads: 0       # 병렬 발행 스레드 수 (기본값: 0 = CPU 코어 수)
  *     publish-queue-capacity: 256 # 발행 작업 큐 크기 (기본값: 256)
+ *     ramp-steps: 100,250,500   # 부하 시험 증량 단계(초당 건수). 설정하면 stocks-per-tick 대신 사용
+ *     ramp-step-seconds: 300    # 단계 유지 시간
  * </pre>
  */
 @ConfigurationProperties(prefix = "market.mock")
@@ -22,7 +26,10 @@ public record MockMarketProperties(
 		Long emitIntervalMs,
 		Integer stocksPerTick,
 		Integer publishThreads,
-		Integer publishQueueCapacity
+		Integer publishQueueCapacity,
+		// 부하 시험용 증량 스케줄(초당 건수). 비어 있으면 stocks-per-tick 방식으로 발행한다.
+		List<Long> rampSteps,
+		Long rampStepSeconds
 ) {
 	public MockMarketProperties {
 		if (emitIntervalMs == null) emitIntervalMs = 1_000L;
@@ -30,5 +37,11 @@ public record MockMarketProperties(
 		if (publishThreads == null || publishThreads <= 0)
 			publishThreads = Runtime.getRuntime().availableProcessors();
 		if (publishQueueCapacity == null || publishQueueCapacity <= 0) publishQueueCapacity = 256;
+		if (rampSteps == null) rampSteps = List.of();
+		if (rampStepSeconds == null || rampStepSeconds <= 0) rampStepSeconds = 300L;
+	}
+
+	public boolean rampEnabled() {
+		return !rampSteps.isEmpty();
 	}
 }

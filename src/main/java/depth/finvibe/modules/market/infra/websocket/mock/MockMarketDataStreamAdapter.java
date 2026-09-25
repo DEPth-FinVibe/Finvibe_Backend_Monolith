@@ -19,12 +19,15 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import depth.finvibe.modules.market.application.port.out.MarketDataStreamPort;
@@ -49,9 +52,17 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
 	private static final double MAX_CHANGE_RATE = 0.005; // ±0.5% per tick
 
+	// 부하 시험 제어 키. stop(중지) / hold(단계 고정) / 숫자(목표 부하 덮어쓰기) / 없음(스케줄대로)
+	static final String CONTROL_KEY = "market:mock:control";
+
 	private final ApplicationEventPublisher eventPublisher;
 	private final MockMarketProperties properties;
 	private final MeterRegistry meterRegistry;
+	private final StringRedisTemplate redisTemplate;
+	private final MockLoadSchedule loadSchedule;
+	private final AtomicLong targetRate = new AtomicLong();
+	private final AtomicLong rampStep = new AtomicLong(-1);
+	private int roundRobinCursor;
 
 	private final Map<Long, String> subscribedStocks = new ConcurrentHashMap<>();
 	private final Map<Long, BigDecimal> currentPrices = new ConcurrentHashMap<>();
@@ -70,11 +81,22 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	public MockMarketDataStreamAdapter(
 			ApplicationEventPublisher eventPublisher,
 			MockMarketProperties properties,
-			MeterRegistry meterRegistry
+			MeterRegistry meterRegistry,
+			StringRedisTemplate redisTemplate
 	) {
 		this.eventPublisher = eventPublisher;
 		this.properties = properties;
 		this.meterRegistry = meterRegistry;
+		this.redisTemplate = redisTemplate;
+		this.loadSchedule = properties.rampEnabled()
+				? new MockLoadSchedule(properties.rampSteps(), properties.rampStepSeconds() * 1000)
+				: null;
+		Gauge.builder("market.mock.target.rate", targetRate, AtomicLong::get)
+				.description("부하 시험 mock의 목표 발행량(초당 건수)")
+				.register(meterRegistry);
+		Gauge.builder("market.mock.ramp.step", rampStep, AtomicLong::get)
+				.description("부하 시험 mock의 현재 증량 단계(0부터, -1은 스케줄 미사용·미시작)")
+				.register(meterRegistry);
 		this.priceUpdateReceivedCounter = Counter.builder("market.price.update.provider.received")
 				.tag("provider", "mock")
 				.description("Provider에서 수신한 PriceUpdate 원본 이벤트 수")
@@ -114,6 +136,10 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 				properties.stocksPerTick() == 0 ? "전체" : properties.stocksPerTick(),
 				properties.publishThreads(),
 				properties.publishQueueCapacity());
+		if (properties.rampEnabled()) {
+			log.info("[Mock] 부하 증량 스케줄 — steps: {}/s, step: {}s, control key: {}",
+					properties.rampSteps(), properties.rampStepSeconds(), CONTROL_KEY);
+		}
 		startEmitting();
 		initialized = true;
 	}
@@ -192,9 +218,38 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 	}
 
 	private void dispatchTick() {
-		List<Long> targets = selectTargets();
+		List<Long> targets = loadSchedule != null ? selectScheduledTargets() : selectTargets();
 		for (Long stockId : targets) {
 			publishPool.submit(() -> emitOne(stockId));
+		}
+	}
+
+	/**
+	 * 증량 스케줄의 목표 부하만큼 구독 종목을 순서대로 돌아가며 고릅니다.
+	 * 구독 종목이 처음 생긴 틱부터 스케줄 시간이 흐릅니다.
+	 */
+	private List<Long> selectScheduledTargets() {
+		List<Long> all = new ArrayList<>(subscribedStocks.keySet());
+		if (all.isEmpty()) {
+			return List.of();
+		}
+		long rate = loadSchedule.targetRate(System.currentTimeMillis(), readControl());
+		targetRate.set(rate);
+		rampStep.set(loadSchedule.stepIndex());
+		int count = loadSchedule.emitCount(rate, properties.emitIntervalMs());
+		List<Long> targets = new ArrayList<>(count);
+		for (int i = 0; i < count; i++) {
+			targets.add(all.get(Math.floorMod(roundRobinCursor++, all.size())));
+		}
+		return targets;
+	}
+
+	private String readControl() {
+		try {
+			return redisTemplate.opsForValue().get(CONTROL_KEY);
+		} catch (Exception ex) {
+			log.warn("[Mock] 부하 제어 키 조회 실패 — 스케줄대로 진행합니다.", ex);
+			return null;
 		}
 	}
 
