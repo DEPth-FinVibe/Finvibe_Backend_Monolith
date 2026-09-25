@@ -164,3 +164,10 @@
 ### 범위 밖으로 남긴 같은 원인의 문제
 
 - `StaleCurrentPriceRecoveryService`는 KST로 변환한 마지막 갱신 시각을 `LocalDateTime.now()`(UTC) 기준 임계값과 비교한다. 그래서 현재가 키가 만료되기 전에는 stale로 판정되지 않는다. 후속 과제로 분리한다.
+
+### D10 추가 적용: 테스트 프로바이더 (2026-09-25)
+
+- 운영에서 mock 프로바이더로 시험하기로 했다(사용자 결정: 운영, 전체 종목). 그런데 `MockMarketDataStreamAdapter`도 `at`을 `LocalDateTime.now()`(운영 UTC)로 채우고 있었다.
+- 그대로 두면 버전이 실제 시각보다 9시간 뒤처지고, 반영 지연 지표가 약 +9시간으로 찍혀서 테스트 결과를 읽을 수 없다.
+- D10과 같은 규칙으로 KST를 명시했다.
+- mock 발행량은 레포에 정의된 `application-mock-market.yml` 값(초당 100종목, 스레드 4개, 큐 64)을 manifest 환경변수로 맞췄다. 기본값(구독 종목 전체를 매초 발행)은 운영 부하가 과도하기 때문이다.

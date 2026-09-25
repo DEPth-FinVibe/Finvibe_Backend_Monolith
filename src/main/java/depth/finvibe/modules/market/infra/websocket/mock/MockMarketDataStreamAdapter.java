@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -45,6 +46,7 @@ import lombok.extern.slf4j.Slf4j;
 public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 
 	private static final BigDecimal BASE_PRICE = BigDecimal.valueOf(50_000);
+	private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
 	private static final double MAX_CHANGE_RATE = 0.005; // ±0.5% per tick
 
 	private final ApplicationEventPublisher eventPublisher;
@@ -266,7 +268,8 @@ public class MockMarketDataStreamAdapter implements MarketDataStreamPort {
 		return CurrentPriceUpdatedEvent.builder()
 				.stockId(stockId)
 				.ts(System.currentTimeMillis())
-				.at(LocalDateTime.now())
+				// KIS 실시간 틱과 같은 KST wall clock이어야 priceVersion이 실제 체결시각과 맞는다(운영 JVM은 UTC).
+				.at(LocalDateTime.now(MARKET_ZONE))
 				.open(close.subtract(spread))
 				.high(close.add(spread))
 				.low(close.subtract(spread.multiply(BigDecimal.valueOf(2))))
