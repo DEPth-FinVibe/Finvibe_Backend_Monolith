@@ -109,3 +109,25 @@
 - 스테이트풀셋에는 이미 선호형 분산 설정(preferred anti-affinity, `whenUnsatisfiable: ScheduleAnyway`)이 있다. 강제력이 없어 6개가 한 노드에 몰렸다.
 - `nodes.conf`와 데이터가 노드에 묶인 PVC(`/data`)에 있다. 파드를 옮기려면 그 파드의 PVC를 지워야 한다. 이때 인스턴스는 새 노드 ID로 빈 채 시작하므로 `CLUSTER FORGET`과 `--cluster add-node --cluster-slave`로 다시 붙여야 한다.
 - 매니페스트에서 anti-affinity를 강제형으로 바꾸면 PVC 노드 고정과 충돌해 파드가 `Pending`에 빠질 수 있다. 이 방법은 쓰지 않는다.
+
+### D7 실행 방법 (2026-09-26 01:52)
+
+- 검토한 선택지: 레플리카 이동 + 페일오버 / 앱을 v2로 전환
+- 선택: **레플리카 이동 + 페일오버** (사용자 선택)
+- v1 마스터–레플리카 짝(01:50 `cluster nodes`):
+
+| 슬롯 | 마스터 | 레플리카 |
+|---|---|---|
+| 0-5460 | `redis-cluster-4` (431c80…) | `redis-cluster-0` (0e4191…) |
+| 5461-10922 | `redis-cluster-1` (bc3d83…) | `redis-cluster-5` (58a4b7…) |
+| 10923-16383 | `redis-cluster-3` (a7adaa…) | `redis-cluster-2` (aebe1d…) |
+
+- 절차(파드 하나씩):
+  1. `vmi3244740` cordon
+  2. 레플리카 PVC·파드 삭제 → `vmi2974623`에 새 볼륨으로 재생성
+  3. uncordon
+  4. 나머지 노드에서 옛 ID `CLUSTER FORGET`
+  5. `--cluster add-node --cluster-slave --cluster-master-id <마스터>`로 재가입
+  6. `master_link_status:up` 확인
+- 레플리카 0·2·5를 옮긴 뒤 `redis-cluster-0`·`redis-cluster-2`에서 `CLUSTER FAILOVER`를 실행한다. 최종 목표는 `vmi3244740`에 마스터 1 + 레플리카 3·4, `vmi2974623`에 마스터 0·2 + 레플리카 5다.
+- 참고: `redis-cluster-0`이 스스로 알리는 IP(`10.42.1.254`)가 파드 IP(`10.42.1.55`)와 다르다. 클러스터가 호스트명으로 통신(`--cluster-preferred-endpoint-type hostname`)하므로 동작에는 영향이 없다.
