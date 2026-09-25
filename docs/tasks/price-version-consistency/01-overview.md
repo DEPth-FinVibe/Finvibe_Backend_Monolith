@@ -23,7 +23,7 @@
 5. **버그**: 같은 `at`(같은 초)에 가격이 다른 틱이 오면 워커가 `price_timestamp_conflict`로 판단해 **건너뛴다**. 그 종목의 수익률은 다음 틱이 올 때까지 이전 가격 기준으로 남는다. 장 마감 직전의 마지막 틱이라면 다음 장까지 남는다.
 6. 워커 결과는 종목별 수익률이 아니라 **포트폴리오·유저 총합**(`pf:{id}`, `usr:{id}`)이고, 클라이언트로 푸시하지 않는다.
 7. 클라이언트의 종목 행 수익률은 이미 Pub/Sub 현재가 × 보유 수량으로 클라이언트가 직접 계산한다(`SimulationPortfolioTab`). 그래서 행 안에서는 어긋나지 않는다.
-8. 워커 총합을 조회하는 API는 모놀리식에 아직 없다(Issue #14 `GET /portfolios/valuations`, OPEN).
+8. 워커 총합을 조회하는 API는 `main`에 아직 없다. #14 `GET /portfolios/valuations`는 [PR #15](https://github.com/DEPth-FinVibe/Finvibe_Backend_Monolith/pull/15)(OPEN)로 구현되어 있다(구현 중 확인, D9).
 9. 웹소켓 리스너(`MarketEventBroadcaster`)는 Pub/Sub 페이로드에서 정해진 필드만 골라 복사한다. 새 필드를 추가하면 리스너도 수정해야 한다.
 
 ## 해결해야 하는 문제

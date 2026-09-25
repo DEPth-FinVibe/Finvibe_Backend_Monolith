@@ -117,3 +117,11 @@
 ### 구현 세부 (AI 판단)
 
 - 보유 종목 목록은 워커가 SCAN으로 모으지 않고, 모놀리식의 `HoldingStockRedisRepository`가 이미 관리하는 집합 키 하나를 읽는다. 클러스터 전체 SCAN을 피하기 위해서다.
+
+## D9. S6과 PR #15(#14)의 적용 순서 (구현 중 추가)
+
+- 결정일: 2026-09-25
+- 배경: Overview를 쓸 때는 `main`만 확인해서 "조회 API 없음"이라고 적었다. 하지만 #14는 이미 [PR #15](https://github.com/DEPth-FinVibe/Finvibe_Backend_Monolith/pull/15)(OPEN, `feat/14-portfolio-valuation-fallback`)로 구현되어 있었다. 워크플로우는 다른 feature 브랜치 위에서 작업하는 것을 금지한다.
+- 검토한 선택지: PR #15를 먼저 병합한 뒤 동기화 / S6 API를 후속 Issue로 분리 / PR #15 브랜치에 근거 필드 추가
+- 선택: **PR #15를 먼저 병합한 뒤 이 브랜치를 `main`과 동기화하고, API에 근거를 추가** (사용자 선택)
+- 적용: #15와 무관한 FE 버전 병합(D7)을 먼저 구현한다. API 근거 추가와 FE 총합 보정은 #15 병합 뒤에 진행한다. 이번 PR 하나에 S1~S6를 유지한다.
