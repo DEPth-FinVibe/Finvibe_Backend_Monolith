@@ -13,12 +13,14 @@ import depth.finvibe.modules.market.domain.error.MarketErrorCode;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import depth.finvibe.common.error.DomainException;
 import depth.finvibe.common.investment.dto.StockPriceUpdatedEvent;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
@@ -26,12 +28,15 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class CurrentPriceService implements CurrentPriceCommandUseCase {
 
+    private static final String STALE_TICK_METRIC = "market.current_price.stale_ticks";
+
     private final StockRepository stockRepository;
     private final HoldingStockRepository holdingStockRepository;
     private final CurrentStockWatcherRepository currentStockWatcherRepository;
     private final CurrentPriceRepository currentPriceRepository;
     private final CurrentPriceEventPublisher currentPriceEventPublisher;
     private final StockPriceEventProducer stockPriceEventProducer;
+    private final MeterRegistry meterRegistry;
     private final ConcurrentHashMap<Long, BigDecimal> lastPublishedPrices = new ConcurrentHashMap<>();
 
     @Override
@@ -69,7 +74,14 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
 
     @Override
     public void stockPriceUpdated(CurrentPriceUpdatedEvent priceUpdate) {
-        currentPriceRepository.upsertCurrentPrice(CurrentPrice.from(priceUpdate));
+        // 두 경로로 갈라지기 전에 한 번만 버전을 받아 Pub/Sub과 Kafka에 같은 값을 싣는다.
+        OptionalLong priceVersion = currentPriceRepository.saveIfNewer(CurrentPrice.from(priceUpdate));
+        if (priceVersion.isEmpty()) {
+            meterRegistry.counter(STALE_TICK_METRIC).increment();
+            log.debug("Skipped stale price tick. stockId={}, at={}", priceUpdate.getStockId(), priceUpdate.getAt());
+            return;
+        }
+        priceUpdate.setPriceVersion(priceVersion.getAsLong());
         priceUpdate.setPublishedAt(System.currentTimeMillis());
         currentPriceEventPublisher.publish(priceUpdate);
 
@@ -82,6 +94,7 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
                     .stockId(priceUpdate.getStockId())
                     .price(newPrice)
                     .updatedAt(priceUpdate.getAt() != null ? priceUpdate.getAt() : LocalDateTime.now())
+                    .priceVersion(priceUpdate.getPriceVersion())
                     .build());
         }
     }

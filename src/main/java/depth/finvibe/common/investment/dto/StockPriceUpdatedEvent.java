@@ -16,4 +16,5 @@ public class StockPriceUpdatedEvent {
 	private Long stockId;
 	private BigDecimal price;
 	private LocalDateTime updatedAt;
+	private Long priceVersion;
 }

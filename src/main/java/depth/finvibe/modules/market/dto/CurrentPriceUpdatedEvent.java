@@ -25,4 +25,5 @@ public class CurrentPriceUpdatedEvent {
     private BigDecimal executionVolume;
     private BigDecimal value;
     private Long publishedAt;
+    private Long priceVersion;
 }

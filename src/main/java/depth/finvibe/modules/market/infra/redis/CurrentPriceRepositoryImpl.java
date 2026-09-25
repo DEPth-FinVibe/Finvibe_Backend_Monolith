@@ -4,6 +4,8 @@ import depth.finvibe.modules.market.application.port.out.CurrentPriceRepository;
 import depth.finvibe.modules.market.domain.CurrentPrice;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 import tools.jackson.core.exc.JacksonIOException;
 import tools.jackson.databind.ObjectMapper;
@@ -16,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -25,7 +28,35 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
 
     private static final String KEY_PREFIX = "market:current-price:";
     private static final String UPDATED_AT_KEY_PREFIX = "market:current-price-updated-at:";
+    private static final String VERSION_KEY_PREFIX = "market:current-price-version:";
     private static final Duration CURRENT_PRICE_TTL = Duration.ofMinutes(5);
+    // 틱이 뜸한 종목도 주말·연휴를 넘겨 단조성을 유지하도록 현재가보다 길게 둔다.
+    private static final Duration PRICE_VERSION_TTL = Duration.ofDays(7);
+    private static final ZoneId MARKET_ZONE = ZoneId.of("Asia/Seoul");
+
+    // priceVersion = 체결시각(epoch 초) × 10^6 + 같은 초 안 순번.
+    // 세 키는 모두 {stock:<id>} hash tag라 같은 slot이다. 저장된 버전보다 이른 초면 아무것도 쓰지 않는다.
+    // JSON은 파싱하지 않고 끝의 '}' 앞에 priceVersion을 붙인다. 가격 표현을 cjson으로 다시 인코딩하지 않기 위해서다.
+    // KEYS: 1=현재가, 2=갱신 시각, 3=버전 / ARGV: 1=현재가 JSON, 2=체결 epoch 초, 3=현재 epoch ms, 4=현재가 TTL ms, 5=버전 TTL ms
+    // 반환: 부여한 버전(문자열), 오래된 틱이면 빈 문자열
+    private static final RedisScript<String> SAVE_IF_NEWER_SCRIPT = new DefaultRedisScript<>("""
+            local base = tonumber(ARGV[2]) * 1000000
+            local stored = tonumber(redis.call('GET', KEYS[3]) or '0')
+            local version
+            if base > stored then
+                version = base
+            elseif stored - (stored % 1000000) == base then
+                version = stored + 1
+            else
+                return ''
+            end
+            local encoded = string.format('%.0f', version)
+            local json = string.sub(ARGV[1], 1, -2) .. ',"priceVersion":' .. encoded .. '}'
+            redis.call('SET', KEYS[1], json, 'PX', ARGV[4])
+            redis.call('SET', KEYS[2], ARGV[3], 'PX', ARGV[4])
+            redis.call('SET', KEYS[3], encoded, 'PX', ARGV[5])
+            return encoded
+            """, String.class);
     private static final Duration LOCAL_CACHE_TTL = Duration.ofSeconds(1);
 
     private final StringRedisTemplate redisTemplate;
@@ -33,16 +64,31 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
     private final Map<Long, LocalCacheEntry> localCache = new ConcurrentHashMap<>();
 
     @Override
-    public void upsertCurrentPrice(CurrentPrice currentPrice) {
+    public OptionalLong saveIfNewer(CurrentPrice currentPrice) {
+        String value;
         try {
-            String value = objectMapper.writeValueAsString(currentPrice);
-            redisTemplate.opsForValue().set(keyForStock(currentPrice.getStockId()), value, CURRENT_PRICE_TTL);
-            redisTemplate.opsForValue().set(keyForUpdatedAt(currentPrice.getStockId()),
-                    String.valueOf(Instant.now().toEpochMilli()), CURRENT_PRICE_TTL);
-            putLocalCache(currentPrice);
+            value = objectMapper.writeValueAsString(currentPrice);
         } catch (JacksonIOException ex) {
             throw new IllegalStateException("Failed to serialize current price", ex);
         }
+
+        Long stockId = currentPrice.getStockId();
+        String assigned = redisTemplate.execute(
+                SAVE_IF_NEWER_SCRIPT,
+                List.of(keyForStock(stockId), keyForUpdatedAt(stockId), keyForVersion(stockId)),
+                value,
+                String.valueOf(tickEpochSecond(currentPrice.getAt())),
+                String.valueOf(Instant.now().toEpochMilli()),
+                String.valueOf(CURRENT_PRICE_TTL.toMillis()),
+                String.valueOf(PRICE_VERSION_TTL.toMillis())
+        );
+        if (assigned == null || assigned.isEmpty()) {
+            return OptionalLong.empty();
+        }
+
+        long priceVersion = Long.parseLong(assigned);
+        putLocalCache(currentPrice.withPriceVersion(priceVersion));
+        return OptionalLong.of(priceVersion);
     }
 
     @Override
@@ -115,7 +161,7 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
 
             try {
                 long epochMillis = Long.parseLong(raw);
-                LocalDateTime updatedAt = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.of("Asia/Seoul"));
+                LocalDateTime updatedAt = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), MARKET_ZONE);
                 result.put(stockIds.get(i), updatedAt);
             } catch (NumberFormatException ex) {
                 // 잘못된 값은 skip
@@ -131,6 +177,15 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
 
     private String keyForUpdatedAt(Long stockId) {
         return UPDATED_AT_KEY_PREFIX + "{stock:" + stockId + "}";
+    }
+
+    private String keyForVersion(Long stockId) {
+        return VERSION_KEY_PREFIX + "{stock:" + stockId + "}";
+    }
+
+    private long tickEpochSecond(LocalDateTime at) {
+        LocalDateTime tickAt = at != null ? at : LocalDateTime.now(MARKET_ZONE);
+        return tickAt.atZone(MARKET_ZONE).toEpochSecond();
     }
 
     private Stream<CurrentPrice> deserializeSafely(String value) {

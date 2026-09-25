@@ -3,6 +3,7 @@ package depth.finvibe.modules.market.domain;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
@@ -24,6 +25,13 @@ public class CurrentPrice {
     private final BigDecimal prevDayChangePct;
     private final BigDecimal volume;
     private final BigDecimal value;
+    // 저장소가 부여한다. 직렬화 시 비어 있으면 생략해 저장소가 붙일 자리를 남긴다.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private final Long priceVersion;
+
+    public CurrentPrice withPriceVersion(Long priceVersion) {
+        return new CurrentPrice(stockId, at, price, open, high, low, close, prevDayChangePct, volume, value, priceVersion);
+    }
 
     public static CurrentPrice from(PriceCandle priceCandle) {
         return new CurrentPrice(
@@ -36,7 +44,8 @@ public class CurrentPrice {
                 priceCandle.getClose(),
                 priceCandle.getPrevDayChangePct(),
                 priceCandle.getVolume(),
-                priceCandle.getValue()
+                priceCandle.getValue(),
+                null
         );
     }
 
@@ -51,7 +60,8 @@ public class CurrentPrice {
                 priceUpdate.getClose(),
                 priceUpdate.getPrevDayChangePct(),
                 priceUpdate.getVolume(),
-                priceUpdate.getValue()
+                priceUpdate.getValue(),
+                null
         );
     }
 }

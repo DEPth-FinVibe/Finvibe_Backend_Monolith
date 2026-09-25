@@ -754,9 +754,10 @@ public class MarketQueryService implements MarketQueryUseCase {
                     snapshot.getClose(),
                     snapshot.getPrevDayChangePct(),
                     snapshot.getVolume(),
-                    snapshot.getValue()
+                    snapshot.getValue(),
+                    null
             );
-            currentPriceRepository.upsertCurrentPrice(currentPrice);
+            currentPriceRepository.saveIfNewer(currentPrice);
             return snapshot.getClose().longValue();
         } finally {
             lock.unlock();
