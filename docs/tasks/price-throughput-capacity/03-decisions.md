@@ -264,3 +264,36 @@
 - 검토한 선택지: 틱당 CPU 프로파일링 후 코드 개선 / CPU 한도 상향 먼저 / 모놀리식 replicas 2
 - 선택: **틱당 CPU 프로파일링 후 코드 개선** (사용자 선택)
 - 방법: `JAVA_TOOL_OPTIONS`로 JFR(`settings=profile`)을 기동 5분 뒤부터 5분간 기록한다. 부하는 제어 키로 초당 400건에 고정한다. `jfr view hot-methods`로 CPU 상위 메서드를 뽑는다.
+
+### D13 실행 결과 (2026-09-26 16:27~16:32, 초당 400건 고정, 실제 발행 약 345건/s)
+
+- 진행 중 겪은 문제:
+  - 처음에는 `JAVA_TOOL_OPTIONS`를 넣은 파드 안에서 `jfr` 도구를 실행했다. 도구의 JVM도 이 옵션을 읽어 같은 경로에 새 기록을 예약하면서 파일을 비웠다. 이후 도구를 실행할 때는 `env -u JAVA_TOOL_OPTIONS`를 붙였다.
+  - 이미지가 JRE 전용(`eclipse-temurin:21-jre`)이라 `jcmd`로 실행 중인 JVM에 기록을 걸 수 없었다. 그래서 파드를 다시 띄워 처음부터 기록했다.
+- 방법: `hot-methods`는 1위도 3.4%일 만큼 분산돼 판단이 어려웠다. 그래서 `jfr print --events jdk.ExecutionSample`의 호출 스택을 스레드별·라이브러리별·앱 프레임별로 집계했다(샘플 3,228개).
+
+| 스레드 | 비중 | 내용 |
+|---|---|---|
+| `redisson-netty-*` | 29.6% | Redis 입출력 |
+| `price-event-*` | 27.4% | 현재가 저장 Lua 15%, Pub/Sub 발행 10%(JSON 직렬화 포함) |
+| `reservation-event-*` | 9.5% | 예약 조건 조회 `ZRANGEBYSCORE` 매수·매도 2회 |
+| `market-scheduler` | 8.8% | 구독 동기화(락, 종목 DB 조회). 틱과 무관한 고정 비용 |
+| `lettuce-nioEventLoop-*` | 6.2% | SPUBLISH 전용 Lettuce 연결 |
+| mock 발행기 | 5.4% | 부하 발생기 |
+
+- 라이브러리별(포함 기준): Netty 42%, Spring Data Redis 15%, Lettuce 11%, Jackson 9.5%, Micrometer 7.3%, Kafka 7%(발행을 꺼도 컨슈머가 돌아서 생김)
+- **발견: `redisson-spring-boot-starter`가 Spring의 `RedisConnectionFactory`를 Redisson으로 바꿔 놓았다.** 그래서 `StringRedisTemplate`을 쓰는 모든 일반 명령(현재가 저장, 예약 조회 등)이 분산 락용 Redisson 클라이언트를 거친다. 틱당 Redis 왕복 4회 중 3회가 여기에 해당하고, 그 입출력 스레드가 CPU의 약 30%를 쓴다. 같은 일을 하는 Lettuce 연결(SPUBLISH)은 6%다.
+
+## D14. 틱당 CPU 개선 대상
+
+- 결정일: 2026-09-26
+- 검토한 선택지: Redis 기본 연결을 Lettuce로 분리 / 예약 확인을 예약 있는 종목만 / 저장과 발행을 Lua 하나로 합치기 / 고정 비용(구독 동기화·메트릭) 제거
+- 선택: **Redis 기본 연결을 Lettuce로 분리(`StringRedisTemplate`은 Lettuce, 분산 락만 Redisson)** (사용자 선택)
+
+## D15. 모놀리식 CPU 한도
+
+- 결정일: 2026-09-26
+- 배경: 사용자가 CPU가 한도에 붙은 상태를 보고 모놀리식 CPU를 늘리기로 했다(D4 범위 안).
+- 선택: **요청 1 / 한도 2코어**. 순서는 CPU 증설 → 새 한도에서 기준선 재측정 → D14 Lettuce 전환 → 같은 한도에서 전후 비교 (사용자 선택)
+- 기존 값(요청 0.2 / 한도 0.7, 메모리 512Mi / 1Gi)은 매니페스트에 없었다. 클러스터에 직접 넣은 값이라 이번에 `resources`를 매니페스트에 명시했다(Manifest `1bccc1d`, JFR 옵션도 함께 제거).
+- 노드 `vmi3244740` 기준: 요청 합계 4.46 → 5.26 / 6코어, 실사용 약 47%
