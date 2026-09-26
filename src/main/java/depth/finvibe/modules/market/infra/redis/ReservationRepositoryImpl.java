@@ -22,8 +22,12 @@ import depth.finvibe.modules.market.domain.Reservation;
 @RequiredArgsConstructor
 public class ReservationRepositoryImpl implements ReservationRepository {
 
-    private static final String INDEX_BUY_KEY_PREFIX = "market:reservation:buy:stock:";
-    private static final String INDEX_SELL_KEY_PREFIX = "market:reservation:sell:stock:";
+    static final String INDEX_BUY_KEY_PREFIX = "market:reservation:buy:stock:";
+    static final String INDEX_SELL_KEY_PREFIX = "market:reservation:sell:stock:";
+    // 예약이 하나라도 있는 종목 집합. 전체 키를 훑는 KEYS 대신 이 집합으로 찾는다.
+    static final String RESERVED_STOCKS_KEY = "market:reservation:stocks";
+    // 예약이 바뀐 종목을 모든 노드에 알린다. 메시지는 종목 ID다.
+    static final String CHANGED_CHANNEL = "market:reservation:changed";
 
     private static final String INFO_KEY_PREFIX = "market:reservation:trade:";
 
@@ -48,6 +52,8 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         String json = objectMapper.writeValueAsString(reservation);
         redisTemplate.opsForValue().set(infoKey, json, CURRENT_RESERVATION_TTL);
+        redisTemplate.opsForSet().add(RESERVED_STOCKS_KEY, String.valueOf(reservation.getStockId()));
+        notifyChanged(reservation.getStockId());
     }
 
     @Override
@@ -73,6 +79,20 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
         redisTemplate.delete(infoKey);
         redisTemplate.opsForZSet().remove(indexKey, String.valueOf(tradeId));
+        Long stockId = reservation.getStockId();
+        if (isEmpty(keyForBuyIndex(stockId)) && isEmpty(keyForSellIndex(stockId))) {
+            redisTemplate.opsForSet().remove(RESERVED_STOCKS_KEY, String.valueOf(stockId));
+        }
+        notifyChanged(stockId);
+    }
+
+    private boolean isEmpty(String indexKey) {
+        Long size = redisTemplate.opsForZSet().zCard(indexKey);
+        return size == null || size == 0;
+    }
+
+    private void notifyChanged(Long stockId) {
+        redisTemplate.convertAndSend(CHANGED_CHANNEL, String.valueOf(stockId));
     }
 
     @Override
@@ -82,6 +102,21 @@ public class ReservationRepositoryImpl implements ReservationRepository {
 
     @Override
     public List<Long> findReservedStockIds() {
+        Set<String> members = redisTemplate.opsForSet().members(RESERVED_STOCKS_KEY);
+        if (members == null || members.isEmpty()) {
+            return List.of();
+        }
+        return members.stream()
+                .map(this::parseLongOrNull)
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+    }
+
+    /**
+     * 예약 종목 집합을 도입하기 전의 데이터를 옮기기 위해 한 번만 쓴다. 전체 키를 훑으므로 평소에는 쓰지 않는다.
+     */
+    List<Long> findReservedStockIdsByKeyScan() {
         Set<String> buyKeys = redisTemplate.keys(INDEX_BUY_KEY_PREFIX + "*");
         Set<String> sellKeys = redisTemplate.keys(INDEX_SELL_KEY_PREFIX + "*");
 
@@ -98,6 +133,14 @@ public class ReservationRepositoryImpl implements ReservationRepository {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    private Long parseLongOrNull(String raw) {
+        try {
+            return Long.valueOf(raw);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     @Override
@@ -142,11 +185,11 @@ public class ReservationRepositoryImpl implements ReservationRepository {
         return getDeserializedReservations(tradeIds);
     }
 
-    private String keyForBuyIndex(Long stockId) {
+    static String keyForBuyIndex(Long stockId) {
         return INDEX_BUY_KEY_PREFIX + stockId;
     }
 
-    private String keyForSellIndex(Long stockId) {
+    static String keyForSellIndex(Long stockId) {
         return INDEX_SELL_KEY_PREFIX + stockId;
     }
 

@@ -7,6 +7,8 @@ import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
+import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
+import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -42,6 +45,7 @@ public class MarketRedisPipeline {
 	private final ReentrantLock submitLock = new ReentrantLock();
 	private RedisClusterClient clusterClient;
 	private StatefulRedisClusterConnection<String, String> connection;
+	private StatefulRedisClusterPubSubConnection<String, String> pubSubConnection;
 
 	@PostConstruct
 	void connect() {
@@ -69,6 +73,9 @@ public class MarketRedisPipeline {
 
 	@PreDestroy
 	void close() {
+		if (pubSubConnection != null) {
+			pubSubConnection.close();
+		}
 		if (connection != null) {
 			connection.close();
 		}
@@ -97,6 +104,27 @@ public class MarketRedisPipeline {
 		} finally {
 			submitLock.unlock();
 		}
+	}
+
+	/**
+	 * 일반 Pub/Sub 채널을 구독합니다. 클러스터에서 PUBLISH는 모든 노드로 전파되므로 한 연결로 충분합니다.
+	 */
+	public synchronized void subscribe(String channel, Consumer<String> handler) {
+		if (clusterClient == null) {
+			throw new IllegalStateException("Market redis pipeline is not available");
+		}
+		if (pubSubConnection == null) {
+			pubSubConnection = clusterClient.connectPubSub();
+		}
+		pubSubConnection.addListener(new RedisPubSubAdapter<>() {
+			@Override
+			public void message(String receivedChannel, String message) {
+				if (channel.equals(receivedChannel)) {
+					handler.accept(message);
+				}
+			}
+		});
+		pubSubConnection.sync().subscribe(channel);
 	}
 
 	private RedisURI toRedisUri(String node) {
