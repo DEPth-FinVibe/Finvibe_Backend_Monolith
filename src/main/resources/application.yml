@@ -3,6 +3,12 @@ spring:
     name: finvibe-backend-monolith
   main:
     allow-bean-definition-overriding: true
+  autoconfigure:
+    # Redisson 스타터가 RedisConnectionFactory·RedisTemplate을 Redisson으로 바꾸지 않도록 뺀다.
+    # 일반 명령은 Spring Boot 기본(Lettuce)으로 보내고, Redisson은 분산 락 용도로 RedissonConfig에서만 만든다.
+    exclude:
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+      - org.redisson.spring.starter.RedissonAutoConfigurationV4
   config:
     import: optional:file:.env[.properties]
   profiles:

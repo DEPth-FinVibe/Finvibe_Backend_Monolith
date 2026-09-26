@@ -26,6 +26,12 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      lettuce:
+        cluster:
+          refresh:
+            # 페일오버·슬롯 이동을 따라가도록 토폴로지를 갱신한다.
+            adaptive: true
+            period: 30s
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
