@@ -8,6 +8,8 @@ import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
+import io.lettuce.core.resource.ClientResources;
+import io.lettuce.core.resource.DefaultClientResources;
 import io.lettuce.core.pubsub.RedisPubSubAdapter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -16,8 +18,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -25,8 +31,11 @@ import java.util.function.Function;
 /**
  * 시세 경로 전용 Redis Cluster 파이프라인 연결입니다.
  * <p>
- * 자동 flush를 끈 연결 하나를 공유합니다. 호출자는 명령을 한 번에 쌓고 flush한 뒤, 락 밖에서 응답을 기다립니다.
+ * 자동 flush를 끈 연결 여러 개를 둡니다. 호출자는 명령을 한 번에 쌓고 flush한 뒤, 락 밖에서 응답을 기다립니다.
  * 그래서 틱마다 왕복을 기다리지 않고, 여러 틱의 명령이 노드별로 한 번에 전송됩니다.
+ * <p>
+ * 스레드는 처음 쓸 때 연결 하나를 배정받아 계속 그 연결만 씁니다. 레인마다 연결이 달라 입출력 스레드 하나에
+ * 인코딩·응답 처리가 몰리지 않고, 한 레인의 저장·발행은 같은 연결로 나가 순서가 유지됩니다.
  * 클러스터 모드가 아니면(로컬 등) 사용할 수 없고, 호출자는 기존 동기 경로를 씁니다.
  */
 @Slf4j
@@ -42,9 +51,16 @@ public class MarketRedisPipeline {
 	@Value("${spring.data.redis.password:${REDIS_PASSWORD:}}")
 	private String redisPassword;
 
-	private final ReentrantLock submitLock = new ReentrantLock();
+	@Value("${market.price-ingest.redis-connections:4}")
+	private int connectionCount;
+	@Value("${market.price-ingest.redis-io-threads:4}")
+	private int ioThreads;
+
+	private final List<Slot> slots = new ArrayList<>();
+	private final Map<Long, Slot> slotByThread = new ConcurrentHashMap<>();
+	private final AtomicInteger nextSlot = new AtomicInteger();
+	private ClientResources clientResources;
 	private RedisClusterClient clusterClient;
-	private StatefulRedisClusterConnection<String, String> connection;
 	private StatefulRedisClusterPubSubConnection<String, String> pubSubConnection;
 
 	@PostConstruct
@@ -59,16 +75,23 @@ public class MarketRedisPipeline {
 				.map(this::toRedisUri)
 				.toList();
 
-		clusterClient = RedisClusterClient.create(redisUris);
+		clientResources = DefaultClientResources.builder()
+				.ioThreadPoolSize(Math.max(2, ioThreads))
+				.build();
+		clusterClient = RedisClusterClient.create(clientResources, redisUris);
 		clusterClient.setOptions(ClusterClientOptions.builder()
 				.topologyRefreshOptions(ClusterTopologyRefreshOptions.builder()
 						.enableAllAdaptiveRefreshTriggers()
 						.enablePeriodicRefresh(Duration.ofSeconds(30))
 						.build())
 				.build());
-		connection = clusterClient.connect();
-		connection.setAutoFlushCommands(false);
-		log.info("Market redis pipeline connected. nodes={}", redisUris.size());
+		for (int i = 0; i < Math.max(1, connectionCount); i++) {
+			StatefulRedisClusterConnection<String, String> connection = clusterClient.connect();
+			connection.setAutoFlushCommands(false);
+			slots.add(new Slot(connection));
+		}
+		log.info("Market redis pipeline connected. nodes={}, connections={}, ioThreads={}",
+				redisUris.size(), slots.size(), ioThreads);
 	}
 
 	@PreDestroy
@@ -76,16 +99,19 @@ public class MarketRedisPipeline {
 		if (pubSubConnection != null) {
 			pubSubConnection.close();
 		}
-		if (connection != null) {
-			connection.close();
+		for (Slot slot : slots) {
+			slot.connection.close();
 		}
 		if (clusterClient != null) {
 			clusterClient.shutdown();
 		}
+		if (clientResources != null) {
+			clientResources.shutdown();
+		}
 	}
 
 	public boolean isAvailable() {
-		return connection != null;
+		return !slots.isEmpty();
 	}
 
 	/**
@@ -93,16 +119,18 @@ public class MarketRedisPipeline {
 	 */
 	public <T> List<RedisFuture<T>> submit(
 			Function<RedisAdvancedClusterAsyncCommands<String, String>, List<RedisFuture<T>>> commands) {
-		if (connection == null) {
+		if (slots.isEmpty()) {
 			throw new IllegalStateException("Market redis pipeline is not available");
 		}
-		submitLock.lock();
+		Slot slot = slotByThread.computeIfAbsent(Thread.currentThread().threadId(),
+				ignored -> slots.get(Math.floorMod(nextSlot.getAndIncrement(), slots.size())));
+		slot.lock.lock();
 		try {
-			List<RedisFuture<T>> futures = commands.apply(connection.async());
-			connection.flushCommands();
+			List<RedisFuture<T>> futures = commands.apply(slot.connection.async());
+			slot.connection.flushCommands();
 			return futures;
 		} finally {
-			submitLock.unlock();
+			slot.lock.unlock();
 		}
 	}
 
@@ -125,6 +153,12 @@ public class MarketRedisPipeline {
 			}
 		});
 		pubSubConnection.sync().subscribe(channel);
+	}
+
+	private record Slot(StatefulRedisClusterConnection<String, String> connection, ReentrantLock lock) {
+		private Slot(StatefulRedisClusterConnection<String, String> connection) {
+			this(connection, new ReentrantLock());
+		}
 	}
 
 	private RedisURI toRedisUri(String node) {
