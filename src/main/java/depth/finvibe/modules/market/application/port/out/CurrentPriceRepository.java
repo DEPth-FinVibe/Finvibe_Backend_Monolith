@@ -13,6 +13,14 @@ public interface CurrentPriceRepository {
      * 더 이른 체결시각이면 아무것도 쓰지 않고 빈 값을 돌려준다.
      */
     OptionalLong saveIfNewer(CurrentPrice currentPrice);
+
+    /**
+     * 여러 현재가를 saveIfNewer와 같은 규칙으로 저장한다. 결과는 입력과 같은 순서다.
+     * 같은 종목이 여러 번 있으면 앞의 것부터 적용한다.
+     */
+    default List<OptionalLong> saveAllIfNewer(List<CurrentPrice> currentPrices) {
+        return currentPrices.stream().map(this::saveIfNewer).toList();
+    }
     void deleteCurrentPrice(Long stockId);
 
     List<CurrentPrice> findByStockIds(List<Long> stockIds);

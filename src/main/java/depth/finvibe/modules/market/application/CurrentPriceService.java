@@ -20,6 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -77,14 +79,49 @@ public class CurrentPriceService implements CurrentPriceCommandUseCase {
         // 두 경로로 갈라지기 전에 한 번만 버전을 받아 Pub/Sub과 Kafka에 같은 값을 싣는다.
         OptionalLong priceVersion = currentPriceRepository.saveIfNewer(CurrentPrice.from(priceUpdate));
         if (priceVersion.isEmpty()) {
-            meterRegistry.counter(STALE_TICK_METRIC).increment();
-            log.debug("Skipped stale price tick. stockId={}, at={}", priceUpdate.getStockId(), priceUpdate.getAt());
+            recordStaleTick(priceUpdate);
             return;
         }
         priceUpdate.setPriceVersion(priceVersion.getAsLong());
         priceUpdate.setPublishedAt(System.currentTimeMillis());
         currentPriceEventPublisher.publish(priceUpdate);
+        produceIfPriceChanged(priceUpdate);
+    }
 
+    @Override
+    public void stockPricesUpdated(List<CurrentPriceUpdatedEvent> priceUpdates) {
+        if (priceUpdates.isEmpty()) {
+            return;
+        }
+        List<OptionalLong> priceVersions = currentPriceRepository.saveAllIfNewer(
+                priceUpdates.stream().map(CurrentPrice::from).toList());
+
+        long publishedAt = System.currentTimeMillis();
+        List<CurrentPriceUpdatedEvent> accepted = new ArrayList<>(priceUpdates.size());
+        for (int i = 0; i < priceUpdates.size(); i++) {
+            CurrentPriceUpdatedEvent priceUpdate = priceUpdates.get(i);
+            OptionalLong priceVersion = priceVersions.get(i);
+            if (priceVersion.isEmpty()) {
+                recordStaleTick(priceUpdate);
+                continue;
+            }
+            priceUpdate.setPriceVersion(priceVersion.getAsLong());
+            priceUpdate.setPublishedAt(publishedAt);
+            accepted.add(priceUpdate);
+        }
+        if (accepted.isEmpty()) {
+            return;
+        }
+        currentPriceEventPublisher.publishAll(accepted);
+        accepted.forEach(this::produceIfPriceChanged);
+    }
+
+    private void recordStaleTick(CurrentPriceUpdatedEvent priceUpdate) {
+        meterRegistry.counter(STALE_TICK_METRIC).increment();
+        log.debug("Skipped stale price tick. stockId={}, at={}", priceUpdate.getStockId(), priceUpdate.getAt());
+    }
+
+    private void produceIfPriceChanged(CurrentPriceUpdatedEvent priceUpdate) {
         BigDecimal newPrice = priceUpdate.getClose();
         BigDecimal prevPrice = lastPublishedPrices.get(priceUpdate.getStockId());
 

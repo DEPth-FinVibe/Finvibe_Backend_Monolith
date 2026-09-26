@@ -1,5 +1,6 @@
 package depth.finvibe.modules.market.application.port.in;
 
+import java.util.List;
 import java.util.UUID;
 
 import depth.finvibe.modules.market.dto.CurrentPriceUpdatedEvent;
@@ -23,4 +24,7 @@ public interface CurrentPriceCommandUseCase {
     // 실시간 주가 업데이트 처리
     // infra 계층은 redis에 저장된 인덱스를 보고 실시간으로 업데이트 하여 업데이트되면 이 메서드를 호출한다.
     void stockPriceUpdated(CurrentPriceUpdatedEvent priceUpdate);
+
+    // 여러 틱을 한 번에 처리한다. 틱마다 stockPriceUpdated와 같은 결과를 내지만 저장소·발행 왕복을 묶는다.
+    void stockPricesUpdated(List<CurrentPriceUpdatedEvent> priceUpdates);
 }

@@ -2,6 +2,7 @@ package depth.finvibe.modules.market.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.OptionalLong;
 
 import depth.finvibe.common.investment.dto.StockPriceUpdatedEvent;
@@ -154,6 +156,45 @@ class CurrentPriceServiceTest {
 
         // then
         verify(stockPriceEventProducer, times(1)).publishStockPriceUpdated(any(StockPriceUpdatedEvent.class));
+    }
+
+    @Test
+    @DisplayName("묶음 처리는 저장을 한 번에 하고, 버전을 받은 틱만 순서대로 한 번에 발행한다")
+    void stockPricesUpdated_batch_publishesAcceptedInOrder() {
+        // given
+        CurrentPriceUpdatedEvent first = priceEvent(1L, "70000");
+        CurrentPriceUpdatedEvent stale = priceEvent(2L, "50000");
+        CurrentPriceUpdatedEvent third = priceEvent(1L, "70100");
+        when(currentPriceRepository.saveAllIfNewer(anyList()))
+                .thenReturn(List.of(OptionalLong.of(10L), OptionalLong.empty(), OptionalLong.of(11L)));
+
+        // when
+        service.stockPricesUpdated(List.of(first, stale, third));
+
+        // then
+        verify(currentPriceRepository, never()).saveIfNewer(any(CurrentPrice.class));
+        ArgumentCaptor<List<CurrentPriceUpdatedEvent>> published = ArgumentCaptor.forClass(List.class);
+        verify(currentPriceEventPublisher).publishAll(published.capture());
+        assertThat(published.getValue()).containsExactly(first, third);
+        assertThat(first.getPriceVersion()).isEqualTo(10L);
+        assertThat(third.getPriceVersion()).isEqualTo(11L);
+        assertThat(stale.getPriceVersion()).isNull();
+        assertThat(meterRegistry.counter("market.current_price.stale_ticks").count()).isEqualTo(1.0);
+        verify(stockPriceEventProducer, times(2)).publishStockPriceUpdated(any(StockPriceUpdatedEvent.class));
+    }
+
+    @Test
+    @DisplayName("묶음의 모든 틱이 오래됐으면 아무것도 발행하지 않는다")
+    void stockPricesUpdated_allStale_publishesNothing() {
+        // given
+        when(currentPriceRepository.saveAllIfNewer(anyList())).thenReturn(List.of(OptionalLong.empty()));
+
+        // when
+        service.stockPricesUpdated(List.of(priceEvent(1L, "70000")));
+
+        // then
+        verify(currentPriceEventPublisher, never()).publishAll(anyList());
+        verify(stockPriceEventProducer, never()).publishStockPriceUpdated(any(StockPriceUpdatedEvent.class));
     }
 
     private CurrentPriceUpdatedEvent priceEvent(Long stockId, String close) {

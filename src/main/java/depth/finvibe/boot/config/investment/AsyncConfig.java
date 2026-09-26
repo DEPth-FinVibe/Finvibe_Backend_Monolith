@@ -25,18 +25,6 @@ public class AsyncConfig {
     return executor;
   }
 
-  @Bean(name = "priceEventExecutor")
-  public Executor priceEventExecutor() {
-    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-    executor.setCorePoolSize(8);
-    executor.setMaxPoolSize(16);
-    executor.setQueueCapacity(1000);
-    executor.setThreadNamePrefix("price-event-");
-    executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-    executor.initialize();
-    return executor;
-  }
-
   @Bean(name = "reservationEventExecutor")
   public Executor reservationEventExecutor() {
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
