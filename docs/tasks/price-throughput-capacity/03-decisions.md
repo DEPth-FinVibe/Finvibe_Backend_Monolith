@@ -131,3 +131,21 @@
   6. `master_link_status:up` 확인
 - 레플리카 0·2·5를 옮긴 뒤 `redis-cluster-0`·`redis-cluster-2`에서 `CLUSTER FAILOVER`를 실행한다. 최종 목표는 `vmi3244740`에 마스터 1 + 레플리카 3·4, `vmi2974623`에 마스터 0·2 + 레플리카 5다.
 - 참고: `redis-cluster-0`이 스스로 알리는 IP(`10.42.1.254`)가 파드 IP(`10.42.1.55`)와 다르다. 클러스터가 호스트명으로 통신(`--cluster-preferred-endpoint-type hostname`)하므로 동작에는 영향이 없다.
+
+### D7 실행 결과 (2026-09-26 11:59~12:20, 사용자가 운영 서버에서 실행)
+
+- 레플리카 이동(PVC 삭제 → `vmi2974623`에서 재생성 → `CLUSTER FORGET` → `--cluster add-node --cluster-slave`)
+  - `redis-cluster-2`: 11:59:50
+  - `redis-cluster-5`: 12:08:36
+  - `redis-cluster-0`: 12:15:51
+  - 매번 `master_link_up = 1`, 6개 노드 모두 `cluster_state = ok`, known nodes 6개(옛 ID 잔존 없음)를 확인했다.
+- `redis-cluster-0`, `redis-cluster-2`에서 `CLUSTER FAILOVER`를 실행했다.
+- 최종 배치:
+
+| 노드 | 마스터 | 레플리카 |
+|---|---|---|
+| `vmi3244740` | `redis-cluster-1` (5461-10922) | 3, 4 |
+| `vmi2974623` | `redis-cluster-0` (0-5460), `redis-cluster-2` (10923-16383) | 5 |
+
+- 각 마스터의 레플리카가 다른 노드에 있어 노드 한 대 장애에도 슬롯이 유지된다.
+- 매니페스트의 스테이트풀셋 스펙은 바꾸지 않았다(PVC 노드 고정 때문). 새로 생긴 PVC가 `vmi2974623`에 묶여 있어 재시작해도 배치가 유지된다.
