@@ -218,3 +218,14 @@
   - 프로파일 `ws-guest-1k`: 2분 동안 `WS_GUEST_VUS`(기본 1,000)까지 올린 뒤 `WS_HOLD`(기본 90분) 동안 유지한다.
 - 스모크(5세션, 초당 250건·Kafka 켜짐): 연결 성공률 100%, 종단 지연 p50 29ms / p99 118ms.
   - 일부 음수 값은 Mac과 서버의 시계 차이(수십 ms) 때문이다. 종단 지연은 ±50ms 오차로 해석한다.
+
+## 발견: 모놀리식 기동 지연의 원인은 활성 노드 수 조회용 전체 키 스캔 (2026-09-26 14:05~14:31)
+
+- 증상: 새 모놀리식 파드(`8e15d9b`)가 부하(초당 250건) 중에 startupProbe 한도(10분)를 두 번 넘겨 재시작했다. 그동안 파드 CPU는 0.08코어 수준으로 낮았다.
+- 로그(사용자 제공):
+  - 05:17:43 UTC `ActiveNodeRegistry 초기화 완료`
+  - 이어서 `KisCredentialAllocator.init()` → `ActiveNodeRegistry.getActiveNodeCount()`
+  - `redissonClient.getKeys().getKeysByPattern("market:subscription-node:*")`가 `RedissonKeys` 반복자(클러스터 전체 `SCAN`) 안에서 8분간 진행되다가 종료 신호로 `InterruptedException`이 났다.
+- 규모: Redis 키가 인스턴스당 약 68만 개(마스터 3대 합계 약 205만 개)다. Redisson 기본 `SCAN` COUNT(10)로 약 20만 번 왕복한다. 기동 중 `SCAN`이 초당 약 900번이므로 부하가 없어도 약 3~4분이고, Redis가 바쁘면 8분 이상 걸린다.
+- 해석: 그동안 원인을 몰랐던 모놀리식 기동 290~350초의 대부분이 이 스캔으로 보인다. 활성 노드를 전용 집합(SET/ZSET)으로 관리하면 조회 한 번으로 끝난다.
+- 처리: 이번 작업(#17) 범위에 넣을지는 사용자 결정으로 남긴다.
