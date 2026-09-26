@@ -40,7 +40,8 @@ export const options = {
 export function setup() {
 	ensureRuntimeConfig();
 	let authTokens = parsePreissuedTokens();
-	if (authTokens.length === 0) {
+	const guestMode = String(__ENV.WS_GUEST || '').toLowerCase() === 'true';
+	if (authTokens.length === 0 && !guestMode) {
 		authTokens = issueTokensFromCredentials(
 			sharedRuntimeData.baseUrl,
 			sharedRuntimeData.credentials

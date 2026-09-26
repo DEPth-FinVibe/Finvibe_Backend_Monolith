@@ -13,6 +13,26 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 const WS_LOAD_PROFILES = {
+	// #17 현재가 경로 부하 시험: 게스트 세션을 일정 수로 유지하고, 서버 쪽 발행량을 올려 가며 측정한다.
+	'ws-guest-1k': {
+		scenarios: {
+			ws_quote: {
+				executor: 'ramping-vus',
+				startVUs: 0,
+				stages: [
+					{ target: Number(__ENV.WS_GUEST_VUS || 1000), duration: '2m' },
+					{ target: Number(__ENV.WS_GUEST_VUS || 1000), duration: __ENV.WS_HOLD || '90m' },
+				],
+				gracefulRampDown: '10s',
+				exec: 'default',
+				tags: { scenario_group: 'ws_quote' },
+			},
+		},
+		thresholds: {
+			ws_connect_rate: ['rate>0.95'],
+		},
+	},
+
 	'ws-connect': {
 		scenarios: {
 			ws_connect: {

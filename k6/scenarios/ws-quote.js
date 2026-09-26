@@ -12,7 +12,11 @@ import {
 	wsConnectionsOpened,
 	wsConnectionsClosed,
 	wsAuthFailCount,
+	wsE2eLag,
 } from '../lib/ws-metrics.js';
+
+// 게스트 모드(#17 부하 시험): 토큰 없이 연결 직후 구독한다. 게스트 구독은 서버가 인증 없이 허용한다.
+const GUEST_MODE = String(__ENV.WS_GUEST || '').toLowerCase() === 'true';
 
 function pickRandomSubset(arr, count) {
 	const shuffled = arr.slice().sort(() => Math.random() - 0.5);
@@ -20,8 +24,8 @@ function pickRandomSubset(arr, count) {
 }
 
 export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
-	const token = pickToken(tokens);
-	if (!token) {
+	const token = GUEST_MODE ? null : pickToken(tokens);
+	if (!GUEST_MODE && !token) {
 		wsConnectFail.add(1);
 		wsConnectRate.add(false);
 		return;
@@ -44,6 +48,10 @@ export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
 
 		socket.on('open', function () {
 			wsConnectRate.add(true);
+			if (GUEST_MODE) {
+				socket.send(JSON.stringify({ type: 'subscribe', request_id: 'r1', topics }));
+				return;
+			}
 			authSentAtMs = Date.now();
 			socket.send(JSON.stringify({ type: 'auth', token }));
 		});
@@ -92,6 +100,10 @@ export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
 					if (typeof msg.ts === 'number') {
 						const lag = Date.now() + clockOffsetMs - msg.ts;
 						wsDeliveryLag.add(lag);
+					}
+					// 모놀리식에서 틱이 만들어진 시각(eventTs)부터 k6 수신까지. 클라이언트·서버 시계는 NTP 동기 가정.
+					if (msg.data && typeof msg.data.eventTs === 'number' && !msg.data.initial) {
+						wsE2eLag.add(Date.now() + clockOffsetMs - msg.data.eventTs);
 					}
 					wsEventsReceived.add(1);
 					break;

@@ -3,6 +3,9 @@ import { Counter, Rate, Trend } from 'k6/metrics';
 // 이벤트 ts ~ k6 수신 시각 간격 (ms) — 백프레셔 핵심 지표
 export const wsDeliveryLag = new Trend('ws_delivery_lag_ms', true);
 
+// 모놀리식 틱 생성(eventTs) ~ k6 수신 간격 (ms) — 현재가 경로 종단 지연
+export const wsE2eLag = new Trend('ws_e2e_lag_ms', true);
+
 // 연결 성공률
 export const wsConnectRate = new Rate('ws_connect_rate');
 

@@ -7,6 +7,7 @@ import depth.finvibe.common.investment.dto.ReservationSatisfiedEvent;
 import depth.finvibe.common.investment.dto.StockPriceUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,10 @@ public class MarketKafkaProducer implements ReservationEventPublisher, StockPric
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
+    // 부하 시험(#17)에서 현재가 경로만 재기 위해 수익률 워커로 가는 시세 발행을 끌 수 있게 한다. 기본은 켜짐.
+    @Value("${market.price-events.kafka-enabled:true}")
+    private boolean stockPriceKafkaEnabled = true;
+
     @Override
     public void publishReservationConditionMetEvent(Long tradeId, ReservationType type, Long stockId, Long price) {
         String typeStr = type == ReservationType.BUY ? "BUY" : "SELL";
@@ -30,6 +35,9 @@ public class MarketKafkaProducer implements ReservationEventPublisher, StockPric
 
     @Override
     public void publishStockPriceUpdated(StockPriceUpdatedEvent event) {
+        if (!stockPriceKafkaEnabled) {
+            return;
+        }
         kafkaTemplate.send(STOCK_PRICE_UPDATED_TOPIC, String.valueOf(event.getStockId()), event)
             .whenComplete((result, ex) -> {
                 if (ex != null) {
