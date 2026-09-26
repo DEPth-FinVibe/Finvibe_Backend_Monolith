@@ -331,6 +331,7 @@
   - D15에서 요청을 1로 잡을 때 taint를 확인하지 않았다.
 - 처리: 사용자 선택으로 **이번만 이전 파드를 수동 삭제**했다(모놀리식 약 1분 중단).
 - 후속 결정(2026-09-26 18:57, 사용자 선택): 요청 0.5로 낮추기 / 먼저 내리고 올리기 / 매번 수동 삭제 중 **매번 이전 파드를 수동 삭제**한다. 새 파드가 Pending이 되면 `sudo kubectl -n finvibe delete pod <이전 파드>`를 실행한다.
+- 재결정(19:57): 사용자가 "앞으로 계속 되게" 해 달라고 해서, **배포 전략을 `maxSurge: 0`, `maxUnavailable: 1`로 바꿨다**(Manifest `f4135ba`). CPU 요청·한도는 그대로다. 배포마다 약 1분 중단되지만 항상 스케줄되고, KIS 자격증명 쟁탈도 피한다.
 
 ## D14 효과 측정 (Lettuce 전환, CPU 한도 2, 1,600 목표, 구독 복구 후 17:54~17:59 5분 평균)
 
@@ -389,8 +390,7 @@
   5. 현재가 경로가 끝나면 수익률 부하 시험(Kafka 발행 다시 켜기)으로 넘어간다.
 - 남은 정리:
   - `ActiveNodeRegistry`의 레거시 노드별 heartbeat 키 제거
-  - KIS 자격증명 쟁탈 대응
-  - CPU 요청 1과 롤링 배포 스케줄 막힘 대응(다음 배포 전 결정)
+  - KIS 자격증명 쟁탈 대응(배포 전략 변경으로 배포 중에는 발생하지 않음. 파드가 2대 이상일 때는 남는다)
   - mock 끄고 KIS 복구, `04-result.md` 작성, 레포별 PR
 - 운영 명령 형식(서버 `vmi2974623`에서): `sudo kubectl -n finvibe exec redis-cluster-1 -- sh -c 'redis-cli --no-auth-warning -a "$REDIS_PASSWORD" -c SET market:mock:control <값>'`
 - JFR 주의: `JAVA_TOOL_OPTIONS`가 걸린 파드에서 `jfr` 도구를 쓸 때는 `env -u JAVA_TOOL_OPTIONS`를 붙인다. 이미지가 JRE 전용이라 `jcmd`는 없다.
