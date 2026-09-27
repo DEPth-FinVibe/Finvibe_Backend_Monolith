@@ -109,6 +109,22 @@ export function runWsQuoteFlow(wsUrl, wsStockPool, tokens) {
 					break;
 				}
 
+				case 'events': {
+					// 리스너가 여러 틱을 프레임 하나로 묶어 보낸다(#17 D19). 틱마다 지연을 잰다.
+					const now = Date.now() + clockOffsetMs;
+					const items = Array.isArray(msg.items) ? msg.items : [];
+					for (const item of items) {
+						if (typeof item.ts === 'number') {
+							wsDeliveryLag.add(now - item.ts);
+						}
+						if (item.data && typeof item.data.eventTs === 'number' && !item.data.initial) {
+							wsE2eLag.add(now - item.data.eventTs);
+						}
+					}
+					wsEventsReceived.add(items.length);
+					break;
+				}
+
 				case 'ping': {
 					socket.send(JSON.stringify({ type: 'pong' }));
 					break;
