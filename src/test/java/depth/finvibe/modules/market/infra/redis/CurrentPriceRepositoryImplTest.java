@@ -24,6 +24,7 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import depth.finvibe.modules.market.domain.CurrentPrice;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,12 +55,13 @@ class CurrentPriceRepositoryImplTest {
     private RedisAdvancedClusterAsyncCommands<String, String> clusterCommands;
 
     private final ObjectMapper objectMapper = JsonMapper.builder().build();
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private CurrentPriceRepositoryImpl repository;
 
     @BeforeEach
     void setUp() {
-        repository = new CurrentPriceRepositoryImpl(redisTemplate, objectMapper, marketRedisPipeline);
+        repository = new CurrentPriceRepositoryImpl(redisTemplate, objectMapper, marketRedisPipeline, meterRegistry);
     }
 
     @Test
@@ -178,6 +180,63 @@ class CurrentPriceRepositoryImplTest {
 
         // then
         assertThat(result).containsExactly(OptionalLong.of(7L), OptionalLong.of(7L));
+    }
+
+    @Test
+    @DisplayName("전환 중 실패한 틱은 종목마다 처음 실패한 틱부터 뒤의 틱까지 다시 보내고, 다른 종목은 다시 보내지 않는다")
+    void saveAllIfNewer_failedTicks_retriesFromFirstFailurePerStock() throws Exception {
+        // given: 종목 A의 첫 틱이 실패하고, A의 둘째 틱과 종목 B는 성공한다.
+        givenPipeline();
+        RedisFuture<String> failed = failed();
+        RedisFuture<String> a2 = completed("11");
+        RedisFuture<String> b1 = completed("21");
+        RedisFuture<String> a1Retried = completed("12");
+        RedisFuture<String> a2Retried = completed("13");
+        when(clusterCommands.<String>evalsha(anyString(), eq(ScriptOutputType.VALUE), any(String[].class), any(String[].class)))
+                .thenReturn(failed, a2, b1, a1Retried, a2Retried);
+        List<CurrentPrice> ticks = List.of(currentPrice(1L), currentPrice(1L), currentPrice(2L));
+
+        // when
+        List<OptionalLong> result = repository.saveAllIfNewer(ticks);
+
+        // then: 두 번째 시도는 A의 두 틱만 입력 순서대로 보낸다.
+        assertThat(result).containsExactly(OptionalLong.of(12L), OptionalLong.of(13L), OptionalLong.of(21L));
+        ArgumentCaptor<String[]> keys = ArgumentCaptor.forClass(String[].class);
+        verify(clusterCommands, times(5)).evalsha(anyString(), eq(ScriptOutputType.VALUE), keys.capture(), any(String[].class));
+        assertThat(keys.getAllValues().subList(3, 5)).extracting(k -> k[0])
+                .containsExactly("market:current-price:{stock:1}", "market:current-price:{stock:1}");
+        assertThat(meterRegistry.counter("market.current_price.save_retried").count()).isEqualTo(2.0);
+    }
+
+    @Test
+    @DisplayName("재시도 시간 안에 복구되지 않으면 예외를 던진다")
+    void saveAllIfNewer_retryWindowExceeded_throws() throws Exception {
+        // given
+        givenPipeline();
+        repository.setRetryWindow(java.time.Duration.ofMillis(250));
+        RedisFuture<String> failed = failed();
+        when(clusterCommands.<String>evalsha(anyString(), eq(ScriptOutputType.VALUE), any(String[].class), any(String[].class)))
+                .thenReturn(failed);
+
+        // when & then: 100ms 뒤 한 번 더 시도하고, 다음 200ms 대기는 한도를 넘어 멈춘다.
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.saveAllIfNewer(List.of(currentPrice())))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("after retries");
+        verify(clusterCommands, times(2)).evalsha(anyString(), eq(ScriptOutputType.VALUE), any(String[].class), any(String[].class));
+    }
+
+    private CurrentPrice currentPrice(Long stockId) {
+        BigDecimal price = new BigDecimal("71200");
+        return new CurrentPrice(stockId, TICK_AT, price, price, price, price, price,
+                BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private RedisFuture<String> failed() throws Exception {
+        RedisFuture<String> future = org.mockito.Mockito.mock(RedisFuture.class);
+        when(future.get(anyLong(), any(TimeUnit.class)))
+                .thenThrow(new ExecutionException(new io.lettuce.core.RedisConnectionException("Connection closed")));
+        return future;
     }
 
     @SuppressWarnings("unchecked")

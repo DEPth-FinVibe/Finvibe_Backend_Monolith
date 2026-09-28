@@ -5,7 +5,9 @@ import depth.finvibe.modules.market.domain.CurrentPrice;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.ScriptOutputType;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -24,12 +26,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+@Slf4j
 @Repository
 @RequiredArgsConstructor
 public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
@@ -69,11 +74,22 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
     private static final String SAVE_IF_NEWER_SHA = SAVE_IF_NEWER_SCRIPT.getSha1();
     private static final Duration PIPELINE_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration LOCAL_CACHE_TTL = Duration.ofSeconds(1);
+    // 자동 페일오버는 cluster-node-timeout(5초)과 선출을 합쳐 수 초 걸린다. 그보다 넉넉히 다시 시도한다.
+    private static final Duration RETRY_INITIAL_BACKOFF = Duration.ofMillis(100);
+    private static final Duration RETRY_MAX_BACKOFF = Duration.ofSeconds(1);
+    private static final Duration DEFAULT_RETRY_WINDOW = Duration.ofSeconds(15);
+    private static final String SAVE_RETRIED_METRIC = "market.current_price.save_retried";
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final MarketRedisPipeline marketRedisPipeline;
+    private final MeterRegistry meterRegistry;
     private final Map<Long, LocalCacheEntry> localCache = new ConcurrentHashMap<>();
+    private Duration retryWindow = DEFAULT_RETRY_WINDOW;
+
+    void setRetryWindow(Duration retryWindow) {
+        this.retryWindow = retryWindow;
+    }
 
     @Override
     public OptionalLong saveIfNewer(CurrentPrice currentPrice) {
@@ -127,36 +143,32 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
             });
         }
 
-        // 같은 종목은 같은 slot이라 한 노드 연결에서 보낸 순서대로 실행된다.
-        List<RedisFuture<String>> futures = marketRedisPipeline.submit(commands -> {
-            List<RedisFuture<String>> submitted = new ArrayList<>(keys.size());
-            for (int i = 0; i < keys.size(); i++) {
-                submitted.add(commands.evalsha(SAVE_IF_NEWER_SHA, ScriptOutputType.VALUE, keys.get(i), args.get(i)));
-            }
-            return submitted;
-        });
-
         List<OptionalLong> results = new ArrayList<>(Collections.nCopies(currentPrices.size(), OptionalLong.empty()));
-        List<Integer> missingScript = new ArrayList<>();
-        for (int i = 0; i < futures.size(); i++) {
-            try {
-                results.set(i, toVersion(await(futures.get(i))));
-            } catch (RedisNoScriptException ex) {
-                missingScript.add(i);
-            }
+        List<Integer> pending = new ArrayList<>(currentPrices.size());
+        for (int i = 0; i < currentPrices.size(); i++) {
+            pending.add(i);
         }
-        if (!missingScript.isEmpty()) {
-            // 페일오버 등으로 노드에 스크립트가 없으면 본문으로 다시 보낸다. 이후로는 캐시된다.
-            List<RedisFuture<String>> retried = marketRedisPipeline.submit(commands -> {
-                List<RedisFuture<String>> submitted = new ArrayList<>(missingScript.size());
-                for (int index : missingScript) {
-                    submitted.add(commands.eval(SAVE_IF_NEWER_LUA, ScriptOutputType.VALUE, keys.get(index), args.get(index)));
-                }
-                return submitted;
-            });
-            for (int i = 0; i < missingScript.size(); i++) {
-                results.set(missingScript.get(i), toVersion(await(retried.get(i))));
+
+        // Redis 마스터가 바뀌는 동안에는 일부 명령이 실패한다. 실패한 틱만 간격을 늘려 가며 다시 보낸다.
+        // 그동안 레인은 멈추고 큐가 쌓인다(틱은 버리지 않는다).
+        long deadline = System.nanoTime() + retryWindow.toNanos();
+        long backoffMillis = RETRY_INITIAL_BACKOFF.toMillis();
+        while (true) {
+            Map<Integer, RuntimeException> failures = saveOnce(pending, keys, args, results);
+            if (failures.isEmpty()) {
+                break;
             }
+            RuntimeException cause = failures.values().iterator().next();
+            if (System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(backoffMillis) > deadline) {
+                throw new IllegalStateException(
+                        "Failed to save current prices after retries. failed=" + failures.size(), cause);
+            }
+            pending = retryFromFirstFailurePerStock(currentPrices, failures.keySet());
+            meterRegistry.counter(SAVE_RETRIED_METRIC).increment(pending.size());
+            log.warn("Retrying current price save. failed={}, retrying={}, backoffMs={}",
+                    failures.size(), pending.size(), backoffMillis, cause);
+            sleep(backoffMillis);
+            backoffMillis = Math.min(backoffMillis * 2, RETRY_MAX_BACKOFF.toMillis());
         }
 
         for (int i = 0; i < currentPrices.size(); i++) {
@@ -166,6 +178,85 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
             }
         }
         return results;
+    }
+
+    /**
+     * 주어진 틱들을 한 번 저장하고, 실패한 틱의 위치와 원인을 돌려줍니다. 성공한 틱의 버전은 results에 씁니다.
+     */
+    private Map<Integer, RuntimeException> saveOnce(
+            List<Integer> indices, List<String[]> keys, List<String[]> args, List<OptionalLong> results) {
+        // 같은 종목은 같은 slot이라 한 노드 연결에서 보낸 순서대로 실행된다.
+        List<RedisFuture<String>> futures = marketRedisPipeline.submit(commands -> {
+            List<RedisFuture<String>> submitted = new ArrayList<>(indices.size());
+            for (int index : indices) {
+                submitted.add(commands.evalsha(SAVE_IF_NEWER_SHA, ScriptOutputType.VALUE, keys.get(index), args.get(index)));
+            }
+            return submitted;
+        });
+
+        Map<Integer, RuntimeException> failures = new TreeMap<>();
+        List<Integer> missingScript = new ArrayList<>();
+        for (int i = 0; i < futures.size(); i++) {
+            int index = indices.get(i);
+            try {
+                results.set(index, toVersion(await(futures.get(i))));
+            } catch (RedisNoScriptException ex) {
+                missingScript.add(index);
+            } catch (IllegalStateException ex) {
+                failures.put(index, ex);
+            }
+        }
+        if (missingScript.isEmpty()) {
+            return failures;
+        }
+
+        // 페일오버 등으로 노드에 스크립트가 없으면 본문으로 다시 보낸다. 이후로는 캐시된다.
+        List<RedisFuture<String>> retried = marketRedisPipeline.submit(commands -> {
+            List<RedisFuture<String>> submitted = new ArrayList<>(missingScript.size());
+            for (int index : missingScript) {
+                submitted.add(commands.eval(SAVE_IF_NEWER_LUA, ScriptOutputType.VALUE, keys.get(index), args.get(index)));
+            }
+            return submitted;
+        });
+        for (int i = 0; i < missingScript.size(); i++) {
+            int index = missingScript.get(i);
+            try {
+                results.set(index, toVersion(await(retried.get(i))));
+            } catch (RuntimeException ex) {
+                failures.put(index, ex);
+            }
+        }
+        return failures;
+    }
+
+    /**
+     * 종목마다 처음 실패한 틱부터 그 뒤의 틱까지 다시 보낼 위치를 돌려줍니다.
+     * <p>
+     * 앞선 틱만 나중에 다시 저장하면, 같은 초 안에서는 먼저 저장된 뒤 틱 위에 오래된 가격이 덮어써진다.
+     * 그래서 이미 성공한 뒤 틱도 함께 다시 보내 입력 순서대로 적용되게 한다.
+     */
+    private static List<Integer> retryFromFirstFailurePerStock(List<CurrentPrice> currentPrices, Set<Integer> failed) {
+        Map<Long, Integer> firstFailureByStock = new HashMap<>();
+        for (int index : failed) {
+            firstFailureByStock.merge(currentPrices.get(index).getStockId(), index, Math::min);
+        }
+        List<Integer> retry = new ArrayList<>();
+        for (int i = 0; i < currentPrices.size(); i++) {
+            Integer firstFailure = firstFailureByStock.get(currentPrices.get(i).getStockId());
+            if (firstFailure != null && i >= firstFailure) {
+                retry.add(i);
+            }
+        }
+        return retry;
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while retrying current price save", ex);
+        }
     }
 
     private String serialize(CurrentPrice currentPrice) {
@@ -195,6 +286,8 @@ public class CurrentPriceRepositoryImpl implements CurrentPriceRepository {
             }
             throw new IllegalStateException("Failed to save current price", ex.getCause());
         } catch (TimeoutException ex) {
+            // 아직 보내지 않은 명령이면 취소해, 다시 보낸 뒤에 늦게 실행되지 않게 한다.
+            future.cancel(false);
             throw new IllegalStateException("Timed out saving current price", ex);
         }
     }
